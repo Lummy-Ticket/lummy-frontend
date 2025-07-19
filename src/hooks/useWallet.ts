@@ -47,10 +47,10 @@ export const useWallet = () => {
       }
 
       const result = await transactionService.buyTicket(
-        eventId,
-        ticketTierId,
-        price,
-        quantity
+        eventId, // eventAddress
+        Number(ticketTierId), // tierId as number
+        quantity, // quantity
+        price // pricePerTicket
       );
 
       if (result.success) {
@@ -71,7 +71,11 @@ export const useWallet = () => {
         };
       }
 
-      const result = await transactionService.resellTicket(ticketId, price);
+      const result = await transactionService.resellTicket(
+        "", // eventAddress - needs to be provided
+        BigInt(ticketId), // tokenId as bigint
+        price // resalePrice
+      );
 
       if (result.success) {
         await context.refreshBalance();
@@ -92,8 +96,9 @@ export const useWallet = () => {
       }
 
       const result = await transactionService.transferTicket(
-        ticketId,
-        toAddress
+        "", // nftAddress - needs to be provided
+        BigInt(ticketId), // tokenId as bigint
+        toAddress // toAddress
       );
 
       if (result.success) {

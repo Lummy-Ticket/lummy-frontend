@@ -15,7 +15,6 @@ import {
 } from "@chakra-ui/react";
 import { FaExchangeAlt, FaExclamationTriangle, FaCheckCircle } from "react-icons/fa";
 import { useAccount, useChainId } from "wagmi";
-import { liskSepolia } from "viem/chains";
 import { 
   switchToLiskSepolia, 
   isOnLiskSepolia, 

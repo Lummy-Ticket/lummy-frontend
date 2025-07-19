@@ -42,7 +42,7 @@ const PersonalInfo: React.FC<PersonalInfoProps> = ({ initialData, onSave }) => {
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === "userEmail" && e.newValue) {
-        setFormData((prev) => ({ ...prev, email: e.newValue }));
+        setFormData((prev) => ({ ...prev, email: e.newValue || "" }));
       }
     };
 
