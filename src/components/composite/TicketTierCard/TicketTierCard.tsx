@@ -18,6 +18,7 @@ import {
 } from "@chakra-ui/react";
 import { CheckIcon } from "@chakra-ui/icons";
 import { TicketTier } from "../../../types/Event";
+import { formatPrice, formatNumber } from "../../../utils/contractUtils";
 
 interface TicketTierCardProps {
   tier: TicketTier;
@@ -35,7 +36,10 @@ export const TicketTierCard: React.FC<TicketTierCardProps> = ({
 }) => {
   const [quantity, setQuantity] = useState<number>(0);
   const [, setTotalPrice] = useState<number>(tier.price * quantity);
-  const isAvailable = tier.available > 0;
+  // Handle both active field and available > 0 for tier availability
+  const isAvailable = (tier.active !== false) && tier.available > 0;
+  const totalSold = tier.sold || 0;
+  const totalAvailable = tier.available + totalSold;
 
   // Update local quantity when selected quantity changes from parent
   useEffect(() => {
@@ -87,7 +91,7 @@ export const TicketTierCard: React.FC<TicketTierCardProps> = ({
       transition="all 0.3s"
     >
       {/* Status Badge */}
-      {tier.available < 10 && tier.available > 0 && (
+      {tier.available < 10 && tier.available > 0 && tier.active !== false && (
         <Badge
           position="absolute"
           top={3}
@@ -99,11 +103,11 @@ export const TicketTierCard: React.FC<TicketTierCardProps> = ({
           py={1}
           borderRadius="md"
         >
-          Only {tier.available} left
+          Only {formatNumber(tier.available)} left
         </Badge>
       )}
 
-      {tier.available === 0 && (
+      {(tier.available === 0 || tier.active === false) && (
         <Badge
           position="absolute"
           top={3}
@@ -115,7 +119,7 @@ export const TicketTierCard: React.FC<TicketTierCardProps> = ({
           py={1}
           borderRadius="md"
         >
-          Sold Out
+          {tier.active === false ? "Inactive" : "Sold Out"}
         </Badge>
       )}
 
@@ -132,11 +136,23 @@ export const TicketTierCard: React.FC<TicketTierCardProps> = ({
             </Text>
 
             <Text fontWeight="bold" fontSize="2xl" color="purple.600">
-              {tier.price} {tier.currency}
+              {formatPrice(tier.price, tier.currency)}
             </Text>
 
             <Text color="gray.600" fontSize="md">
               {tier.description}
+            </Text>
+
+            {/* Show sold count if available */}
+            {totalSold > 0 && (
+              <Text color="gray.500" fontSize="sm">
+                {formatNumber(totalSold)} / {formatNumber(totalAvailable)} sold
+              </Text>
+            )}
+
+            {/* Show max per purchase info */}
+            <Text color="gray.500" fontSize="sm">
+              Max {formatNumber(tier.maxPerPurchase)} per purchase
             </Text>
 
             {/* Benefits List */}
@@ -208,7 +224,7 @@ export const TicketTierCard: React.FC<TicketTierCardProps> = ({
             </VStack>
           ) : (
             <Button width="100%" isDisabled size="md" colorScheme="gray">
-              Sold Out
+              {tier.active === false ? "Inactive" : "Sold Out"}
             </Button>
           )}
         </Box>

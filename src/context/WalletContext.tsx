@@ -9,15 +9,31 @@ import XellarSDK, {
   XellarWallet,
   WalletBalance,
 } from "../services/XellarIntegration";
+import { formatTokenAmount, parseTokenAmount } from "../utils/contractUtils";
+
+// Enhanced balance interface for contract compatibility
+interface ContractWalletBalance {
+  IDRX: bigint;  // Balance in Wei
+  LSK: bigint;   // Balance in Wei
+  // Display formatted versions
+  IDRXFormatted: string;
+  LSKFormatted: string;
+}
 
 interface WalletContextType {
   wallet: XellarWallet | null;
   isConnecting: boolean;
   isConnected: boolean;
-  balance: WalletBalance;
+  balance: WalletBalance;  // Legacy balance (numbers)
+  contractBalance: ContractWalletBalance;  // Contract-compatible balance (bigint)
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   refreshBalance: () => Promise<void>;
+  // New contract-specific methods
+  getIDRXBalance: () => bigint;
+  getLSKBalance: () => bigint;
+  hasMinimumBalance: (amount: bigint) => boolean;
+  formatBalance: (amount: bigint, currency: 'IDRX' | 'LSK') => string;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -28,6 +44,12 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
   const [wallet, setWallet] = useState<XellarWallet | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [balance, setBalance] = useState<WalletBalance>({ IDRX: 0, LSK: 0 });
+  const [contractBalance, setContractBalance] = useState<ContractWalletBalance>({
+    IDRX: 0n,
+    LSK: 0n,
+    IDRXFormatted: "0",
+    LSKFormatted: "0",
+  });
   const sdk = XellarSDK.getInstance();
 
   useEffect(() => {
@@ -74,6 +96,12 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
       await sdk.disconnect();
       setWallet(null);
       setBalance({ IDRX: 0, LSK: 0 });
+      setContractBalance({
+        IDRX: 0n,
+        LSK: 0n,
+        IDRXFormatted: "0",
+        LSKFormatted: "0",
+      });
     } catch (error) {
       console.error("Failed to disconnect wallet:", error);
     }
@@ -85,9 +113,38 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
     try {
       const balances = await sdk.getAllBalances();
       setBalance(balances);
+      
+      // Convert to contract-compatible format
+      const idrxWei = parseTokenAmount(balances.IDRX.toString());
+      const lskWei = parseTokenAmount(balances.LSK.toString());
+      
+      setContractBalance({
+        IDRX: idrxWei,
+        LSK: lskWei,
+        IDRXFormatted: formatTokenAmount(idrxWei),
+        LSKFormatted: formatTokenAmount(lskWei),
+      });
     } catch (error) {
       console.error("Failed to fetch balance:", error);
     }
+  };
+
+  // Contract-specific helper methods
+  const getIDRXBalance = (): bigint => {
+    return contractBalance.IDRX;
+  };
+
+  const getLSKBalance = (): bigint => {
+    return contractBalance.LSK;
+  };
+
+  const hasMinimumBalance = (amount: bigint): boolean => {
+    return contractBalance.IDRX >= amount;
+  };
+
+  const formatBalance = (amount: bigint, currency: 'IDRX' | 'LSK'): string => {
+    const formatted = formatTokenAmount(amount);
+    return `${formatted} ${currency}`;
   };
 
   const value = {
@@ -95,9 +152,14 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({
     isConnecting,
     isConnected: !!wallet,
     balance,
+    contractBalance,
     connect,
     disconnect,
     refreshBalance,
+    getIDRXBalance,
+    getLSKBalance,
+    hasMinimumBalance,
+    formatBalance,
   };
 
   return (

@@ -6,29 +6,63 @@ import {
   EVENT_FACTORY_ABI,
 } from "../contracts/EventFactory";
 import { EVENT_ABI } from "../contracts/Event";
+import { TICKET_NFT_ABI } from "../contracts/TicketNFT";
+import { 
+  parseTokenAmount, 
+  parseContractDate,
+  parseContractError 
+} from "../utils/contractUtils";
 
 /**
- * Interface for Event data returned from contracts
+ * Interface for Event data returned from contracts (legacy - use ContractEvent)
  */
 export interface EventData {
+  eventId: bigint;
   name: string;
   description: string;
-  date: number;
+  date: bigint;  // Unix timestamp
   venue: string;
   ipfsMetadata: string;
   organizer: string;
+  cancelled: boolean;
+  useAlgorithm1: boolean;
 }
 
 /**
- * Interface for Ticket Tier data from contracts
+ * Interface for Ticket Tier data from contracts (legacy - use ContractTicketTier)
  */
 export interface TicketTierData {
   name: string;
-  price: number;
-  available: number;
-  sold: number;
-  maxPerPurchase: number;
+  price: bigint;  // Price in Wei
+  available: bigint;
+  sold: bigint;
+  maxPerPurchase: bigint;
   active: boolean;
+}
+
+/**
+ * Interface for ticket purchase transaction
+ */
+export interface TicketPurchaseData {
+  eventAddress: string;
+  tierId: bigint;
+  quantity: bigint;
+  totalPrice: bigint;
+  buyer: string;
+}
+
+/**
+ * Interface for NFT ticket metadata
+ */
+export interface TicketNFTMetadata {
+  tokenId: bigint;
+  owner: string;
+  eventAddress: string;
+  tierId: bigint;
+  originalPrice: bigint;
+  used: boolean;
+  transferred: boolean;
+  qrCode?: string;
 }
 
 /**
@@ -60,7 +94,8 @@ export const useSmartContract = () => {
       description: string,
       date: Date,
       venue: string,
-      ipfsMetadata: string = ""
+      ipfsMetadata: string = "",
+      useAlgorithm1: boolean = false
     ) => {
       if (!walletClient || !address || !publicClient) {
         setError("Wallet not connected or provider not available");
@@ -72,14 +107,20 @@ export const useSmartContract = () => {
 
       try {
         // Convert date to unix timestamp in seconds
-        const dateTimestamp = Math.floor(date.getTime() / 1000);
+        const dateTimestamp = parseContractDate(date.toISOString());
+
+        // Choose the appropriate function based on algorithm preference
+        const functionName = useAlgorithm1 ? "createEvent" : "createEvent";
+        const args = useAlgorithm1 
+          ? [name, description, dateTimestamp, venue, ipfsMetadata, true]
+          : [name, description, dateTimestamp, venue, ipfsMetadata];
 
         // Prepare transaction
         const hash = await walletClient.writeContract({
           address: EVENT_FACTORY_ADDRESS as `0x${string}`,
           abi: EVENT_FACTORY_ABI,
-          functionName: "createEvent",
-          args: [name, description, BigInt(dateTimestamp), venue, ipfsMetadata],
+          functionName,
+          args,
         });
 
         // Wait for receipt
@@ -108,7 +149,7 @@ export const useSmartContract = () => {
         return null;
       } catch (err) {
         console.error("Error creating event:", err);
-        setError(err instanceof Error ? err.message : "Unknown error occurred");
+        setError(parseContractError(err));
         return null;
       } finally {
         setLoading(false);
@@ -163,12 +204,69 @@ export const useSmartContract = () => {
       setError(null);
 
       try {
-        const details = (await publicClient.readContract({
+        // Read event details directly from the event contract
+        const [name, description, date, venue, ipfsMetadata, organizer, cancelled, useAlgorithm1] = await Promise.all([
+          publicClient.readContract({
+            address: eventAddress as `0x${string}`,
+            abi: EVENT_ABI,
+            functionName: "name",
+          }),
+          publicClient.readContract({
+            address: eventAddress as `0x${string}`,
+            abi: EVENT_ABI,
+            functionName: "description",
+          }),
+          publicClient.readContract({
+            address: eventAddress as `0x${string}`,
+            abi: EVENT_ABI,
+            functionName: "date",
+          }),
+          publicClient.readContract({
+            address: eventAddress as `0x${string}`,
+            abi: EVENT_ABI,
+            functionName: "venue",
+          }),
+          publicClient.readContract({
+            address: eventAddress as `0x${string}`,
+            abi: EVENT_ABI,
+            functionName: "ipfsMetadata",
+          }),
+          publicClient.readContract({
+            address: eventAddress as `0x${string}`,
+            abi: EVENT_ABI,
+            functionName: "organizer",
+          }),
+          publicClient.readContract({
+            address: eventAddress as `0x${string}`,
+            abi: EVENT_ABI,
+            functionName: "cancelled",
+          }),
+          publicClient.readContract({
+            address: eventAddress as `0x${string}`,
+            abi: EVENT_ABI,
+            functionName: "useAlgorithm1",
+          }),
+        ]);
+
+        // Get eventId from factory
+        const eventId = await publicClient.readContract({
           address: EVENT_FACTORY_ADDRESS as `0x${string}`,
           abi: EVENT_FACTORY_ABI,
-          functionName: "getEventDetails",
+          functionName: "eventAddressToId",
           args: [eventAddress as `0x${string}`],
-        })) as EventData;
+        });
+
+        const details: EventData = {
+          eventId: eventId as bigint,
+          name: name as string,
+          description: description as string,
+          date: date as bigint,
+          venue: venue as string,
+          ipfsMetadata: ipfsMetadata as string,
+          organizer: organizer as string,
+          cancelled: cancelled as boolean,
+          useAlgorithm1: useAlgorithm1 as boolean,
+        };
 
         return details;
       } catch (err) {
@@ -213,21 +311,22 @@ export const useSmartContract = () => {
             abi: EVENT_ABI,
             functionName: "ticketTiers",
             args: [BigInt(i)],
-          })) as unknown as TicketTierData;
+          })) as [string, bigint, bigint, bigint, bigint, boolean];
 
           tiers.push({
-            ...tier,
-            price: Number(tier.price),
-            available: Number(tier.available),
-            sold: Number(tier.sold),
-            maxPerPurchase: Number(tier.maxPerPurchase),
+            name: tier[0],
+            price: tier[1],
+            available: tier[2],
+            sold: tier[3],
+            maxPerPurchase: tier[4],
+            active: tier[5],
           });
         }
 
         return tiers;
       } catch (err) {
         console.error("Error getting ticket tiers:", err);
-        setError(err instanceof Error ? err.message : "Unknown error occurred");
+        setError(parseContractError(err));
         return [];
       } finally {
         setLoading(false);
@@ -236,11 +335,207 @@ export const useSmartContract = () => {
     [publicClient]
   );
 
+  /**
+   * Adds a new ticket tier to an event
+   * @param eventAddress Contract address of the event
+   * @param name Tier name
+   * @param price Price in IDRX tokens (will be converted to Wei)
+   * @param available Number of tickets available
+   * @param maxPerPurchase Maximum tickets per purchase
+   * @returns Transaction hash if successful
+   */
+  const addTicketTier = useCallback(
+    async (
+      eventAddress: string,
+      name: string,
+      price: number,
+      available: number,
+      maxPerPurchase: number
+    ) => {
+      if (!walletClient || !address) {
+        setError("Wallet not connected");
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const priceInWei = parseTokenAmount(price.toString());
+        
+        const hash = await walletClient.writeContract({
+          address: eventAddress as `0x${string}`,
+          abi: EVENT_ABI,
+          functionName: "addTicketTier",
+          args: [name, priceInWei, BigInt(available), BigInt(maxPerPurchase)],
+        });
+
+        await publicClient?.waitForTransactionReceipt({ hash });
+        return hash;
+      } catch (err) {
+        console.error("Error adding ticket tier:", err);
+        setError(parseContractError(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [walletClient, address, publicClient]
+  );
+
+  /**
+   * Purchases tickets for a specific tier
+   * @param eventAddress Contract address of the event
+   * @param tierId Tier ID to purchase
+   * @param quantity Number of tickets to purchase
+   * @returns Transaction hash if successful
+   */
+  const purchaseTickets = useCallback(
+    async (
+      eventAddress: string,
+      tierId: number,
+      quantity: number
+    ) => {
+      if (!walletClient || !address) {
+        setError("Wallet not connected");
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const hash = await walletClient.writeContract({
+          address: eventAddress as `0x${string}`,
+          abi: EVENT_ABI,
+          functionName: "purchaseTicket",
+          args: [BigInt(tierId), BigInt(quantity)],
+        });
+
+        await publicClient?.waitForTransactionReceipt({ hash });
+        return hash;
+      } catch (err) {
+        console.error("Error purchasing tickets:", err);
+        setError(parseContractError(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [walletClient, address, publicClient]
+  );
+
+  /**
+   * Gets ticket NFT metadata for a specific token
+   * @param nftAddress NFT contract address
+   * @param tokenId Token ID
+   * @returns Ticket metadata
+   */
+  const getTicketMetadata = useCallback(
+    async (nftAddress: string, tokenId: bigint) => {
+      if (!publicClient) {
+        setError("Provider not available");
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const metadata = await publicClient.readContract({
+          address: nftAddress as `0x${string}`,
+          abi: TICKET_NFT_ABI,
+          functionName: "getTicketMetadata",
+          args: [tokenId],
+        }) as [string, bigint, bigint, boolean, boolean];
+
+        const owner = await publicClient.readContract({
+          address: nftAddress as `0x${string}`,
+          abi: TICKET_NFT_ABI,
+          functionName: "ownerOf",
+          args: [tokenId],
+        }) as string;
+
+        return {
+          tokenId,
+          owner,
+          eventAddress: metadata[0],
+          tierId: metadata[1],
+          originalPrice: metadata[2],
+          used: metadata[3],
+          transferred: metadata[4],
+        } as TicketNFTMetadata;
+      } catch (err) {
+        console.error("Error getting ticket metadata:", err);
+        setError(parseContractError(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [publicClient]
+  );
+
+  /**
+   * Burns a ticket NFT to generate QR code (Algorithm 1)
+   * @param nftAddress NFT contract address
+   * @param tokenId Token ID to burn
+   * @returns QR code data if successful
+   */
+  const burnTicketForQR = useCallback(
+    async (nftAddress: string, tokenId: bigint) => {
+      if (!walletClient || !address) {
+        setError("Wallet not connected");
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const hash = await walletClient.writeContract({
+          address: nftAddress as `0x${string}`,
+          abi: TICKET_NFT_ABI,
+          functionName: "burn",
+          args: [tokenId],
+        });
+
+        await publicClient?.waitForTransactionReceipt({ hash });
+        
+        // Get QR code from burn event
+        const qrCode = await publicClient?.readContract({
+          address: nftAddress as `0x${string}`,
+          abi: TICKET_NFT_ABI,
+          functionName: "getQRCode",
+          args: [tokenId],
+        }) as string;
+
+        return qrCode;
+      } catch (err) {
+        console.error("Error burning ticket:", err);
+        setError(parseContractError(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [walletClient, address, publicClient]
+  );
+
   return {
+    // Event management
     createEvent,
     getEvents,
     getEventDetails,
     getTicketTiers,
+    addTicketTier,
+    
+    // Ticket operations
+    purchaseTickets,
+    getTicketMetadata,
+    burnTicketForQR,
+    
+    // State
     loading,
     error,
   };

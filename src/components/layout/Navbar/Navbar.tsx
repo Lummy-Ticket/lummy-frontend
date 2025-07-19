@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Link as RouterLink, useLocation } from "react-router-dom";
 import {
   Box,
@@ -32,6 +32,8 @@ import { IDRX_SEPOLIA } from "../../../constants";
 import { truncateAddress } from "../../../utils/string";
 import { useRole } from "../../../context/RoleContext";
 import RoleSwitcher from "../../common/RoleSwitcher";
+import { EmailVerificationModal } from "../../common";
+import { switchToLiskSepolia, isOnLiskSepolia } from "../../../utils/networkUtils";
 
 // Define navigation links for each role
 const getNavigationLinks = (role: string) => {
@@ -54,8 +56,10 @@ const getNavigationLinks = (role: string) => {
       { name: "Profile", path: "/profile" },
     ],
     admin: [
-      ...baseLinks,
-      { name: "Admin", path: "/admin" },
+      { name: "Dashboard", path: "/admin" },
+      { name: "Organizer Requests", path: "/admin/organizers" },
+      { name: "Event Management", path: "/admin/events" },
+      { name: "Analytics", path: "/admin/analytics" },
       { name: "Profile", path: "/profile" },
     ],
   };
@@ -77,8 +81,61 @@ const getGroupedLinks = (role: string) => {
 export const Navbar: React.FC = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const location = useLocation();
-  const { address } = useAccount();
+  const { address, isConnected } = useAccount();
   const { role } = useRole();
+  
+  // Email verification modal state
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  // Check if user has verified email
+  useEffect(() => {
+    const savedEmail = localStorage.getItem("userEmail");
+    if (savedEmail) {
+      setUserEmail(savedEmail);
+    }
+  }, []);
+
+  // Auto switch to Lisk Sepolia when wallet connects
+  useEffect(() => {
+    if (isConnected && address) {
+      const checkAndSwitchNetwork = async () => {
+        const isCorrectNetwork = await isOnLiskSepolia();
+        if (!isCorrectNetwork) {
+          // Auto prompt to switch to Lisk Sepolia
+          setTimeout(async () => {
+            await switchToLiskSepolia();
+          }, 1500); // Small delay after connection
+        }
+      };
+      
+      checkAndSwitchNetwork();
+    }
+  }, [isConnected, address]);
+
+  // Show email modal when wallet connects but no email verified
+  useEffect(() => {
+    if (isConnected && address && !userEmail) {
+      // Small delay to ensure connection is stable
+      const timer = setTimeout(() => {
+        setShowEmailModal(true);
+      }, 2000); // Increased delay to allow network switch first
+      return () => clearTimeout(timer);
+    }
+  }, [isConnected, address, userEmail]);
+
+  // Email verification handlers
+  const handleEmailVerified = (email: string) => {
+    setUserEmail(email);
+    setShowEmailModal(false);
+  };
+
+  const handleCloseEmailModal = () => {
+    // Only allow closing if user disconnects wallet
+    if (!isConnected) {
+      setShowEmailModal(false);
+    }
+  };
 
   // Get navigation links based on current role
   const navigationLinks = getNavigationLinks(role);
@@ -415,6 +472,13 @@ export const Navbar: React.FC = () => {
           </Box>
         )}
       </Container>
+
+      {/* Email Verification Modal */}
+      <EmailVerificationModal
+        isOpen={showEmailModal}
+        onClose={handleCloseEmailModal}
+        onEmailVerified={handleEmailVerified}
+      />
     </Box>
   );
 };

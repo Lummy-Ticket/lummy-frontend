@@ -14,6 +14,7 @@ import {
   NumberDecrementStepper,
   FormControl,
   FormLabel,
+  FormErrorMessage,
   Textarea,
   Divider,
   Flex,
@@ -21,15 +22,29 @@ import {
   useToast,
 } from "@chakra-ui/react";
 import { DeleteIcon, AddIcon } from "@chakra-ui/icons";
+import { isValidTokenAmount, isValidUint256, parseTokenAmount } from "../../utils/contractUtils";
 
 export interface TicketTierInput {
   id: string;
   name: string;
   description: string;
-  price: number;
-  quantity: number;
-  maxPerPurchase: number;
+  price: number;  // Keep as number for UI input
+  quantity: number;  // Keep as number for UI input
+  maxPerPurchase: number;  // Keep as number for UI input
   benefits: string[];
+  // Contract-compatible fields
+  active?: boolean;
+  sold?: number;
+}
+
+// Validation errors type
+interface ValidationErrors {
+  [key: string]: {
+    name?: string;
+    price?: string;
+    quantity?: string;
+    maxPerPurchase?: string;
+  };
 }
 
 interface TicketTierCreatorProps {
@@ -47,6 +62,7 @@ const TicketTierCreator: React.FC<TicketTierCreatorProps> = ({
   const [benefitInput, setBenefitInput] = useState<{ [key: string]: string }>(
     {}
   );
+  const [errors, setErrors] = useState<ValidationErrors>({});
 
   const bgColor = "white";
   const borderColor = "gray.200";
@@ -60,12 +76,53 @@ const TicketTierCreator: React.FC<TicketTierCreatorProps> = ({
       quantity: 100,
       maxPerPurchase: 4,
       benefits: [],
+      active: true,
+      sold: 0,
     };
     onChange([...tiers, newTier]);
   };
 
   const handleRemoveTier = (id: string) => {
     onChange(tiers.filter((tier) => tier.id !== id));
+  };
+
+  const validateTier = (tier: TicketTierInput): { [key: string]: string } => {
+    const tierErrors: { [key: string]: string } = {};
+    
+    if (!tier.name.trim()) {
+      tierErrors.name = "Tier name is required";
+    }
+    
+    if (tier.price <= 0) {
+      tierErrors.price = "Price must be greater than 0";
+    } else if (!isValidTokenAmount(tier.price.toString())) {
+      tierErrors.price = "Invalid price format";
+    } else {
+      try {
+        const priceInWei = parseTokenAmount(tier.price.toString());
+        if (!isValidUint256(priceInWei)) {
+          tierErrors.price = "Price is too large";
+        }
+      } catch {
+        tierErrors.price = "Invalid price format";
+      }
+    }
+    
+    if (tier.quantity <= 0) {
+      tierErrors.quantity = "Quantity must be greater than 0";
+    } else if (!isValidUint256(BigInt(tier.quantity))) {
+      tierErrors.quantity = "Quantity is too large";
+    }
+    
+    if (tier.maxPerPurchase <= 0) {
+      tierErrors.maxPerPurchase = "Max per purchase must be greater than 0";
+    } else if (tier.maxPerPurchase > tier.quantity) {
+      tierErrors.maxPerPurchase = "Max per purchase cannot exceed quantity";
+    } else if (!isValidUint256(BigInt(tier.maxPerPurchase))) {
+      tierErrors.maxPerPurchase = "Max per purchase is too large";
+    }
+    
+    return tierErrors;
   };
 
   const handleTierChange = (
@@ -79,6 +136,17 @@ const TicketTierCreator: React.FC<TicketTierCreatorProps> = ({
       }
       return tier;
     });
+    
+    // Validate the updated tier
+    const updatedTier = updatedTiers.find(t => t.id === id);
+    if (updatedTier) {
+      const tierErrors = validateTier(updatedTier);
+      setErrors(prev => ({
+        ...prev,
+        [id]: tierErrors
+      }));
+    }
+    
     onChange(updatedTiers);
   };
 
@@ -171,7 +239,7 @@ const TicketTierCreator: React.FC<TicketTierCreatorProps> = ({
               </Flex>
 
               <VStack spacing={4} align="stretch">
-                <FormControl>
+                <FormControl isInvalid={!!errors[tier.id]?.name}>
                   <FormLabel>Tier Name</FormLabel>
                   <Input
                     value={tier.name}
@@ -180,6 +248,7 @@ const TicketTierCreator: React.FC<TicketTierCreatorProps> = ({
                     }
                     placeholder="e.g. General Admission, VIP, Early Bird"
                   />
+                  <FormErrorMessage>{errors[tier.id]?.name}</FormErrorMessage>
                 </FormControl>
 
                 <FormControl>
@@ -195,13 +264,15 @@ const TicketTierCreator: React.FC<TicketTierCreatorProps> = ({
                 </FormControl>
 
                 <HStack spacing={4}>
-                  <FormControl>
+                  <FormControl isInvalid={!!errors[tier.id]?.price}>
                     <FormLabel>Price ({currency})</FormLabel>
                     <NumberInput
                       min={0}
+                      max={1000000}  // Max 1M tokens
+                      precision={6}  // Allow up to 6 decimal places
                       value={tier.price}
                       onChange={(_, value) =>
-                        handleTierChange(tier.id, "price", value)
+                        handleTierChange(tier.id, "price", value || 0)
                       }
                     >
                       <NumberInputField />
@@ -210,15 +281,17 @@ const TicketTierCreator: React.FC<TicketTierCreatorProps> = ({
                         <NumberDecrementStepper />
                       </NumberInputStepper>
                     </NumberInput>
+                    <FormErrorMessage>{errors[tier.id]?.price}</FormErrorMessage>
                   </FormControl>
 
-                  <FormControl>
+                  <FormControl isInvalid={!!errors[tier.id]?.quantity}>
                     <FormLabel>Quantity Available</FormLabel>
                     <NumberInput
                       min={1}
+                      max={1000000}  // Reasonable max for ticket quantity
                       value={tier.quantity}
                       onChange={(_, value) =>
-                        handleTierChange(tier.id, "quantity", value)
+                        handleTierChange(tier.id, "quantity", value || 1)
                       }
                     >
                       <NumberInputField />
@@ -227,16 +300,17 @@ const TicketTierCreator: React.FC<TicketTierCreatorProps> = ({
                         <NumberDecrementStepper />
                       </NumberInputStepper>
                     </NumberInput>
+                    <FormErrorMessage>{errors[tier.id]?.quantity}</FormErrorMessage>
                   </FormControl>
 
-                  <FormControl>
+                  <FormControl isInvalid={!!errors[tier.id]?.maxPerPurchase}>
                     <FormLabel>Max Per Purchase</FormLabel>
                     <NumberInput
                       min={1}
-                      max={10}
+                      max={Math.min(tier.quantity, 100)}  // Max 100 or quantity, whichever is smaller
                       value={tier.maxPerPurchase}
                       onChange={(_, value) =>
-                        handleTierChange(tier.id, "maxPerPurchase", value)
+                        handleTierChange(tier.id, "maxPerPurchase", value || 1)
                       }
                     >
                       <NumberInputField />
@@ -245,6 +319,7 @@ const TicketTierCreator: React.FC<TicketTierCreatorProps> = ({
                         <NumberDecrementStepper />
                       </NumberInputStepper>
                     </NumberInput>
+                    <FormErrorMessage>{errors[tier.id]?.maxPerPurchase}</FormErrorMessage>
                   </FormControl>
                 </HStack>
 

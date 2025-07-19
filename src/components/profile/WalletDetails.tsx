@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Box,
   VStack,
@@ -13,8 +13,9 @@ import {
   Spinner,
 } from "@chakra-ui/react";
 import { CopyIcon, CheckIcon, ExternalLinkIcon } from "@chakra-ui/icons";
-import { FaWallet, FaCoins, FaExchangeAlt, FaTicketAlt } from "react-icons/fa";
+import { FaWallet, FaCoins, FaExchangeAlt, FaTicketAlt, FaPlus } from "react-icons/fa";
 import { useAccount } from "wagmi";
+import SimpleTopUpModal from "./SimpleTopUpModal";
 
 // Interface for balance data
 interface WalletDetailsProps {
@@ -28,6 +29,7 @@ interface WalletDetailsProps {
 const WalletDetails: React.FC<WalletDetailsProps> = ({ balanceData }) => {
   const { address } = useAccount();
   const { hasCopied, onCopy } = useClipboard(address || "");
+  const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
 
   const bgColor = "white";
   const cardBg = "gray.50";
@@ -103,26 +105,41 @@ const WalletDetails: React.FC<WalletDetailsProps> = ({ balanceData }) => {
             Token Balances
           </Text>
           <VStack spacing={4} align="stretch">
-            <Flex
-              justify="space-between"
-              align="center"
+            <Box
               bg="blue.50"
               p={4}
               borderRadius="md"
+              borderWidth="1px"
+              borderColor="blue.200"
             >
-              <HStack>
-                <Icon as={FaCoins} color="blue.500" />
-                <Text>IDRX Balance</Text>
-              </HStack>
-              {balanceData ? (
-                <Text fontWeight="medium">
-                  {parseFloat(balanceData.formatted).toLocaleString()}{" "}
-                  {balanceData.symbol}
+              <Flex justify="space-between" align="center" mb={3}>
+                <HStack>
+                  <Icon as={FaCoins} color="blue.500" />
+                  <Text fontWeight="medium">IDRX Balance</Text>
+                </HStack>
+                {balanceData ? (
+                  <Text fontWeight="bold" fontSize="lg" color="blue.600">
+                    {parseFloat(balanceData.formatted).toLocaleString()}{" "}
+                    {balanceData.symbol}
+                  </Text>
+                ) : (
+                  <Spinner size="sm" color="blue.500" />
+                )}
+              </Flex>
+              <Flex justify="space-between" align="center">
+                <Text fontSize="xs" color="gray.600">
+                  On Lisk Network
                 </Text>
-              ) : (
-                <Spinner size="sm" color="blue.500" />
-              )}
-            </Flex>
+                <Button
+                  size="sm"
+                  colorScheme="purple"
+                  leftIcon={<Icon as={FaPlus} />}
+                  onClick={() => setIsTopUpModalOpen(true)}
+                >
+                  Top Up
+                </Button>
+              </Flex>
+            </Box>
 
             <Flex
               justify="space-between"
@@ -161,6 +178,13 @@ const WalletDetails: React.FC<WalletDetailsProps> = ({ balanceData }) => {
           </HStack>
         </Box>
       </VStack>
+
+      {/* Top Up Modal */}
+      <SimpleTopUpModal
+        isOpen={isTopUpModalOpen}
+        onClose={() => setIsTopUpModalOpen(false)}
+        currentBalance={balanceData?.formatted || "0"}
+      />
     </Box>
   );
 };

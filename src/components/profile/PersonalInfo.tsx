@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   VStack,
@@ -30,10 +30,49 @@ const PersonalInfo: React.FC<PersonalInfoProps> = ({ initialData, onSave }) => {
   const [formData, setFormData] = useState(initialData);
   const toast = useToast();
 
+  // Sync verified email from localStorage
+  useEffect(() => {
+    const verifiedEmail = localStorage.getItem("userEmail");
+    if (verifiedEmail && !formData.email) {
+      setFormData((prev) => ({ ...prev, email: verifiedEmail }));
+    }
+  }, [formData.email]);
+
+  // Listen for storage changes (when email is verified in another tab/component)
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "userEmail" && e.newValue) {
+        setFormData((prev) => ({ ...prev, email: e.newValue }));
+      }
+    };
+
+    // Listen for custom emailVerified event for real-time sync
+    const handleEmailVerified = (e: CustomEvent) => {
+      const { email } = e.detail;
+      setFormData((prev) => ({ ...prev, email }));
+      toast({
+        title: "Email Verified",
+        description: "Your email has been verified and auto-filled",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("emailVerified", handleEmailVerified as EventListener);
+    
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("emailVerified", handleEmailVerified as EventListener);
+    };
+  }, [toast]);
+  
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
+
 
   const handleSave = () => {
     onSave(formData);
@@ -157,22 +196,28 @@ const PersonalInfo: React.FC<PersonalInfoProps> = ({ initialData, onSave }) => {
           {/* Email */}
           <FormControl>
             <FormLabel>
-              Email Address{" "}
-              <Text as="span" color="gray.500" fontSize="sm" ml={2}>
-                (Optional)
-              </Text>
+              Email Address
+              {localStorage.getItem("userEmail") && (
+                <Text as="span" color="green.500" fontSize="sm" ml={2}>
+                  ✓ Verified
+                </Text>
+              )}
             </FormLabel>
             <Input
               name="email"
               type="email"
               value={formData.email}
               onChange={handleChange}
-              isReadOnly={!isEditing}
-              bg={isEditing ? "white" : "gray.50"}
+              isReadOnly={!isEditing || !!localStorage.getItem("userEmail")}
+              bg={localStorage.getItem("userEmail") ? "green.50" : isEditing ? "white" : "gray.50"}
               placeholder="Enter your email"
+              borderColor={localStorage.getItem("userEmail") ? "green.200" : "gray.200"}
             />
-            <Text fontSize="xs" color="gray.500" mt={1}>
-              Only required for major event registration
+            <Text fontSize="xs" color={localStorage.getItem("userEmail") ? "green.600" : "gray.500"} mt={1}>
+              {localStorage.getItem("userEmail") 
+                ? "✓ This email has been verified and will receive notifications"
+                : "Email address for event notifications and receipts"
+              }
             </Text>
           </FormControl>
         </VStack>

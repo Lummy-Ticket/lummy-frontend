@@ -1,4 +1,20 @@
 import XellarSDK, { TransactionResult } from "./XellarIntegration";
+import { CONTRACT_ADDRESSES } from "../constants";
+import { 
+  parseTokenAmount, 
+  parseContractError,
+  isValidAddress 
+} from "../utils/contractUtils";
+
+// Enhanced transaction result for contract operations
+interface ContractTransactionResult extends TransactionResult {
+  transactionHash?: string;
+  blockNumber?: number;
+  gasUsed?: bigint;
+  contractAddress?: string;
+  tokenId?: bigint;
+  eventId?: bigint;
+}
 
 class TransactionService {
   private sdk: XellarSDK;
@@ -7,120 +23,354 @@ class TransactionService {
     this.sdk = XellarSDK.getInstance();
   }
 
+  private validateAddress(address: string): boolean {
+    return isValidAddress(address);
+  }
+
+  private handleContractError(error: any): ContractTransactionResult {
+    console.error("Contract transaction failed:", error);
+    return {
+      success: false,
+      error: parseContractError(error),
+    };
+  }
+
+  /**
+   * Send IDRX payment to address
+   * @param address Recipient address
+   * @param amount Amount in IDRX tokens
+   * @param tokenType Token type (default: IDRX)
+   * @returns Transaction result
+   */
   public async sendPayment(
     address: string,
     amount: number,
     tokenType: string = "IDRX"
-  ): Promise<TransactionResult> {
+  ): Promise<ContractTransactionResult> {
     try {
+      if (!this.validateAddress(address)) {
+        return {
+          success: false,
+          error: "Invalid recipient address",
+        };
+      }
+
       const result = await this.sdk.sendTransaction({
         to: address,
         amount,
         tokenType,
       });
 
-      return result;
-    } catch (error) {
-      console.error("Transaction failed:", error);
       return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Unknown error occurred",
+        ...result,
+        transactionHash: result.transactionHash,
       };
+    } catch (error) {
+      return this.handleContractError(error);
     }
   }
 
+  /**
+   * Purchase tickets for an event
+   * @param eventAddress Event contract address
+   * @param tierId Ticket tier ID
+   * @param quantity Number of tickets
+   * @param pricePerTicket Price per ticket in IDRX
+   * @returns Transaction result with token IDs
+   */
   public async buyTicket(
-    eventId: string,
-    ticketTierId: string,
-    price: number,
-    quantity: number = 1
-  ): Promise<TransactionResult> {
+    eventAddress: string,
+    tierId: number,
+    quantity: number,
+    pricePerTicket: number
+  ): Promise<ContractTransactionResult> {
     try {
-      // In a real implementation, this would include contract data
-      // for the NFT minting process
-      const data = JSON.stringify({
-        action: "buyTicket",
-        eventId,
-        ticketTierId,
-        quantity,
-      });
+      if (!this.validateAddress(eventAddress)) {
+        return {
+          success: false,
+          error: "Invalid event contract address",
+        };
+      }
 
-      const result = await this.sdk.sendTransaction({
-        to: "0xevent_contract_address",
-        amount: price * quantity,
+      if (quantity <= 0 || quantity > 10) {
+        return {
+          success: false,
+          error: "Invalid ticket quantity (1-10 allowed)",
+        };
+      }
+
+      const totalAmount = pricePerTicket * quantity;
+      const totalAmountWei = parseTokenAmount(totalAmount.toString());
+
+      // First, approve IDRX spending
+      const approveResult = await this.sdk.sendTransaction({
+        to: CONTRACT_ADDRESSES.MockIDRX,
+        amount: 0,
         tokenType: "IDRX",
-        data,
+        data: JSON.stringify({
+          action: "approve",
+          spender: eventAddress,
+          amount: totalAmountWei.toString(),
+        }),
       });
 
-      return result;
-    } catch (error) {
-      console.error("Ticket purchase failed:", error);
+      if (!approveResult.success) {
+        return {
+          success: false,
+          error: "Failed to approve IDRX spending",
+        };
+      }
+
+      // Then, purchase tickets
+      const purchaseResult = await this.sdk.sendTransaction({
+        to: eventAddress,
+        amount: 0, // Amount is handled by contract
+        tokenType: "IDRX",
+        data: JSON.stringify({
+          action: "purchaseTicket",
+          tierId: tierId,
+          quantity: quantity,
+        }),
+      });
+
       return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Unknown error occurred",
+        ...purchaseResult,
+        transactionHash: purchaseResult.transactionHash,
       };
+    } catch (error) {
+      return this.handleContractError(error);
     }
   }
 
+  /**
+   * List a ticket for resale
+   * @param eventAddress Event contract address
+   * @param tokenId NFT token ID
+   * @param resalePrice Price for resale in IDRX
+   * @returns Transaction result
+   */
   public async resellTicket(
-    ticketId: string,
-    price: number
-  ): Promise<TransactionResult> {
+    eventAddress: string,
+    tokenId: bigint,
+    resalePrice: number
+  ): Promise<ContractTransactionResult> {
     try {
-      const data = JSON.stringify({
-        action: "resellTicket",
-        ticketId,
-        price,
-      });
+      if (!this.validateAddress(eventAddress)) {
+        return {
+          success: false,
+          error: "Invalid event contract address",
+        };
+      }
 
-      // This would be a contract call, not an actual token transfer
+      if (resalePrice <= 0) {
+        return {
+          success: false,
+          error: "Invalid resale price",
+        };
+      }
+
+      const priceWei = parseTokenAmount(resalePrice.toString());
+
       const result = await this.sdk.sendTransaction({
-        to: "0xmarketplace_contract_address",
-        amount: 0, // No tokens transferred for listing
-        data,
+        to: eventAddress,
+        amount: 0,
+        tokenType: "IDRX",
+        data: JSON.stringify({
+          action: "listTicketForResale",
+          tokenId: tokenId.toString(),
+          price: priceWei.toString(),
+        }),
       });
 
-      return result;
-    } catch (error) {
-      console.error("Ticket listing failed:", error);
       return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Unknown error occurred",
+        ...result,
+        transactionHash: result.transactionHash,
+        tokenId,
       };
+    } catch (error) {
+      return this.handleContractError(error);
     }
   }
 
+  /**
+   * Transfer a ticket NFT to another address
+   * @param nftAddress NFT contract address
+   * @param tokenId Token ID to transfer
+   * @param toAddress Recipient address
+   * @returns Transaction result
+   */
   public async transferTicket(
-    ticketId: string,
+    nftAddress: string,
+    tokenId: bigint,
     toAddress: string
-  ): Promise<TransactionResult> {
+  ): Promise<ContractTransactionResult> {
     try {
-      const data = JSON.stringify({
-        action: "transferTicket",
-        ticketId,
-        to: toAddress,
-      });
+      if (!this.validateAddress(nftAddress) || !this.validateAddress(toAddress)) {
+        return {
+          success: false,
+          error: "Invalid contract or recipient address",
+        };
+      }
 
-      // This is an NFT transfer operation
       const result = await this.sdk.sendTransaction({
-        to: "0xticket_contract_address",
-        amount: 0, // No tokens transferred for NFT transfer
-        data,
+        to: nftAddress,
+        amount: 0,
+        tokenType: "IDRX",
+        data: JSON.stringify({
+          action: "transferFrom",
+          tokenId: tokenId.toString(),
+          to: toAddress,
+        }),
       });
 
-      return result;
-    } catch (error) {
-      console.error("Ticket transfer failed:", error);
       return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Unknown error occurred",
+        ...result,
+        transactionHash: result.transactionHash,
+        tokenId,
       };
+    } catch (error) {
+      return this.handleContractError(error);
+    }
+  }
+
+  /**
+   * Purchase a resale ticket
+   * @param eventAddress Event contract address
+   * @param tokenId Token ID to purchase
+   * @param price Purchase price in IDRX
+   * @returns Transaction result
+   */
+  public async buyResaleTicket(
+    eventAddress: string,
+    tokenId: bigint,
+    price: number
+  ): Promise<ContractTransactionResult> {
+    try {
+      if (!this.validateAddress(eventAddress)) {
+        return {
+          success: false,
+          error: "Invalid event contract address",
+        };
+      }
+
+      const priceWei = parseTokenAmount(price.toString());
+
+      // First, approve IDRX spending
+      const approveResult = await this.sdk.sendTransaction({
+        to: CONTRACT_ADDRESSES.MockIDRX,
+        amount: 0,
+        tokenType: "IDRX",
+        data: JSON.stringify({
+          action: "approve",
+          spender: eventAddress,
+          amount: priceWei.toString(),
+        }),
+      });
+
+      if (!approveResult.success) {
+        return {
+          success: false,
+          error: "Failed to approve IDRX spending",
+        };
+      }
+
+      // Then, purchase resale ticket
+      const purchaseResult = await this.sdk.sendTransaction({
+        to: eventAddress,
+        amount: 0,
+        tokenType: "IDRX",
+        data: JSON.stringify({
+          action: "purchaseResaleTicket",
+          tokenId: tokenId.toString(),
+        }),
+      });
+
+      return {
+        ...purchaseResult,
+        transactionHash: purchaseResult.transactionHash,
+        tokenId,
+      };
+    } catch (error) {
+      return this.handleContractError(error);
+    }
+  }
+
+  /**
+   * Cancel a resale listing
+   * @param eventAddress Event contract address
+   * @param tokenId Token ID to cancel
+   * @returns Transaction result
+   */
+  public async cancelResaleListing(
+    eventAddress: string,
+    tokenId: bigint
+  ): Promise<ContractTransactionResult> {
+    try {
+      if (!this.validateAddress(eventAddress)) {
+        return {
+          success: false,
+          error: "Invalid event contract address",
+        };
+      }
+
+      const result = await this.sdk.sendTransaction({
+        to: eventAddress,
+        amount: 0,
+        tokenType: "IDRX",
+        data: JSON.stringify({
+          action: "cancelResaleListing",
+          tokenId: tokenId.toString(),
+        }),
+      });
+
+      return {
+        ...result,
+        transactionHash: result.transactionHash,
+        tokenId,
+      };
+    } catch (error) {
+      return this.handleContractError(error);
+    }
+  }
+
+  /**
+   * Burn a ticket NFT to generate QR code (Algorithm 1)
+   * @param nftAddress NFT contract address
+   * @param tokenId Token ID to burn
+   * @returns Transaction result with QR code
+   */
+  public async burnTicketForQR(
+    nftAddress: string,
+    tokenId: bigint
+  ): Promise<ContractTransactionResult> {
+    try {
+      if (!this.validateAddress(nftAddress)) {
+        return {
+          success: false,
+          error: "Invalid NFT contract address",
+        };
+      }
+
+      const result = await this.sdk.sendTransaction({
+        to: nftAddress,
+        amount: 0,
+        tokenType: "IDRX",
+        data: JSON.stringify({
+          action: "burn",
+          tokenId: tokenId.toString(),
+        }),
+      });
+
+      return {
+        ...result,
+        transactionHash: result.transactionHash,
+        tokenId,
+      };
+    } catch (error) {
+      return this.handleContractError(error);
     }
   }
 }
 
 export default TransactionService;
+export type { ContractTransactionResult };
