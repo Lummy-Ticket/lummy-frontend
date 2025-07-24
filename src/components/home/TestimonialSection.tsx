@@ -21,52 +21,52 @@ interface TestimonialProps {
 
 const testimonials: TestimonialProps[] = [
   {
-    name: "Sarah Johnson",
-    role: "Music Festival Attendee",
+    name: "Sari Wijaya",
+    role: "Jakarta",
     content:
-      "I love how easy it is to buy and transfer tickets on Lummy. When my friend couldn't make it to the festival, I was able to send her ticket to someone else in seconds without any complicated processes.",
+      "Buying with IDRX is simple and reselling happened instantly with fair pricing built-in.",
     avatar:
       "https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=687&q=80",
   },
   {
-    name: "Michael Chen",
-    role: "Tech Conference Organizer",
-    content:
-      "As an event organizer, Lummy has transformed how we handle tickets. No more counterfeits, easy check-ins, and the ability to set resale limits has virtually eliminated scalping at our conferences.",
-    avatar:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=687&q=80",
-  },
-  {
-    name: "Aditya Pratama",
-    role: "Blockchain Enthusiast",
-    content:
-      "The transparency of seeing each ticket's history on the blockchain gives me confidence. I bought a resale ticket and could verify it was legitimate and see exactly how much the original buyer paid.",
-    avatar:
-      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=687&q=80",
-  },
-  {
-    name: "Rini Hartati",
-    role: "Regular Concert-goer",
-    content:
-      "I used to worry about fake tickets when buying from resellers. With Lummy, that concern is gone. Plus, the dynamic QR codes make me feel secure that no one else can use a screenshot of my ticket.",
-    avatar:
-      "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1470&q=80",
-  },
-  {
     name: "Budi Santoso",
-    role: "Festival Producer",
+    role: "Event Organizer",
     content:
-      "The analytics we get from Lummy help us understand our audience better. We can see real-time sales data, check-in patterns, and even track resales - all valuable insights for planning future events.",
+      "The staff system and automatic royalties transformed how I manage events.",
     avatar:
       "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1470&q=80",
   },
   {
-    name: "Maya Indira",
-    role: "First-time NFT User",
+    name: "Maya Chen",
+    role: "Community Leader",
     content:
-      "I was new to blockchain and NFTs, but Lummy made it incredibly simple. The wallet setup was straightforward, and I love being able to see all my past event tickets in my collection.",
+      "Having both Web2 and Web3 options means I can serve any audience perfectly.",
     avatar:
       "https://images.unsplash.com/photo-1534528741775-53994a69daeb?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=764&q=80",
+  },
+  {
+    name: "Rizki Pratama",
+    role: "Festival Producer",
+    content:
+      "Burn-to-verify eliminated fraud and automatic refunds save us hours of work.",
+    avatar:
+      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=687&q=80",
+  },
+  {
+    name: "Rini Hartati",
+    role: "First-time User",
+    content:
+      "Paying with IDRX feels like any payment app, but my tickets are blockchain-secured.",
+    avatar:
+      "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1470&q=80",
+  },
+  {
+    name: "Aditya Pratama",
+    role: "Conference Director",
+    content:
+      "Real-time analytics help me plan better events every time.",
+    avatar:
+      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=687&q=80",
   },
 ];
 

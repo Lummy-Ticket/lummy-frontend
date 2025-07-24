@@ -16,44 +16,44 @@ import {
 
 const faqData = [
   {
-    question: "What is an NFT ticket?",
+    question: "What makes Lummy different?",
     answer:
-      "An NFT (Non-Fungible Token) ticket is a digital ticket that uses blockchain technology to ensure authenticity and ownership. Each ticket is unique, can't be duplicated, and offers secure transfer between users while maintaining a transparent history of ownership.",
+      "Advanced blockchain security with IDRX payments, but as simple as regular apps.",
   },
   {
-    question: "How do I purchase tickets on Lummy?",
+    question: "How do I buy tickets?",
     answer:
-      "To purchase tickets, you'll need to connect your Xellar Wallet, which stores your IDRX stablecoin and will hold your ticket NFTs. Once connected, simply browse events, select your preferred ticket tier, and complete the purchase. Your tickets will be minted directly to your wallet.",
+      "Browse events, click buy, we guide you through IDRX setup. Easy as online shopping.",
   },
   {
-    question: "Can I transfer my tickets to someone else?",
+    question: "Can I sell if I can't go?",
     answer:
-      "Yes! One of the main benefits of NFT tickets is easy transferability. Navigate to your ticket in the 'My Tickets' section, choose the transfer option, and enter the recipient's wallet address. The ticket will be securely transferred to them on the blockchain.",
+      "Yes! List instantly with automatic fair pricing. Payment direct to your account.",
   },
   {
-    question: "What if I can't attend an event after purchasing tickets?",
+    question: "What if event is cancelled?",
     answer:
-      "If you can't attend, you have two options: transfer the ticket to someone else, or resell it on our marketplace. Organizers set price limits to prevent scalping, ensuring tickets are resold at fair prices. You'll receive the payment directly to your wallet when someone purchases your ticket.",
+      "Automatic refunds to your account immediately. No forms or waiting.",
   },
   {
-    question: "How do I get IDRX for purchasing tickets?",
+    question: "Do I need crypto knowledge?",
     answer:
-      "IDRX is a stablecoin pegged to the Indonesian Rupiah. You can purchase IDRX directly through your Xellar Wallet using various payment methods. The wallet setup process guides you through this when you first connect.",
+      "Nope! Just get IDRX and start buying. We handle the tech stuff.",
   },
   {
-    question: "How do I show my ticket at the event?",
+    question: "How do QR codes work?",
     answer:
-      "Your NFT ticket displays a QR code in the Lummy app that changes periodically for security. When you arrive at the event, venue staff will scan this QR code for entry. The dynamic nature prevents screenshots from being used by multiple people.",
+      "Smart codes that update automatically. Just show at venue and scan in.",
   },
   {
-    question: "Is my personal information secure?",
+    question: "Can I transfer to friends?",
     answer:
-      "Yes. While the blockchain records ticket transfers and ownership for verification purposes, your personal information remains private. Lummy implements decentralized identity solutions to verify eligibility without exposing your data.",
+      "Super easy! Tap transfer, enter details, they get it instantly.",
   },
   {
-    question: "What if I lose access to my wallet?",
+    question: "Is my data safe?",
     answer:
-      "Xellar Wallet provides recovery methods if you lose access. This is why it's crucial to save your backup phrases securely when setting up your wallet. Contact Xellar support for assistance with wallet recovery.",
+      "Yes! Blockchain records ownership for security, personal data stays private.",
   },
 ];
 

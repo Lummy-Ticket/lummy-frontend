@@ -17,6 +17,7 @@ import {
   FaTicketAlt,
   FaUserShield,
 } from "react-icons/fa";
+import { MdSecurity } from "react-icons/md";
 
 interface FeatureProps {
   title: string;
@@ -64,53 +65,52 @@ const FeatureSection: React.FC = () => {
               Blockchain-Powered Ticketing
             </Heading>
             <Text fontSize="lg" color={"gray.600"} maxW="800px" mx="auto">
-              Lummy revolutionizes how event tickets work with powerful
-              blockchain technology providing benefits for both attendees and
-              organizers.
+              Lummy transforms Indonesian event ticketing with advanced
+              blockchain technology for every type of event.
             </Text>
           </Box>
 
           <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={10}>
             <Feature
               icon={<Icon as={FaShieldAlt} w={10} h={10} />}
-              title={"Secure & Authentic"}
+              title={"Anti-Counterfeit Protection"}
               text={
-                "Each ticket is a unique NFT on the Lisk blockchain, making it impossible to counterfeit or duplicate. Your tickets are 100% authentic, every time."
-              }
-            />
-            <Feature
-              icon={<Icon as={FaExchangeAlt} w={10} h={10} />}
-              title={"Easy Transfers"}
-              text={
-                "Transfer your tickets to friends or family with just a few clicks. No more screenshot sharing or complicated handovers - just secure blockchain transfers."
+                "Each ticket is a unique NFT with dynamic QR codes. Fake tickets are impossible."
               }
             />
             <Feature
               icon={<Icon as={FaMoneyBillWave} w={10} h={10} />}
-              title={"Fair Reselling"}
+              title={"IDRX Native Payments"}
               text={
-                "Can't make it to an event? Resell your ticket on our marketplace with price limits set by organizers to prevent scalping and ensure fair prices."
+                "Pay with Indonesian digital currency. We handle all the blockchain complexity automatically."
+              }
+            />
+            <Feature
+              icon={<Icon as={FaExchangeAlt} w={10} h={10} />}
+              title={"Smart Marketplace"}
+              text={
+                "Resell tickets safely with automatic fair pricing and instant payments."
               }
             />
             <Feature
               icon={<Icon as={FaQrcode} w={10} h={10} />}
-              title={"Dynamic QR Codes"}
+              title={"Flexible Event Options"}
               text={
-                "Your NFT ticket displays a secure QR code that changes periodically to prevent screenshot fraud, ensuring only the rightful owner can use the ticket."
+                "Perfect for any event size. Choose Web2-friendly or full Web3 experience."
               }
             />
             <Feature
               icon={<Icon as={FaTicketAlt} w={10} h={10} />}
-              title={"Transparent History"}
+              title={"Complete Transparency"}
               text={
-                "Every ticket has a complete, transparent history tracked on the blockchain. See who owned it before, when it was transferred, and verify its authenticity."
+                "Full ticket history on Lisk blockchain. Verify authenticity instantly."
               }
             />
             <Feature
-              icon={<Icon as={FaUserShield} w={10} h={10} />}
-              title={"Privacy Protected"}
+              icon={<Icon as={MdSecurity} w={10} h={10} />}
+              title={"Enterprise Security"}
               text={
-                "Your personal information remains private while still allowing secure verification. Blockchain technology ensures your data is protected."
+                "Multi-layered protection trusted by professional organizers across Indonesia."
               }
             />
           </SimpleGrid>
