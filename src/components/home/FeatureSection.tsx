@@ -15,7 +15,6 @@ import {
   FaMoneyBillWave,
   FaQrcode,
   FaTicketAlt,
-  FaUserShield,
 } from "react-icons/fa";
 import { MdSecurity } from "react-icons/md";
 
