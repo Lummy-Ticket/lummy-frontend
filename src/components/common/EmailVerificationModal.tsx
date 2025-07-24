@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Modal,
   ModalOverlay,
   ModalContent,
   ModalHeader,
   ModalBody,
-  ModalCloseButton,
   VStack,
   Text,
   Input,
@@ -40,16 +39,6 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
   const [countdown, setCountdown] = useState(0);
   const toast = useToast();
 
-  // Reset state when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setStep("email");
-      setEmail("");
-      setOtp("");
-      setCountdown(0);
-    }
-  }, [isOpen]);
-
   // Countdown timer for resend OTP
   useEffect(() => {
     if (countdown > 0) {
@@ -58,18 +47,8 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
     }
   }, [countdown]);
 
-  // Auto-submit OTP when it's filled (for auto-fill scenario)
-  useEffect(() => {
-    if (otp.length === 6 && step === "otp") {
-      // Auto-submit after a brief delay
-      const timer = setTimeout(() => {
-        handleOTPSubmit();
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [otp, step]);
-
-  const handleEmailSubmit = async () => {
+  const handleEmailSubmit = useCallback(async () => {
+    console.log("handleEmailSubmit called with email:", email);
     if (!email || !email.includes("@")) {
       toast({
         title: "Invalid Email",
@@ -90,23 +69,23 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
       setStep("otp");
       setCountdown(60); // 60 second countdown
       
-      // For demo: auto-fill OTP after 3 seconds
+      // For demo: auto-fill OTP after 1 second
       setTimeout(() => {
         setOtp("123456"); // Mock OTP
         toast({
-          title: "OTP Auto-filled",
-          description: "For demo purposes, OTP has been auto-filled",
+          title: "Demo: OTP Auto-filled",
+          description: "Code auto-filled for demo",
           status: "info",
-          duration: 2000,
+          duration: 1500,
           isClosable: true,
         });
-      }, 3000);
+      }, 1000);
       
       toast({
-        title: "OTP Sent",
-        description: `Verification code sent to ${email}. Check your email or wait for auto-fill.`,
-        status: "success",
-        duration: 5000,
+        title: "Demo: OTP Simulation",
+        description: `Demo code will auto-fill in 1 second (Frontend Only)`,
+        status: "info",
+        duration: 3000,
         isClosable: true,
       });
     } catch (error) {
@@ -120,9 +99,9 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [email, toast]);
 
-  const handleOTPSubmit = async () => {
+  const handleOTPSubmit = useCallback(async () => {
     if (otp.length !== 6) {
       toast({
         title: "Invalid OTP",
@@ -165,7 +144,7 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [otp, email, onEmailVerified, onClose, toast]);
 
   const handleResendOTP = async () => {
     if (countdown > 0) return;
@@ -195,6 +174,35 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
     }
   };
 
+  // Reset state when modal opens and auto-fill demo email
+  useEffect(() => {
+    if (isOpen) {
+      setStep("email");
+      setEmail("test@gmail.com"); // Auto-fill demo email
+      setOtp("");
+      setCountdown(0);
+      
+      // Auto-click send button after 1 second
+      const timer = setTimeout(() => {
+        console.log("Auto-submitting email...");
+        handleEmailSubmit();
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, handleEmailSubmit]);
+
+  // Auto-submit OTP when it's filled (for auto-fill scenario)
+  useEffect(() => {
+    if (otp.length === 6 && step === "otp") {
+      // Auto-submit after a brief delay
+      const timer = setTimeout(() => {
+        handleOTPSubmit();
+      }, 500); // Faster auto-submit
+      return () => clearTimeout(timer);
+    }
+  }, [otp, step, handleOTPSubmit]);
+
   const renderEmailStep = () => (
     <VStack spacing={6} align="stretch">
       <Box textAlign="center">
@@ -203,7 +211,10 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
           Verify Your Email
         </Heading>
         <Text color="gray.600">
-          We need your email address to send you important notifications about your tickets and events.
+          Demo: Email verification (Frontend Only)
+        </Text>
+        <Text fontSize="sm" color="orange.500" textAlign="center">
+          ⏳ Auto-submitting in 1 second...
         </Text>
       </Box>
 
@@ -250,7 +261,10 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
           Enter Verification Code
         </Heading>
         <Text color="gray.600">
-          We've sent a 6-digit code to <strong>{email}</strong>
+          Demo: Code will auto-fill to <strong>{email}</strong>
+        </Text>
+        <Text fontSize="sm" color="orange.500" textAlign="center">
+          (Frontend demo - no real OTP sent)
         </Text>
       </Box>
 
@@ -322,12 +336,17 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
 
   const renderSuccessStep = () => (
     <VStack spacing={6} align="stretch" textAlign="center">
+      <Box display="flex" justifyContent="center">
       <Icon as={FaCheckCircle} boxSize={16} color="green.500" />
+      </Box>
       <Heading size="md" color="green.600">
-        Email Verified Successfully!
+      Demo Email Verified!
       </Heading>
       <Text color="gray.600">
-        Your email <strong>{email}</strong> has been verified. You'll now receive important notifications about your tickets and events.
+      Demo email <strong>{email}</strong> saved for frontend demo.
+      </Text>
+      <Text fontSize="sm" color="orange.500" textAlign="center">
+      (No real verification - Frontend demo only)
       </Text>
     </VStack>
   );
@@ -348,7 +367,7 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
   return (
     <Modal 
       isOpen={isOpen} 
-      onClose={step === "success" ? onClose : () => {}} // Prevent closing during success
+      onClose={() => {}} // Prevent closing completely
       closeOnOverlayClick={false}
       closeOnEsc={false}
       size="md"
@@ -357,17 +376,7 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
       <ModalOverlay bg="blackAlpha.600" />
       <ModalContent mx={4}>
         <ModalHeader>
-          {step !== "success" && (
-            <ModalCloseButton 
-              onClick={() => {
-                // Allow closing only on email step
-                if (step === "email") {
-                  onClose();
-                }
-              }}
-              isDisabled={step === "otp"}
-            />
-          )}
+          {/* No close button - modal must be completed */}
         </ModalHeader>
         <ModalBody pb={6}>
           {getStepContent()}

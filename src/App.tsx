@@ -17,7 +17,7 @@ import {
 import { CheckInDashboard, ScannerPage } from "./pages/TicketManagement";
 import OrganizerRequestPage from "./pages/OrganizerRequest/OrganizerRequestPage";
 import OrganizerRequestsAdmin from "./pages/OrganizerRequest/OrganizerRequestsAdmin";
-import { AdminDashboard, AdminOrganizerRequests } from "./pages/Admin";
+import { AdminDashboard, AdminOrganizerRequests, AdminEventManagement, AdminAnalytics, AdminRevenue } from "./pages/Admin";
 import { Web3Provider } from "./services/Web3Provider";
 import { RoleProvider } from "./context/RoleContext";
 
@@ -65,9 +65,9 @@ function App() {
               {/* Admin routes */}
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/admin/organizers" element={<AdminOrganizerRequests />} />
-              <Route path="/admin/events" element={<AdminDashboard />} />
-              <Route path="/admin/analytics" element={<AdminDashboard />} />
-              <Route path="/admin/revenue" element={<AdminDashboard />} />
+              <Route path="/admin/events" element={<AdminEventManagement />} />
+              <Route path="/admin/analytics" element={<AdminAnalytics />} />
+              <Route path="/admin/revenue" element={<AdminRevenue />} />
               <Route path="/admin/settings" element={<AdminDashboard />} />
               
               {/* Legacy admin route for backward compatibility */}

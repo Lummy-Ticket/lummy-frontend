@@ -297,8 +297,8 @@ const OrganizerRequestPage: React.FC = () => {
                       </Alert>
 
                       <VStack spacing={4}>
-                        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                          <FormControl isRequired>
+                        <HStack spacing={4} align="start" w="full">
+                          <FormControl isRequired flex="1">
                             <FormLabel>Wallet Address</FormLabel>
                             <Input
                               value={whitelistData.walletAddress}
@@ -315,7 +315,7 @@ const OrganizerRequestPage: React.FC = () => {
                             )}
                           </FormControl>
 
-                          <FormControl isRequired>
+                          <FormControl isRequired flex="1">
                             <FormLabel>Organizer Name</FormLabel>
                             <Input
                               value={whitelistData.organizerName}
@@ -323,7 +323,7 @@ const OrganizerRequestPage: React.FC = () => {
                               placeholder="Your name or company name"
                             />
                           </FormControl>
-                        </SimpleGrid>
+                        </HStack>
 
                         <FormControl isRequired>
                           <FormLabel>Email Address</FormLabel>

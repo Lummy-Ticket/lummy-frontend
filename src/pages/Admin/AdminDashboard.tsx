@@ -90,34 +90,43 @@ const AdminDashboard: React.FC = () => {
   const cardBg = useColorModeValue("white", "gray.800");
   const borderColor = useColorModeValue("gray.200", "gray.700");
 
-  // Mock data
+  // Mock data synchronized with customer events
   const recentEvents = [
     {
       id: 1,
-      name: "Jakarta Music Festival 2025",
-      organizer: "Jakarta Music Productions",
-      date: "2025-02-15",
-      tickets: 1250,
-      revenue: "625,000,000",
+      name: "Tech Conference 2025",
+      organizer: "TechTalks ID",
+      date: "2025-07-25",
+      tickets: 250,
+      revenue: "42,500,000",
       status: "active",
     },
     {
       id: 2,
-      name: "TechTalk: AI Revolution",
-      organizer: "TechHub Indonesia",
-      date: "2025-01-25",
-      tickets: 500,
-      revenue: "125,000,000",
+      name: "Summer Music Festival",
+      organizer: "EventMaster Indonesia",
+      date: "2025-06-15",
+      tickets: 50,
+      revenue: "15,000,000",
       status: "active",
     },
     {
       id: 3,
-      name: "Startup Pitch Competition",
-      organizer: "Startup Community",
-      date: "2025-01-20",
-      tickets: 300,
-      revenue: "75,000,000",
-      status: "completed",
+      name: "Blockchain Workshop",
+      organizer: "Blockchain Indonesia",
+      date: "2025-08-10",
+      tickets: 20,
+      revenue: "2,000,000",
+      status: "active",
+    },
+    {
+      id: 4,
+      name: "Rock Concert: Thunder Night",
+      organizer: "RockFest Indonesia",
+      date: "2025-09-20",
+      tickets: 0,
+      revenue: "0",
+      status: "active",
     },
   ];
 
@@ -150,7 +159,7 @@ const AdminDashboard: React.FC = () => {
       <VStack spacing={8} align="stretch">
         {/* Header */}
         <Box>
-          <Heading size="lg" mb={2}>
+          <Heading size="lg">
             Dashboard Overview
           </Heading>
           <Text color="gray.600">
@@ -163,32 +172,32 @@ const AdminDashboard: React.FC = () => {
         <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={6}>
           <StatCard
             title="Total Organizers"
-            value="47"
-            change="12% from last month"
+            value="4"
+            change="verified organizers"
             isPositive={true}
             icon={MdPeople}
             color="blue"
           />
           <StatCard
             title="Active Events"
-            value="23"
-            change="8% from last month"
+            value="4"
+            change="all events live"
             isPositive={true}
             icon={MdEvent}
             color="green"
           />
           <StatCard
             title="Total Revenue"
-            value="₹2.5M"
-            change="23% from last month"
+            value="IDR 59.5M"
+            change="from current events"
             isPositive={true}
             icon={MdAttachMoney}
             color="purple"
           />
           <StatCard
-            title="Platform Growth"
-            value="89%"
-            change="5% from last month"
+            title="Tickets Sold"
+            value="270"
+            change="across all events"
             isPositive={true}
             icon={MdTrendingUp}
             color="orange"
@@ -212,7 +221,7 @@ const AdminDashboard: React.FC = () => {
                 variant="outline"
                 onClick={() => navigate("/admin/events")}
               >
-                View All
+                Manage Events
               </Button>
             </Flex>
 

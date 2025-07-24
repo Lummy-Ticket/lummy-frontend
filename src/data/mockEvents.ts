@@ -250,6 +250,119 @@ Don't miss this opportunity to stay ahead of the curve in the rapidly evolving t
     cancelled: false,
     useAlgorithm1: false,
   },
+  {
+    id: "4",
+    title: "Rock Concert: Thunder Night",
+    description: "Electric rock concert featuring legendary bands and rising stars in an unforgettable night of music.",
+    longDescription: `Thunder Night brings you the most explosive rock concert of the year! Experience the raw energy and passion of live rock music with both legendary acts and breakthrough artists on one epic stage.
+
+This isn't just a concert - it's a celebration of rock culture, bringing together fans from all walks of life for an night that will echo in your memory forever.
+
+What to expect:
+- 5 hours of non-stop rock performances
+- Multiple bands spanning classic rock to modern alternative
+- State-of-the-art sound and lighting systems
+- Premium food trucks and beverage stations
+- Exclusive merchandise from all performing artists
+- Meet & greet opportunities with select artists
+
+Get ready to rock the night away at Thunder Night - where legends are made and memories are forged in the fire of pure rock and roll!`,
+    date: "2025-09-20T19:00:00",
+    time: "07:00 PM",
+    endTime: "12:00 AM",
+    location: "Gelora Bung Karno Stadium",
+    venue: "Gelora Bung Karno Main Stadium",
+    address: "Jl. Pintu I Senayan, Jakarta 10270, Indonesia",
+    imageUrl: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80",
+    bannerUrl: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80",
+    price: 350,
+    currency: "IDRX",
+    category: "Music",
+    status: "available",
+    organizer: {
+      id: "org4",
+      name: "RockFest Indonesia",
+      verified: true,
+      description: "Indonesia's premier rock music promoter, bringing world-class rock experiences since 2010.",
+      website: "https://rockfest.id",
+      eventsHosted: 67,
+      address: "0x9876543210fedcba9876543210fedcba98765432",
+    },
+    ticketsAvailable: 800,
+    ticketTiers: [
+      {
+        id: "tier1",
+        name: "General Standing",
+        price: 350,
+        currency: "IDRX",
+        description: "Standing area access to the main concert arena",
+        available: 500,
+        maxPerPurchase: 6,
+        sold: 0,
+        active: true,
+      },
+      {
+        id: "tier2",
+        name: "Premium Seated",
+        price: 650,
+        currency: "IDRX",
+        description: "Reserved seating with premium view of the stage", 
+        available: 200,
+        maxPerPurchase: 4,
+        sold: 0,
+        active: true,
+        benefits: [
+          "Reserved seating with excellent stage view",
+          "Access to premium restroom facilities",
+          "Dedicated entry gate with shorter queues",
+          "Complimentary concert program",
+        ],
+      },
+      {
+        id: "tier3",
+        name: "VIP Rock Experience",
+        price: 1200,
+        currency: "IDRX",
+        description: "Ultimate rock concert experience with exclusive perks",
+        available: 80,
+        maxPerPurchase: 2,
+        sold: 0,
+        active: true,
+        benefits: [
+          "Front row seating closest to the stage",
+          "Meet & greet with one featured band",
+          "Exclusive VIP lounge access",
+          "Complimentary food and premium beverages",
+          "Limited edition Thunder Night merchandise",
+          "Professional concert photos",
+        ],
+      },
+      {
+        id: "tier4",
+        name: "Backstage Pass",
+        price: 2000,
+        currency: "IDRX", 
+        description: "Behind-the-scenes access and backstage experience",
+        available: 20,
+        maxPerPurchase: 1,
+        sold: 0,
+        active: true,
+        benefits: [
+          "All VIP Rock Experience benefits",
+          "Backstage tour during sound check",
+          "Meet & greet with all performing bands",
+          "Access to artists' catering area",
+          "Signed memorabilia from featured artists",
+          "Priority parking pass",
+        ],
+      },
+    ],
+    tags: ["music", "concert", "rock", "live music", "jakarta"],
+    eventId: "4",
+    ipfsMetadata: "QmThunderNightRockConcert2025Hash",
+    cancelled: false,
+    useAlgorithm1: false,
+  },
 ];
 
 // Contract-compatible mock data for testing

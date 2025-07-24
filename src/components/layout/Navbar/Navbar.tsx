@@ -60,6 +60,7 @@ const getNavigationLinks = (role: string) => {
       { name: "Organizer Requests", path: "/admin/organizers" },
       { name: "Event Management", path: "/admin/events" },
       { name: "Analytics", path: "/admin/analytics" },
+      { name: "Revenue", path: "/admin/revenue" },
       { name: "Profile", path: "/profile" },
     ],
   };

@@ -307,7 +307,7 @@ const AdminOrganizerRequests: React.FC = () => {
       <VStack spacing={6} align="stretch">
         {/* Header */}
         <Box>
-          <Heading size="lg" mb={2}>
+          <Heading size="lg">
             Organizer Requests
           </Heading>
           <Text color="gray.600">
