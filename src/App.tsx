@@ -18,6 +18,7 @@ import { CheckInDashboard, ScannerPage } from "./pages/TicketManagement";
 import OrganizerRequestPage from "./pages/OrganizerRequest/OrganizerRequestPage";
 import OrganizerRequestsAdmin from "./pages/OrganizerRequest/OrganizerRequestsAdmin";
 import { AdminDashboard, AdminOrganizerRequests, AdminEventManagement, AdminAnalytics, AdminRevenue } from "./pages/Admin";
+import { StaffEventSelection } from "./pages/Staff";
 import { Web3Provider } from "./services/Web3Provider";
 import { RoleProvider } from "./context/RoleContext";
 
@@ -58,6 +59,11 @@ function App() {
                 path="/organizer/events/:eventId/scanner"
                 element={<ScannerPage />}
               />
+
+              {/* Staff routes */}
+              <Route path="/staff" element={<StaffEventSelection />} />
+              <Route path="/staff/event/:eventId" element={<CheckInDashboard />} />
+              <Route path="/staff/event/:eventId/scanner" element={<ScannerPage />} />
 
               {/* Organizer Request routes */}
               <Route path="/organizer-request" element={<OrganizerRequestPage />} />

@@ -51,8 +51,7 @@ const getNavigationLinks = (role: string) => {
       { name: "Profile", path: "/profile" },
     ],
     organizer: [
-      ...baseLinks,
-      { name: "Organizer", path: "/organizer" },
+      { name: "Organizer Dashboard", path: "/organizer" },
       { name: "Profile", path: "/profile" },
     ],
     admin: [
@@ -61,6 +60,9 @@ const getNavigationLinks = (role: string) => {
       { name: "Event Management", path: "/admin/events" },
       { name: "Analytics", path: "/admin/analytics" },
       { name: "Revenue", path: "/admin/revenue" },
+    ],
+    staff: [
+      { name: "Event Selection", path: "/staff" },
       { name: "Profile", path: "/profile" },
     ],
   };

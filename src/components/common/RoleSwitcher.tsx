@@ -12,17 +12,42 @@ import {
   useColorModeValue,
 } from '@chakra-ui/react';
 import { ChevronDownIcon } from '@chakra-ui/icons';
-import { FaUser, FaUserTie, FaUserShield } from 'react-icons/fa';
+import { FaUser, FaUserTie, FaUserShield, FaUserCheck } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
 import { useRole, UserRole } from '../../context/RoleContext';
 
 const RoleSwitcher: React.FC = () => {
   const { role, setRole } = useRole();
+  const navigate = useNavigate();
   const menuBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
+
+  // Define the first path for each role
+  const getRoleDefaultPath = (roleValue: UserRole): string => {
+    switch (roleValue) {
+      case 'customer':
+        return '/';
+      case 'organizer':
+        return '/organizer';
+      case 'staff':
+        return '/staff';
+      case 'admin':
+        return '/admin';
+      default:
+        return '/';
+    }
+  };
+
+  const handleRoleChange = (newRole: UserRole) => {
+    setRole(newRole);
+    const defaultPath = getRoleDefaultPath(newRole);
+    navigate(defaultPath);
+  };
 
   const roles: { value: UserRole; label: string; icon: React.ElementType; color: string }[] = [
     { value: 'customer', label: 'Customer', icon: FaUser, color: 'blue' },
     { value: 'organizer', label: 'Organizer', icon: FaUserTie, color: 'purple' },
+    { value: 'staff', label: 'Staff', icon: FaUserCheck, color: 'green' },
     { value: 'admin', label: 'Admin', icon: FaUserShield, color: 'red' },
   ];
 
@@ -56,7 +81,7 @@ const RoleSwitcher: React.FC = () => {
         {roles.map((roleOption) => (
           <MenuItem
             key={roleOption.value}
-            onClick={() => setRole(roleOption.value)}
+            onClick={() => handleRoleChange(roleOption.value)}
             bg={role === roleOption.value ? `${roleOption.color}.50` : 'transparent'}
             _hover={{
               bg: `${roleOption.color}.50`,

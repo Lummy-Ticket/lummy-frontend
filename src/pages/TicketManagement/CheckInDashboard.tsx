@@ -34,7 +34,7 @@ import {
   EmailIcon,
 } from "@chakra-ui/icons";
 import { FaQrcode, FaChartBar, FaUserCheck, FaUsers } from "react-icons/fa";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { CheckInStats } from "../../components/ticketManagement";
 
 // Mock data
@@ -159,6 +159,7 @@ interface RecentCheckin {
 const CheckInDashboard: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -169,6 +170,15 @@ const CheckInDashboard: React.FC = () => {
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+
+  // Context-aware navigation
+  const isStaffContext = location.pathname.includes('/staff/');
+  const getBackPath = () => {
+    if (isStaffContext) {
+      return '/staff'; // Back to Staff Event Selection
+    }
+    return `/organizer/events/${eventId}`; // Back to Organizer Event Management
+  };
 
   const cardBg = "white";
   const tableBg = "white";
@@ -196,7 +206,11 @@ const CheckInDashboard: React.FC = () => {
   };
 
   const handleStartScanning = () => {
-    navigate(`/organizer/events/${eventId}/scanner`);
+    if (isStaffContext) {
+      navigate(`/staff/event/${eventId}/scanner`);
+    } else {
+      navigate(`/organizer/events/${eventId}/scanner`);
+    }
   };
 
   const handleSendReminders = () => {
@@ -230,7 +244,7 @@ const CheckInDashboard: React.FC = () => {
         <Button
           leftIcon={<ArrowBackIcon />}
           variant="ghost"
-          onClick={() => navigate(`/organizer/events/${eventId}`)}
+          onClick={() => navigate(getBackPath())}
         >
           Back
         </Button>
@@ -552,7 +566,7 @@ const CheckInDashboard: React.FC = () => {
       ) : (
         <Box textAlign="center" py={10}>
           <Text>Event not found</Text>
-          <Button mt={4} onClick={() => navigate("/organizer")}>
+          <Button mt={4} onClick={() => navigate(isStaffContext ? "/staff" : "/organizer")}>
             Back to Dashboard
           </Button>
         </Box>

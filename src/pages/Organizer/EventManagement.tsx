@@ -166,6 +166,10 @@ const EventManagement: React.FC = () => {
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [resellSettings, setResellSettings] =
     useState<ResellSettingsData | null>(null);
+  
+  // Staff management state
+  const [staffList, setStaffList] = useState<string[]>([]);
+  const [newStaffAddress, setNewStaffAddress] = useState<string>("");
 
   // State and handler for ticket tier modal form
   const [editingTier, setEditingTier] = useState<EditableTier | null>(null);
@@ -185,6 +189,11 @@ const EventManagement: React.FC = () => {
         setSalesData(mockSalesData);
         setAttendees(mockAttendees);
         setResellSettings(mockResellSettings);
+        // Mock staff list
+        setStaffList([
+          "0x1234567890abcdef1234567890abcdef12345678",
+          "0xabcdef1234567890abcdef1234567890abcdef12"
+        ]);
         setLoading(false);
       }, 1000);
     };
@@ -226,6 +235,56 @@ const EventManagement: React.FC = () => {
     toast({
       title: "Settings updated",
       description: "Resale settings have been successfully updated",
+      status: "success",
+      duration: 3000,
+      isClosable: true,
+    });
+  };
+
+  // Staff management handlers
+  const handleAddStaff = () => {
+    if (!newStaffAddress.trim()) {
+      toast({
+        title: "Invalid address",
+        description: "Please enter a valid wallet address",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    if (staffList.includes(newStaffAddress)) {
+      toast({
+        title: "Staff already exists",
+        description: "This address is already in the staff list",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    // TODO: Call smart contract addStaff function
+    setStaffList([...staffList, newStaffAddress]);
+    setNewStaffAddress("");
+
+    toast({
+      title: "Staff added",
+      description: "Staff member has been added successfully",
+      status: "success",
+      duration: 3000,
+      isClosable: true,
+    });
+  };
+
+  const handleRemoveStaff = (staffAddress: string) => {
+    // TODO: Call smart contract removeStaff function
+    setStaffList(staffList.filter(addr => addr !== staffAddress));
+
+    toast({
+      title: "Staff removed",
+      description: "Staff member has been removed successfully",
       status: "success",
       duration: 3000,
       isClosable: true,
@@ -650,6 +709,90 @@ const EventManagement: React.FC = () => {
                 settings={resellSettings}
                 onSave={handleResellSettingsUpdate}
               />
+
+              {/* Staff Management Section */}
+              <Box
+                bg="white"
+                p={6}
+                borderRadius="lg"
+                border="2px solid"
+                borderColor="gray.200"
+                boxShadow="none"
+              >
+                <Heading size="md" mb={4}>
+                  Staff Management
+                </Heading>
+                <Text color="gray.600" mb={6}>
+                  Manage staff members who can check-in attendees for this event
+                </Text>
+
+                {/* Add Staff */}
+                <HStack mb={6}>
+                  <Input
+                    placeholder="Enter staff wallet address (0x...)"
+                    value={newStaffAddress}
+                    onChange={(e) => setNewStaffAddress(e.target.value)}
+                    flex="1"
+                  />
+                  <Button
+                    colorScheme="green"
+                    onClick={handleAddStaff}
+                    minW="100px"
+                  >
+                    Add Staff
+                  </Button>
+                </HStack>
+
+                {/* Staff List */}
+                <VStack align="stretch" spacing={3}>
+                  <Text fontWeight="medium" mb={2}>
+                    Current Staff ({staffList.length})
+                  </Text>
+                  {staffList.length > 0 ? (
+                    staffList.map((staffAddress, index) => (
+                      <Flex
+                        key={index}
+                        justify="space-between"
+                        align="center"
+                        p={4}
+                        borderWidth="1px"
+                        borderRadius="md"
+                        bg="gray.50"
+                      >
+                        <VStack align="start" spacing={0}>
+                          <Text fontFamily="mono" fontSize="sm">
+                            {staffAddress}
+                          </Text>
+                          <Badge colorScheme="green" size="sm">
+                            Active Staff
+                          </Badge>
+                        </VStack>
+                        <Button
+                          size="sm"
+                          colorScheme="red"
+                          variant="outline"
+                          onClick={() => handleRemoveStaff(staffAddress)}
+                        >
+                          Remove
+                        </Button>
+                      </Flex>
+                    ))
+                  ) : (
+                    <Box
+                      p={8}
+                      borderWidth="1px"
+                      borderRadius="md"
+                      borderStyle="dashed"
+                      textAlign="center"
+                      bg="gray.25"
+                    >
+                      <Text color="gray.500">
+                        No staff members added yet. Add staff to enable event check-in management.
+                      </Text>
+                    </Box>
+                  )}
+                </VStack>
+              </Box>
             </VStack>
           </TabPanel>
         </TabPanels>

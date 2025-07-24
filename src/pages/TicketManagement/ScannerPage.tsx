@@ -17,7 +17,7 @@ import {
 } from "@chakra-ui/react";
 import { ArrowBackIcon } from "@chakra-ui/icons";
 import { FaTicketAlt } from "react-icons/fa";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import QrScanner from "../../components/ticketManagement/QrScanner";
 import AttendeeVerification from "../../components/ticketManagement/AttendeeVerification";
 
@@ -58,6 +58,7 @@ interface ScanResult {
 const ScannerPage: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -73,6 +74,15 @@ const ScannerPage: React.FC = () => {
   >([]);
 
   const [filterStatus, setFilterStatus] = useState<string>("all");
+
+  // Context-aware navigation
+  const isStaffContext = location.pathname.includes('/staff/');
+  const getBackPath = () => {
+    if (isStaffContext) {
+      return `/staff/event/${eventId}`; // Back to Staff Check-in Dashboard
+    }
+    return `/organizer/events/${eventId}/check-in`; // Back to Organizer Check-in Dashboard
+  };
 
   const cardBg = "white";
 
@@ -209,7 +219,7 @@ const ScannerPage: React.FC = () => {
           <Button
             leftIcon={<ArrowBackIcon />}
             variant="ghost"
-            onClick={() => navigate(`/organizer/events/${eventId}`)}
+            onClick={() => navigate(getBackPath())}
           >
             Back
           </Button>

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
-export type UserRole = 'customer' | 'organizer' | 'admin';
+export type UserRole = 'customer' | 'organizer' | 'admin' | 'staff';
 
 interface RoleContextType {
   role: UserRole;
@@ -18,6 +18,7 @@ export const RoleProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       case 'customer': return 'Customer';
       case 'organizer': return 'Organizer';
       case 'admin': return 'Admin';
+      case 'staff': return 'Staff';
       default: return 'Customer';
     }
   };
