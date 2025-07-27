@@ -15,6 +15,8 @@ import {
   NumberIncrementStepper,
   NumberDecrementStepper,
   useColorModeValue,
+  Image,
+  HStack,
 } from "@chakra-ui/react";
 import { CheckIcon } from "@chakra-ui/icons";
 import { TicketTier } from "../../../types/Event";
@@ -127,17 +129,51 @@ export const TicketTierCard: React.FC<TicketTierCardProps> = ({
         {/* Tier Info */}
         <Box flex="1" p={6}>
           <VStack align="start" spacing={3}>
-            <Text
-              fontWeight="bold"
-              fontSize="xl"
-              color={isSelected ? "purple.700" : "gray.800"}
-            >
-              {tier.name}
-            </Text>
-
-            <Text fontWeight="bold" fontSize="2xl" color="purple.600">
-              {formatPrice(tier.price, tier.currency)}
-            </Text>
+            <HStack spacing={4} align="center" width="100%">
+              <VStack align="start" flex="1" spacing={1}>
+                <Text
+                  fontWeight="bold"
+                  fontSize="xl"
+                  color={isSelected ? "purple.700" : "gray.800"}
+                >
+                  {tier.name}
+                </Text>
+                <Text fontWeight="bold" fontSize="2xl" color="purple.600">
+                  {formatPrice(tier.price, tier.currency)}
+                </Text>
+              </VStack>
+              
+              {/* NFT Image Placeholder - 1x1 aspect ratio */}
+              <Box
+                width="80px"
+                height="80px"
+                borderRadius="md"
+                border="2px solid"
+                borderColor={isSelected ? "purple.300" : "gray.200"}
+                overflow="hidden"
+                bg="gray.50"
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                flexShrink={0}
+              >
+                {tier.nftImageUrl ? (
+                  <Image
+                    src={tier.nftImageUrl}
+                    alt={`NFT preview for ${tier.name}`}
+                    width="100%"
+                    height="100%"
+                    objectFit="cover"
+                  />
+                ) : (
+                  <Text fontSize="xs" color="gray.400" textAlign="center" px={2}>
+                    NFT
+                    <br />
+                    Preview
+                  </Text>
+                )}
+              </Box>
+            </HStack>
 
             <Text color="gray.600" fontSize="md">
               {tier.description}

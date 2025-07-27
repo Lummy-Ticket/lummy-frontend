@@ -28,12 +28,10 @@ export interface ContractEvent {
 }
 
 export interface ContractResaleRules {
-  allowResell: boolean;
-  maxMarkupPercentage: bigint;
-  organizerFeePercentage: bigint;
-  restrictResellTiming: boolean;
-  minDaysBeforeEvent: bigint;
-  requireVerification: boolean;
+  maxMarkupPercentage: bigint;     // Max 50% (5000 basis points)
+  organizerFeePercentage: bigint;  // Max 10% (1000 basis points)
+  restrictResellTiming: boolean;   // Enable timing restrictions
+  minDaysBeforeEvent: bigint;      // Minimum days before event
 }
 
 export interface ContractListingInfo {
@@ -53,6 +51,10 @@ export interface TicketTier {
   available: number;
   maxPerPurchase: number;
   benefits?: string[];
+  // NFT Image properties
+  nftImage?: File | null;
+  nftImageUrl?: string; // For preview/mock
+  nftDescription?: string;
   // Contract fields (converted)
   sold?: number;
   active?: boolean;
@@ -100,6 +102,7 @@ export interface Event {
   ipfsMetadata?: string;
   cancelled?: boolean;
   useAlgorithm1?: boolean;
+  algorithm?: "algorithm1" | "algorithm2" | "algorithm3"; // Algorithm selection
 }
 
 // Type conversion utilities

@@ -6,21 +6,10 @@ import {
   Heading,
   Text,
   Button,
-  SimpleGrid,
-  Tabs,
-  TabList,
-  TabPanels,
-  Tab,
-  TabPanel,
-  HStack,
-  Icon,
-  Badge,
-  Divider,
   Select,
-  VStack,
+  HStack,
 } from "@chakra-ui/react";
-import { AddIcon, CalendarIcon } from "@chakra-ui/icons";
-import { FaTicketAlt, FaChartLine, FaUserCheck } from "react-icons/fa";
+import { AddIcon } from "@chakra-ui/icons";
 import { useNavigate } from "react-router-dom";
 
 import SalesStatistics from "../../components/organizer/SalesStatistics";
@@ -119,30 +108,9 @@ const mockSalesData = {
   percentChange: 12.5,
 };
 
-// Helper Functions
-const getEventStatus = (daysUntilEvent: number) => {
-  if (daysUntilEvent > 0) return "Upcoming";
-  if (daysUntilEvent === 0) return "Ongoing";
-  return "Completed";
-};
-
-const getBadgeColor = (status: string) => {
-  switch (status) {
-    case "Upcoming":
-      return "green";
-    case "Ongoing":
-      return "orange";
-    case "Completed":
-      return "gray";
-    default:
-      return "blue";
-  }
-};
-
 const OrganizerDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [selectedEvent, setSelectedEvent] = useState<string>("all");
-  const cardBg = "white";
 
   const filteredSalesData =
     selectedEvent === "all" ? mockSalesData : { ...mockSalesData }; // Add real filter later
@@ -151,78 +119,6 @@ const OrganizerDashboard: React.FC = () => {
     navigate("/organizer/events/create");
   };
 
-  const handleManageEvent = (eventId: string) => {
-    navigate(`/organizer/events/${eventId}`);
-  };
-
-  const renderEventCards = (events: typeof mockEvents) => (
-    <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
-      {events.map((event) => {
-        const status = getEventStatus(event.daysUntilEvent);
-        return (
-          <Box
-            key={event.eventId}
-            p={4}
-            borderWidth="1px"
-            borderRadius="md"
-            bg={cardBg}
-            shadow="sm"
-          >
-            <Flex justify="space-between" align="center">
-              <Box>
-                <HStack mb={1}>
-                  <Heading size="sm">{event.eventName}</Heading>
-                  <Badge colorScheme={getBadgeColor(status)}>{status}</Badge>
-                </HStack>
-                <HStack spacing={4} color="gray.600">
-                  <HStack>
-                    <Icon as={FaTicketAlt} />
-                    <Text>
-                      {event.ticketsSold} / {event.totalTickets} sold
-                    </Text>
-                  </HStack>
-                  <HStack>
-                    <Icon as={CalendarIcon} />
-                    <Text>{new Date().toLocaleDateString()}</Text>
-                  </HStack>
-                </HStack>
-              </Box>
-              <HStack>
-                <Button
-                  colorScheme="blue"
-                  variant="outline"
-                  size="sm"
-                  leftIcon={<Icon as={FaUserCheck} />}
-                  onClick={() =>
-                    navigate(`/organizer/events/${event.eventId}/check-in`)
-                  }
-                >
-                  Check-in
-                </Button>
-                <Button
-                  colorScheme="purple"
-                  size="sm"
-                  onClick={() => handleManageEvent(event.eventId)}
-                >
-                  Manage
-                </Button>
-              </HStack>
-            </Flex>
-          </Box>
-        );
-      })}
-    </SimpleGrid>
-  );
-
-  const upcomingEvents = mockEvents.filter(
-    (e) => getEventStatus(e.daysUntilEvent) === "Upcoming"
-  );
-  const ongoingEvents = mockEvents.filter(
-    (e) => getEventStatus(e.daysUntilEvent) === "Ongoing"
-  );
-  const completedEvents = mockEvents.filter(
-    (e) => getEventStatus(e.daysUntilEvent) === "Completed"
-  );
 
   return (
     <Container maxW="container.xl" py={8}>
@@ -240,73 +136,35 @@ const OrganizerDashboard: React.FC = () => {
         </Button>
       </Flex>
 
-      <Tabs colorScheme="purple" variant="enclosed" mb={8}>
-        <TabList>
-          <Tab>
-            <Icon as={FaChartLine} mr={2} /> Overview
-          </Tab>
-          <Tab>
-            <Icon as={FaTicketAlt} mr={2} /> My Events
-          </Tab>
-        </TabList>
-
-        <TabPanels>
-          <TabPanel px={0}>
-            <Box mb={6}>
-              <HStack mb={4} justify="space-between">
-                <Heading size="md">Sales Overview</Heading>
-                <Select
-                  maxW="250px"
-                  value={selectedEvent}
-                  onChange={(e) => setSelectedEvent(e.target.value)}
-                >
-                  <option value="all">All Events</option>
-                  {mockEvents.map((event) => (
-                    <option key={event.eventId} value={event.eventId}>
-                      {event.eventName}
-                    </option>
-                  ))}
-                </Select>
-              </HStack>
-              {filteredSalesData && (
-                <SalesStatistics
-                  salesData={filteredSalesData}
-                  eventName={
-                    selectedEvent === "all"
-                      ? "All Events"
-                      : mockEvents.find((e) => e.eventId === selectedEvent)
-                          ?.eventName || "Event"
-                  }
-                />
-              )}
-            </Box>
-            <Divider my={2} />
-          </TabPanel>
-
-          <TabPanel px={0} py={6}>
-            <VStack align="stretch" spacing={8}>
-              <Box>
-                <Heading size="md" mb={4}>
-                  Upcoming Events
-                </Heading>
-                {renderEventCards(upcomingEvents)}
-              </Box>
-              <Box>
-                <Heading size="md" mb={4}>
-                  Ongoing Events
-                </Heading>
-                {renderEventCards(ongoingEvents)}
-              </Box>
-              <Box>
-                <Heading size="md" mb={4}>
-                  Completed Events
-                </Heading>
-                {renderEventCards(completedEvents)}
-              </Box>
-            </VStack>
-          </TabPanel>
-        </TabPanels>
-      </Tabs>
+      {/* Sales Overview Section */}
+      <Box mb={8}>
+        <HStack mb={4} justify="space-between">
+          <Heading size="md">Sales Overview</Heading>
+          <Select
+            maxW="250px"
+            value={selectedEvent}
+            onChange={(e) => setSelectedEvent(e.target.value)}
+          >
+            <option value="all">All Events</option>
+            {mockEvents.map((event) => (
+              <option key={event.eventId} value={event.eventId}>
+                {event.eventName}
+              </option>
+            ))}
+          </Select>
+        </HStack>
+        {filteredSalesData && (
+          <SalesStatistics
+            salesData={filteredSalesData}
+            eventName={
+              selectedEvent === "all"
+                ? "All Events"
+                : mockEvents.find((e) => e.eventId === selectedEvent)
+                    ?.eventName || "Event"
+            }
+          />
+        )}
+      </Box>
     </Container>
   );
 };

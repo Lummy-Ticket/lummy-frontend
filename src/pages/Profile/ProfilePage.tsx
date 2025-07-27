@@ -14,14 +14,16 @@ import {
   Flex,
   useToast,
 } from "@chakra-ui/react";
-import { FaUser, FaWallet, FaHistory } from "react-icons/fa";
+import { FaUser, FaWallet, FaHistory, FaCalendarAlt } from "react-icons/fa";
 import { useAccount, useBalance } from "wagmi";
 import { ConnectButton } from "@xellar/kit";
 import {
   PersonalInfo,
   TransactionHistory,
   WalletDetails,
+  MyEvents,
 } from "../../components/profile";
+import { useRole } from "../../context/RoleContext";
 import { IDRX_SEPOLIA } from "../../constants"; // Import token address
 
 // Mock transaction data
@@ -46,6 +48,37 @@ const mockTransactions = Array.from({ length: 15 }, (_, i) => ({
     | "failed",
   txHash: `0x${Math.random().toString(16).substring(2, 42)}`,
 }));
+
+// Mock staff events data
+const mockStaffEvents = [
+  {
+    id: "1",
+    eventName: "Summer Music Festival",
+    date: "2025-06-15",
+    status: "upcoming" as const,
+    role: "Staff Member",
+    organizer: "EventMaster Indonesia",
+    venue: "Jakarta Convention Center",
+  },
+  {
+    id: "2", 
+    eventName: "Tech Conference 2025",
+    date: "2025-07-25",
+    status: "ongoing" as const,
+    role: "Staff Member",
+    organizer: "TechTalks ID",
+    venue: "Digital Hub Bandung",
+  },
+  {
+    id: "3",
+    eventName: "Blockchain Workshop",
+    date: "2025-08-10", 
+    status: "completed" as const,
+    role: "Staff Member",
+    organizer: "Blockchain Indonesia",
+    venue: "Blockchain Center Jakarta",
+  },
+];
 
 const WalletConnectionRequired: React.FC<{ message?: string }> = ({
   message,
@@ -91,6 +124,8 @@ const WalletConnectionRequired: React.FC<{ message?: string }> = ({
 
 const ProfilePage: React.FC = () => {
   const { address, isConnected } = useAccount();
+  const { role } = useRole();
+  
   // Get IDRX balance
   const { data: balanceData } = useBalance({
     address,
@@ -122,12 +157,20 @@ const ProfilePage: React.FC = () => {
           <Tab>
             <Icon as={FaUser} mr={2} /> Personal Info
           </Tab>
-          <Tab>
-            <Icon as={FaWallet} mr={2} /> Wallet
-          </Tab>
-          <Tab>
-            <Icon as={FaHistory} mr={2} /> Transactions
-          </Tab>
+          {role === "staff" ? (
+            <Tab>
+              <Icon as={FaCalendarAlt} mr={2} /> My Events
+            </Tab>
+          ) : (
+            <>
+              <Tab>
+                <Icon as={FaWallet} mr={2} /> Wallet
+              </Tab>
+              <Tab>
+                <Icon as={FaHistory} mr={2} /> Transactions
+              </Tab>
+            </>
+          )}
         </TabList>
 
         <TabPanels>
@@ -148,30 +191,43 @@ const ProfilePage: React.FC = () => {
             )}
           </TabPanel>
 
-          {/* Wallet Tab */}
-          <TabPanel px={0} py={4}>
-            {isConnected && address ? (
-              <WalletDetails balanceData={balanceData} />
-            ) : (
-              <WalletConnectionRequired message="Connect your Xellar wallet to view your balance and wallet details" />
-            )}
-          </TabPanel>
+          {role === "staff" ? (
+            /* My Events Tab for Staff */
+            <TabPanel px={0} py={4}>
+              {isConnected && address ? (
+                <MyEvents events={mockStaffEvents} />
+              ) : (
+                <WalletConnectionRequired message="Connect your Xellar wallet to view your assigned events" />
+              )}
+            </TabPanel>
+          ) : (
+            <>
+              {/* Wallet Tab */}
+              <TabPanel px={0} py={4}>
+                {isConnected && address ? (
+                  <WalletDetails balanceData={balanceData} />
+                ) : (
+                  <WalletConnectionRequired message="Connect your Xellar wallet to view your balance and wallet details" />
+                )}
+              </TabPanel>
 
-          {/* Transactions Tab */}
-          <TabPanel px={0} py={4}>
-            {isConnected && address ? (
-              <TransactionHistory
-                transactions={mockTransactions.map((tx) => ({
-                  ...tx,
-                  // Ensure event name is properly formatted without ellipsis
-                  eventName: tx.eventName.replace("...", "").trim(),
-                }))}
-                isConnected={true}
-              />
-            ) : (
-              <WalletConnectionRequired message="Connect your Xellar wallet to view your transaction history" />
-            )}
-          </TabPanel>
+              {/* Transactions Tab */}
+              <TabPanel px={0} py={4}>
+                {isConnected && address ? (
+                  <TransactionHistory
+                    transactions={mockTransactions.map((tx) => ({
+                      ...tx,
+                      // Ensure event name is properly formatted without ellipsis
+                      eventName: tx.eventName.replace("...", "").trim(),
+                    }))}
+                    isConnected={true}
+                  />
+                ) : (
+                  <WalletConnectionRequired message="Connect your Xellar wallet to view your transaction history" />
+                )}
+              </TabPanel>
+            </>
+          )}
         </TabPanels>
       </Tabs>
     </Container>

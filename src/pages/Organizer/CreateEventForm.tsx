@@ -16,6 +16,13 @@ import {
   SimpleGrid,
   IconButton,
   Flex,
+  RadioGroup,
+  Radio,
+  Stack,
+  Text,
+  Badge,
+  Alert,
+  AlertIcon,
 } from "@chakra-ui/react";
 import { ArrowBackIcon } from "@chakra-ui/icons";
 import { useNavigate } from "react-router-dom";
@@ -45,6 +52,7 @@ const CreateEventForm: React.FC = () => {
     category: "",
     bannerImage: null as File | null,
     featuredImage: null as File | null,
+    algorithm: "algorithm1" as "algorithm1" | "algorithm2" | "algorithm3", // Algorithm selection
   });
 
   // Ticket tiers state
@@ -62,12 +70,10 @@ const CreateEventForm: React.FC = () => {
 
   // Resell settings state
   const [resellSettings, setResellSettings] = useState<ResellSettingsData>({
-    allowResell: true,
     maxMarkupPercentage: 20,
     organizerFeePercentage: 2.5,
     restrictResellTiming: false,
     minDaysBeforeEvent: 1,
-    requireVerification: false,
   });
 
   // Handle form input changes
@@ -231,6 +237,145 @@ const CreateEventForm: React.FC = () => {
               </Select>
             </FormControl>
           </VStack>
+        </Box>
+
+        {/* Algorithm Selection */}
+        <Box
+          bg={cardBg}
+          p={6}
+          borderRadius="lg"
+          border="2px solid"
+          borderColor={
+            eventData.algorithm === "algorithm1" ? "blue.300" : 
+            eventData.algorithm === "algorithm2" ? "green.300" : 
+            "purple.300"
+          }
+        >
+          <Heading size="md" mb={4}>
+            Ticket Algorithm Selection
+          </Heading>
+          <Text color="gray.600" mb={6}>
+            Choose the ticketing algorithm that best fits your event type and audience
+          </Text>
+          
+          <RadioGroup
+            value={eventData.algorithm}
+            onChange={(value: "algorithm1" | "algorithm2" | "algorithm3") => 
+              handleInputChange("algorithm", value)
+            }
+          >
+            <Stack spacing={4}>
+              {/* Algorithm 1: Pure Web3 NFT */}
+              <Box
+                p={4}
+                border="2px solid"
+                borderColor={eventData.algorithm === "algorithm1" ? "blue.300" : "gray.200"}
+                borderRadius="md"
+                bg={eventData.algorithm === "algorithm1" ? "blue.50" : "gray.50"}
+                cursor="pointer"
+                onClick={() => handleInputChange("algorithm", "algorithm1")}
+              >
+                <Radio value="algorithm1" size="lg">
+                  <VStack align="start" spacing={2} ml={3}>
+                    <HStack>
+                      <Text fontWeight="bold" fontSize="lg">
+                        Algorithm 1: Pure Web3 NFT
+                      </Text>
+                      <Badge colorScheme="blue">Recommended</Badge>
+                    </HStack>
+                    <Text fontSize="sm" color="gray.600">
+                      100% blockchain-based with NFT status updates
+                    </Text>
+                    <VStack align="start" spacing={1} fontSize="sm" color="gray.600">
+                      <Text>• Staff scan QR → User approve → Status "valid" → "used"</Text>
+                      <Text>• Pure Web3 architecture, no database needed</Text>
+                      <Text>• Gasless transactions with ERC-2771</Text>
+                      <Text>• Best for small-medium events (up to 500 attendees)</Text>
+                    </VStack>
+                  </VStack>
+                </Radio>
+              </Box>
+
+              {/* Algorithm 2: Dynamic QR */}
+              <Box
+                p={4}
+                border="2px solid"
+                borderColor={eventData.algorithm === "algorithm2" ? "green.300" : "gray.200"}
+                borderRadius="md"
+                bg={eventData.algorithm === "algorithm2" ? "green.50" : "gray.50"}
+                cursor="pointer"
+                onClick={() => handleInputChange("algorithm", "algorithm2")}
+              >
+                <Radio value="algorithm2" size="lg">
+                  <VStack align="start" spacing={2} ml={3}>
+                    <HStack>
+                      <Text fontWeight="bold" fontSize="lg">
+                        Algorithm 2: Dynamic QR Code
+                      </Text>
+                      <Badge colorScheme="green">Mass Events</Badge>
+                    </HStack>
+                    <Text fontSize="sm" color="gray.600">
+                      Hybrid Web2/Web3 with time-based QR validation
+                    </Text>
+                    <VStack align="start" spacing={1} fontSize="sm" color="gray.600">
+                      <Text>• QR code changes every 30 minutes</Text>
+                      <Text>• Database validation for fast entry</Text>
+                      <Text>• No wallet approval needed at venue</Text>
+                      <Text>• Best for large events with general audience</Text>
+                    </VStack>
+                  </VStack>
+                </Radio>
+              </Box>
+
+              {/* Algorithm 3: Zero Knowledge */}
+              <Box
+                p={4}
+                border="2px solid"
+                borderColor={eventData.algorithm === "algorithm3" ? "purple.300" : "gray.200"}
+                borderRadius="md"
+                bg={eventData.algorithm === "algorithm3" ? "purple.50" : "gray.50"}
+                cursor="pointer"
+                onClick={() => handleInputChange("algorithm", "algorithm3")}
+              >
+                <Radio value="algorithm3" size="lg">
+                  <VStack align="start" spacing={2} ml={3}>
+                    <HStack>
+                      <Text fontWeight="bold" fontSize="lg">
+                        Algorithm 3: Zero-Knowledge Proof
+                      </Text>
+                      <Badge colorScheme="purple">Privacy First</Badge>
+                    </HStack>
+                    <Text fontSize="sm" color="gray.600">
+                      Anonymous verification with complete privacy protection
+                    </Text>
+                    <VStack align="start" spacing={1} fontSize="sm" color="gray.600">
+                      <Text>• Anonymous entry without revealing identity</Text>
+                      <Text>• Local proof validation, no network calls</Text>
+                      <Text>• Privacy-preserving analytics</Text>
+                      <Text>• Best for premium and international events</Text>
+                    </VStack>
+                  </VStack>
+                </Radio>
+              </Box>
+            </Stack>
+          </RadioGroup>
+
+          {/* Algorithm-specific information */}
+          <Alert status="info" mt={4}>
+            <AlertIcon />
+            <VStack align="start" spacing={1}>
+              <Text fontWeight="medium">
+                {eventData.algorithm === "algorithm1" && "Algorithm 1 Selected: Pure Web3 Experience"}
+                {eventData.algorithm === "algorithm2" && "Algorithm 2 Selected: Mass Event Optimized"}
+                {eventData.algorithm === "algorithm3" && "Algorithm 3 Selected: Privacy-First Approach"}
+              </Text>
+              <Text fontSize="sm">
+                {eventData.algorithm === "algorithm1" && "Tech-savvy audience required. Users will need to approve transactions at venue entry."}
+                {eventData.algorithm === "algorithm2" && "No wallet interaction needed at venue. QR codes refresh automatically for security."}
+                {eventData.algorithm === "algorithm3" && "Complete anonymity guaranteed. Advanced cryptography for maximum privacy protection."}
+              </Text>
+            </VStack>
+          </Alert>
         </Box>
 
         {/* Date & Time */}

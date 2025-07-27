@@ -49,18 +49,19 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
           width="100%"
           objectFit="cover"
         />
+        
+        {/* Top right badges */}
         {status === "soldout" && (
-          <Badge
-            position="absolute"
-            top="10px"
-            right="10px"
-            colorScheme="red"
-            variant="solid"
-            fontSize="xs"
-            textTransform="uppercase"
-          >
-            Sold Out
-          </Badge>
+          <Box position="absolute" top="10px" right="10px">
+            <Badge
+              colorScheme="red"
+              variant="solid"
+              fontSize="xs"
+              textTransform="uppercase"
+            >
+              Sold Out
+            </Badge>
+          </Box>
         )}
       </Box>
 

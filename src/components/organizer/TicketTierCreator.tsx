@@ -23,6 +23,7 @@ import {
 } from "@chakra-ui/react";
 import { DeleteIcon, AddIcon } from "@chakra-ui/icons";
 import { isValidTokenAmount, isValidUint256, parseTokenAmount } from "../../utils/contractUtils";
+import NFTImageUpload from "./NFTImageUpload";
 
 export interface TicketTierInput {
   id: string;
@@ -32,6 +33,10 @@ export interface TicketTierInput {
   quantity: number;  // Keep as number for UI input
   maxPerPurchase: number;  // Keep as number for UI input
   benefits: string[];
+  // NFT Image properties
+  nftImage?: File | null;
+  nftImageUrl?: string; // For preview/mock
+  nftDescription?: string;
   // Contract-compatible fields
   active?: boolean;
   sold?: number;
@@ -51,12 +56,14 @@ interface TicketTierCreatorProps {
   tiers: TicketTierInput[];
   onChange: (tiers: TicketTierInput[]) => void;
   currency?: string;
+  eventTitle?: string; // For NFT metadata
 }
 
 const TicketTierCreator: React.FC<TicketTierCreatorProps> = ({
   tiers,
   onChange,
   currency = "IDRX",
+  eventTitle = "",
 }) => {
   const toast = useToast();
   const [benefitInput, setBenefitInput] = useState<{ [key: string]: string }>(
@@ -322,6 +329,26 @@ const TicketTierCreator: React.FC<TicketTierCreatorProps> = ({
                     <FormErrorMessage>{errors[tier.id]?.maxPerPurchase}</FormErrorMessage>
                   </FormControl>
                 </HStack>
+
+                <Divider />
+
+                {/* NFT Image Upload Section */}
+                <NFTImageUpload
+                  tierId={tier.id}
+                  tierName={tier.name}
+                  eventTitle={eventTitle}
+                  currentImage={tier.nftImage}
+                  currentImageUrl={tier.nftImageUrl}
+                  onImageChange={(image, imageUrl) => {
+                    handleTierChange(tier.id, "nftImage", image);
+                    handleTierChange(tier.id, "nftImageUrl", imageUrl);
+                  }}
+                  onMetadataReady={(metadataUrl) => {
+                    // Store metadata URL for contract integration
+                    console.log('🎨 NFT Metadata ready:', { tierId: tier.id, metadataUrl });
+                  }}
+                  label={`NFT Background for ${tier.name || 'Tier'}`}
+                />
 
                 <Divider />
 

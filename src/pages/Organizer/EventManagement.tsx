@@ -48,7 +48,7 @@ import {
   Stack,
 } from "@chakra-ui/react";
 import { ArrowBackIcon, EditIcon, DeleteIcon, AddIcon } from "@chakra-ui/icons";
-import { FaTicketAlt, FaChartBar, FaUsers, FaCog } from "react-icons/fa";
+import { FaTicketAlt, FaChartBar, FaUsers, FaCog, FaUserCheck } from "react-icons/fa";
 import { useNavigate, useParams } from "react-router-dom";
 import SalesStatistics, {
   SalesData,
@@ -80,6 +80,7 @@ const mockEvent: EventStatsData = {
     { tierName: "Backstage Experience", sold: 30, total: 50, price: 150 },
   ],
   daysUntilEvent: 45,
+  useAlgorithm1: false, // This event uses Original algorithm
 };
 
 // Mock sales data
@@ -132,12 +133,10 @@ const mockAttendees: Attendee[] = Array.from({ length: 30 }, (_, i) => ({
 
 // Mock resell settings
 const mockResellSettings: ResellSettingsData = {
-  allowResell: true,
   maxMarkupPercentage: 20,
   organizerFeePercentage: 2.5,
   restrictResellTiming: false,
   minDaysBeforeEvent: 1,
-  requireVerification: false,
 };
 
 // Interface untuk Ticket Tier yang akan diedit
@@ -303,7 +302,7 @@ const EventManagement: React.FC = () => {
       isClosable: true,
     });
 
-    navigate("/organizer");
+    navigate("/organizer/events");
   };
 
   // Handlers for editing and adding tiers
@@ -456,7 +455,7 @@ const EventManagement: React.FC = () => {
             aria-label="Go back"
             icon={<ArrowBackIcon />}
             variant="ghost"
-            onClick={() => navigate("/organizer")}
+            onClick={() => navigate("/organizer/events")}
           />
           <Skeleton height="40px" width="300px" />
         </HStack>
@@ -471,8 +470,8 @@ const EventManagement: React.FC = () => {
     return (
       <Container maxW="container.xl" py={8}>
         <Text>Event not found</Text>
-        <Button mt={4} onClick={() => navigate("/organizer")}>
-          Back to Dashboard
+        <Button mt={4} onClick={() => navigate("/organizer/events")}>
+          Back to Events
         </Button>
       </Container>
     );
@@ -485,7 +484,7 @@ const EventManagement: React.FC = () => {
           aria-label="Go back"
           icon={<ArrowBackIcon />}
           variant="ghost"
-          onClick={() => navigate("/organizer")}
+          onClick={() => navigate("/organizer/events")}
         />
         <Heading size="lg">Manage Event</Heading>
       </HStack>
@@ -541,6 +540,9 @@ const EventManagement: React.FC = () => {
           </Tab>
           <Tab>
             <Icon as={FaUsers} mr={2} /> Attendees
+          </Tab>
+          <Tab>
+            <Icon as={FaUserCheck} mr={2} /> Staff
           </Tab>
           <Tab>
             <Icon as={FaCog} mr={2} /> Settings
@@ -702,31 +704,26 @@ const EventManagement: React.FC = () => {
             />
           </TabPanel>
 
-          {/* Settings Tab */}
+          {/* Staff Tab */}
           <TabPanel px={0} py={4}>
-            <VStack spacing={8} align="stretch">
-              <ResellSettings
-                settings={resellSettings}
-                onSave={handleResellSettingsUpdate}
-              />
+            <VStack spacing={6} align="stretch">
+              <Flex justify="space-between" align="center" mb={4}>
+                <Heading size="md">Staff Management</Heading>
+              </Flex>
+              
+              <Text color="gray.600" mb={6}>
+                Manage staff members who can check-in attendees for this event. Staff members can access the scanner and check-in dashboard.
+              </Text>
 
-              {/* Staff Management Section */}
+              {/* Add Staff */}
               <Box
                 bg="white"
                 p={6}
                 borderRadius="lg"
-                border="2px solid"
+                border="1px solid"
                 borderColor="gray.200"
-                boxShadow="none"
               >
-                <Heading size="md" mb={4}>
-                  Staff Management
-                </Heading>
-                <Text color="gray.600" mb={6}>
-                  Manage staff members who can check-in attendees for this event
-                </Text>
-
-                {/* Add Staff */}
+                <Heading size="sm" mb={4}>Add New Staff Member</Heading>
                 <HStack mb={6}>
                   <Input
                     placeholder="Enter staff wallet address (0x...)"
@@ -742,8 +739,16 @@ const EventManagement: React.FC = () => {
                     Add Staff
                   </Button>
                 </HStack>
+              </Box>
 
-                {/* Staff List */}
+              {/* Staff List */}
+              <Box
+                bg="white"
+                p={6}
+                borderRadius="lg"
+                border="1px solid"
+                borderColor="gray.200"
+              >
                 <VStack align="stretch" spacing={3}>
                   <Text fontWeight="medium" mb={2}>
                     Current Staff ({staffList.length})
@@ -793,6 +798,16 @@ const EventManagement: React.FC = () => {
                   )}
                 </VStack>
               </Box>
+            </VStack>
+          </TabPanel>
+
+          {/* Settings Tab */}
+          <TabPanel px={0} py={4}>
+            <VStack spacing={8} align="stretch">
+              <ResellSettings
+                settings={resellSettings}
+                onSave={handleResellSettingsUpdate}
+              />
             </VStack>
           </TabPanel>
         </TabPanels>

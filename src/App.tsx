@@ -14,6 +14,8 @@ import {
   CreateEventForm,
   EventManagement,
 } from "./pages/Organizer";
+import OrganizerEventsPage from "./pages/Organizer/EventsPage";
+import FinancePage from "./pages/Organizer/FinancePage";
 import { CheckInDashboard, ScannerPage } from "./pages/TicketManagement";
 import OrganizerRequestPage from "./pages/OrganizerRequest/OrganizerRequestPage";
 import OrganizerRequestsAdmin from "./pages/OrganizerRequest/OrganizerRequestsAdmin";
@@ -47,8 +49,10 @@ function App() {
 
               {/* Organizer routes */}
               <Route path="/organizer" element={<OrganizerDashboard />} />
+              <Route path="/organizer/events" element={<OrganizerEventsPage />} />
               <Route path="/organizer/events/create" element={<CreateEventForm />} />
               <Route path="/organizer/events/:id" element={<EventManagement />} />
+              <Route path="/organizer/finance" element={<FinancePage />} />
 
               {/* Ticket Management routes */}
               <Route
