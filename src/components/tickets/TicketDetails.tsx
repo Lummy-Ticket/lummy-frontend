@@ -67,6 +67,8 @@ export const TicketDetails: React.FC<TicketDetailsProps> = ({ ticket }) => {
         return "green";
       case "used":
         return "gray";
+      case "refunded":
+        return "orange";
       case "expired":
         return "red";
       case "transferred":
@@ -229,7 +231,7 @@ export const TicketDetails: React.FC<TicketDetailsProps> = ({ ticket }) => {
                 ) : (
                   <Text color="gray.600" py={8}>
                     This ticket is {ticket.status}.
-                    {ticket.status === "transferred" &&
+                    {(ticket.status === "transferred" || ticket.status === "used" || ticket.status === "refunded") &&
                       " QR code is no longer valid."}
                   </Text>
                 )}
