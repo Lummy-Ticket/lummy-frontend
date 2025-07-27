@@ -45,95 +45,128 @@ import { useAccount, useBalance } from "wagmi";
 import { formatUnits } from "viem";
 import { IDRX_SEPOLIA } from "../../constants";
 
-// Mock financial data
+// Contract-compatible fee structure (matches smart contract specs)
+const CONTRACT_FEES = {
+  platformFeePercentage: 100,     // 1% in basis points (100/10000)
+  organizerFeePercentage: 250,    // 2.5% for resale in basis points
+  maxMarkupPercentage: 5000,      // 50% max markup in basis points
+  baseFeePoints: 10000            // 100% = 10000 basis points
+};
+
+// Mock financial data with contract-compatible calculations
 const mockFinanceData = {
   totalRevenue: 72000,
   totalWithdrawn: 60000,
-  availableBalance: 12000,
-  platformFeePaid: 3600,
+  availableBalance: 12000,  // Will be updated with escrow logic
+  platformFeePaid: 720,     // 1% of 72000 (updated from 5% to 1%)
   
-  // Revenue by event
+  // Escrow system simulation (Algorithm 1)
+  escrowData: {
+    organizerEscrow: 60000,        // Funds held until event completion
+    eventCompleted: false,         // Mock: event not completed yet
+    gracePeriodEnd: new Date(Date.now() + 24 * 60 * 60 * 1000), // +1 day
+    canWithdraw: false,            // Based on completion + grace period
+    lastEventDate: new Date('2025-08-10'),
+  },
+  
+  // Revenue by event with contract-compatible fee calculations
   eventRevenue: [
     {
       eventId: "1",
       eventName: "Summer Music Festival", 
       revenue: 22500,
-      platformFee: 1125,
-      netRevenue: 21375,
+      platformFee: 225,    // 1% of 22500 (was 1125)
+      netRevenue: 22275,   // Updated calculation
       status: "completed",
       date: "2025-06-15",
+      algorithm: "Algorithm1", // Pure Web3 NFT + Escrow
+      escrowAmount: 0,     // Released after completion + grace period
     },
     {
       eventId: "2",
       eventName: "Tech Conference 2025",
       revenue: 42000,
-      platformFee: 2100,
-      netRevenue: 39900,
+      platformFee: 420,    // 1% of 42000 (was 2100)
+      netRevenue: 41580,   // Updated calculation
       status: "ongoing",
       date: "2025-07-25",
+      algorithm: "Algorithm2", // Dynamic QR + Escrow
+      escrowAmount: 41580, // Held in escrow until completion
     },
     {
       eventId: "3", 
       eventName: "Blockchain Workshop",
       revenue: 7500,
-      platformFee: 375,
-      netRevenue: 7125,
+      platformFee: 75,     // 1% of 7500 (was 375)
+      netRevenue: 7425,    // Updated calculation
       status: "completed",
       date: "2025-08-10",
+      algorithm: "Algorithm3", // Zero Knowledge + Escrow
+      escrowAmount: 0,     // Released after completion + grace period
     },
   ],
 
-  // Transaction history
+  // Transaction history with contract-compatible fees
   transactions: [
     {
       id: "tx-001",
       type: "revenue",
-      description: "Ticket sales - Summer Music Festival",
+      description: "Ticket sales - Summer Music Festival (Algorithm 1 + Escrow)",
       amount: 22500,
-      fee: 1125,
-      netAmount: 21375,
+      fee: 225,       // 1% platform fee
+      netAmount: 22275,
       date: "2025-06-15T10:30:00",
       txHash: "0x1234567890abcdef...",
+      algorithm: "Algorithm1",
+      escrowStatus: "released_after_completion",
     },
     {
       id: "tx-002", 
       type: "withdrawal",
-      description: "Withdrawal to wallet",
-      amount: -20000,
+      description: "Withdrawal to wallet (Post-Escrow Release)",
+      amount: -22000,
       fee: 0,
-      netAmount: -20000,
+      netAmount: -22000,
       date: "2025-06-16T14:20:00",
       txHash: "0xabcdef1234567890...",
+      algorithm: "Algorithm1",
+      escrowStatus: "withdrawal_completed",
     },
     {
       id: "tx-003",
-      type: "revenue", 
-      description: "Ticket sales - Tech Conference 2025",
+      type: "escrow", 
+      description: "Escrow deposit - Tech Conference 2025 (Algorithm 2)",
       amount: 42000,
-      fee: 2100,
-      netAmount: 39900,
+      fee: 420,       // 1% platform fee
+      netAmount: 41580,
       date: "2025-07-25T09:15:00",
       txHash: "0x5678901234abcdef...",
+      algorithm: "Algorithm2",
+      escrowStatus: "held_until_completion",
     },
     {
       id: "tx-004",
-      type: "withdrawal",
-      description: "Withdrawal to wallet", 
-      amount: -40000,
-      fee: 0,
-      netAmount: -40000,
-      date: "2025-07-26T16:45:00",
-      txHash: "0xfedcba0987654321...",
+      type: "escrow",
+      description: "Escrow deposit - Blockchain Workshop (Algorithm 3)", 
+      amount: 7500,
+      fee: 75,        // 1% platform fee
+      netAmount: 7425,
+      date: "2025-08-10T11:00:00",
+      txHash: "0x9876543210fedcba...",
+      algorithm: "Algorithm3",
+      escrowStatus: "held_until_completion",
     },
     {
       id: "tx-005",
-      type: "revenue",
-      description: "Ticket sales - Blockchain Workshop",
-      amount: 7500,
-      fee: 375,
-      netAmount: 7125,
-      date: "2025-08-10T11:00:00",
-      txHash: "0x9876543210fedcba...",
+      type: "escrow_release",
+      description: "Escrow release - Blockchain Workshop (Grace period ended)",
+      amount: 7425,
+      fee: 0,
+      netAmount: 7425,
+      date: "2025-08-12T00:00:00",
+      txHash: "0xescrow123456789...",
+      algorithm: "Algorithm3",
+      escrowStatus: "released_after_grace_period",
     },
   ],
 };
@@ -304,7 +337,7 @@ const FinancePage: React.FC = () => {
         <StatCard
           title="Platform Fees Paid"
           value={`IDRX ${mockFinanceData.platformFeePaid.toLocaleString()}`}
-          subtitle="5% of total revenue"
+          subtitle="1% of total revenue"
           icon={FaHistory}
           color="orange"
         />
@@ -351,7 +384,7 @@ const FinancePage: React.FC = () => {
                         <Th>Date</Th>
                         <Th>Status</Th>
                         <Th isNumeric>Gross Revenue</Th>
-                        <Th isNumeric>Platform Fee</Th>
+                        <Th isNumeric>Platform Fee (1%)</Th>
                         <Th isNumeric>Net Revenue</Th>
                       </Tr>
                     </Thead>
@@ -486,16 +519,48 @@ const FinancePage: React.FC = () => {
             <VStack align="stretch" spacing={6}>
               <Heading size="md">Withdraw Balance</Heading>
               
-              {/* Available Balance Alert */}
-              <Alert status="info" borderRadius="lg">
+              {/* Escrow Status Alert */}
+              <Alert 
+                status={mockFinanceData.escrowData.canWithdraw ? "success" : "warning"} 
+                borderRadius="lg"
+              >
                 <AlertIcon />
                 <Box>
-                  <AlertTitle>Available for Withdrawal</AlertTitle>
+                  <AlertTitle>
+                    {mockFinanceData.escrowData.canWithdraw ? "Funds Available" : "Escrow Protection Active"}
+                  </AlertTitle>
                   <AlertDescription>
-                    You have IDRX {mockFinanceData.availableBalance.toLocaleString()} available to withdraw from your event sales.
+                    {mockFinanceData.escrowData.canWithdraw ? (
+                      `You have IDRX ${mockFinanceData.availableBalance.toLocaleString()} available to withdraw.`
+                    ) : (
+                      `IDRX ${mockFinanceData.escrowData.organizerEscrow.toLocaleString()} is held in escrow. Funds will be available after event completion + 1 day grace period.`
+                    )}
                   </AlertDescription>
                 </Box>
               </Alert>
+              
+              {/* Grace Period Info for Algorithm 1 Events */}
+              {!mockFinanceData.escrowData.canWithdraw && (
+                <Box p={4} bg="blue.50" borderRadius="lg" borderLeft="4px" borderLeftColor="blue.400">
+                  <Text fontSize="sm" fontWeight="medium" mb={2} color="blue.800">
+                    Algorithm 1 Escrow Protection
+                  </Text>
+                  <VStack align="start" spacing={1}>
+                    <Text fontSize="xs" color="blue.700">
+                      • Event Status: {mockFinanceData.escrowData.eventCompleted ? 'Completed' : 'Pending Completion'}
+                    </Text>
+                    <Text fontSize="xs" color="blue.700">
+                      • Grace Period: {mockFinanceData.escrowData.gracePeriodEnd.toLocaleDateString()}
+                    </Text>
+                    <Text fontSize="xs" color="blue.700">
+                      • Escrow Amount: IDRX {mockFinanceData.escrowData.organizerEscrow.toLocaleString()}
+                    </Text>
+                    <Text fontSize="xs" color="blue.700">
+                      • This protects buyers from event cancellation or issues
+                    </Text>
+                  </VStack>
+                </Box>
+              )}
 
               {/* Withdrawal Form */}
               <Box p={6} borderWidth="1px" borderRadius="lg" bg={cardBg}>
@@ -553,6 +618,12 @@ const FinancePage: React.FC = () => {
                         <Text fontSize="sm" fontWeight="medium">IDRX {withdrawAmount.toLocaleString()}</Text>
                       </HStack>
                       <HStack justify="space-between">
+                        <Text fontSize="sm">Platform Fee (1%):</Text>
+                        <Text fontSize="sm" color="orange.600">
+                          IDRX {((withdrawAmount * CONTRACT_FEES.platformFeePercentage) / CONTRACT_FEES.baseFeePoints).toFixed(2)}
+                        </Text>
+                      </HStack>
+                      <HStack justify="space-between">
                         <Text fontSize="sm">Gas Fee (estimated):</Text>
                         <Text fontSize="sm" color="orange.600">~0.001 LSK</Text>
                       </HStack>
@@ -578,15 +649,17 @@ const FinancePage: React.FC = () => {
               </Box>
 
               {/* Withdrawal Instructions */}
-              <Box p={4} bg="blue.50" borderRadius="lg" borderLeft="4px" borderLeftColor="blue.400">
-                <Text fontSize="sm" fontWeight="medium" mb={2} color="blue.800">
+              <Box p={4} bg="gray.50" borderRadius="lg">
+                <Text fontSize="sm" fontWeight="medium" mb={2} color="gray.800">
                   Withdrawal Information
                 </Text>
                 <VStack align="start" spacing={1}>
-                  <Text fontSize="xs" color="blue.700">• Withdrawals are processed on the Lisk Sepolia network</Text>
-                  <Text fontSize="xs" color="blue.700">• Processing time: 1-5 minutes</Text>
-                  <Text fontSize="xs" color="blue.700">• Gas fees are paid from your LSK balance</Text>
-                  <Text fontSize="xs" color="blue.700">• Minimum withdrawal: IDRX 1</Text>
+                  <Text fontSize="xs" color="gray.700">• Withdrawals are processed on the Lisk Sepolia network</Text>
+                  <Text fontSize="xs" color="gray.700">• Processing time: 1-5 minutes</Text>
+                  <Text fontSize="xs" color="gray.700">• Platform fee: 1% of withdrawal amount</Text>
+                  <Text fontSize="xs" color="gray.700">• Gas fees are paid from your LSK balance</Text>
+                  <Text fontSize="xs" color="gray.700">• Minimum withdrawal: IDRX 1</Text>
+                  <Text fontSize="xs" color="gray.700">• Algorithm 1 events: Funds held in escrow until completion + grace period</Text>
                 </VStack>
               </Box>
             </VStack>

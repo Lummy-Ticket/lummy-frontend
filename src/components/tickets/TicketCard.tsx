@@ -32,7 +32,7 @@ export interface Ticket {
   ticketType: string;
   price: number;
   currency: string;
-  status: "valid" | "used" | "expired" | "transferred";
+  status: "valid" | "used" | "refunded";  // Contract-compatible status values
   purchaseDate: string;
   tokenId?: string;
   ownerAddress?: string;
@@ -74,11 +74,9 @@ export const TicketCard: React.FC<TicketCardProps> = ({
       case "valid":
         return "green";
       case "used":
-        return "gray";
-      case "expired":
+        return "orange";
+      case "refunded":
         return "red";
-      case "transferred":
-        return "blue";
       default:
         return "gray";
     }
@@ -90,10 +88,8 @@ export const TicketCard: React.FC<TicketCardProps> = ({
         return "Active";
       case "used":
         return "Used";
-      case "expired":
-        return "Expired";
-      case "transferred":
-        return "Transferred";
+      case "refunded":
+        return "Refunded";
       default:
         return status;
     }
@@ -102,13 +98,11 @@ export const TicketCard: React.FC<TicketCardProps> = ({
   const getStatusMessage = (status: Ticket["status"]) => {
     switch (status) {
       case "used":
-        return "This ticket has been used for entry and is no longer valid.";
-      case "expired":
-        return "This ticket has expired and is no longer valid for entry.";
-      case "transferred":
-        return "This ticket has been transferred to another wallet and is no longer in your possession.";
+        return "This ticket has been scanned and used for event entry.";
+      case "refunded":
+        return "This ticket has been refunded due to event cancellation.";
       default:
-        return `This ticket is ${status}.`;
+        return `This ticket is ${status} and ready for use.`;
     }
   };
 

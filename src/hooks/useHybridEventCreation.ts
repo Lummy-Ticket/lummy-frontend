@@ -14,7 +14,7 @@ interface EventCreationData {
   time: string;
   endTime: string;
   category: string;
-  bannerImage: File | null;
+  eventImage: File | null;
 }
 
 interface CreateEventResult {
@@ -24,7 +24,7 @@ interface CreateEventResult {
   error?: string;
   mockData?: any;
   ipfsMetadataUrl?: string;
-  bannerImageUrl?: string;
+  eventImageUrl?: string;
 }
 
 export const useHybridEventCreation = () => {
@@ -187,27 +187,27 @@ export const useHybridEventCreation = () => {
       initializeSteps();
       console.log('🚀 Starting event creation workflow...');
 
-      // Step 1: Upload banner image to IPFS if provided
-      updateStepStatus('banner-upload', 'in-progress', 'Uploading banner image...');
-      let bannerImageUrl: string | undefined;
+      // Step 1: Upload event image to IPFS if provided
+      updateStepStatus('banner-upload', 'in-progress', 'Uploading event image...');
+      let eventImageUrl: string | undefined;
       
-      if (eventData.bannerImage) {
-        console.log('📸 Uploading banner image to IPFS...');
-        const bannerUpload = await ipfsImageService.uploadImage(eventData.bannerImage);
+      if (eventData.eventImage) {
+        console.log('📸 Uploading event image to IPFS...');
+        const imageUpload = await ipfsImageService.uploadImage(eventData.eventImage);
         
-        if (!bannerUpload.success) {
-          updateStepStatus('banner-upload', 'error', `Upload failed: ${bannerUpload.error}`);
+        if (!imageUpload.success) {
+          updateStepStatus('banner-upload', 'error', `Upload failed: ${imageUpload.error}`);
           return {
             success: false,
-            error: `Banner upload failed: ${bannerUpload.error}`
+            error: `Event image upload failed: ${imageUpload.error}`
           };
         }
         
-        bannerImageUrl = bannerUpload.ipfsUrl;
-        console.log('✅ Banner uploaded:', bannerImageUrl);
-        updateStepStatus('banner-upload', 'completed', 'Banner image uploaded successfully');
+        eventImageUrl = imageUpload.ipfsUrl;
+        console.log('✅ Event image uploaded:', eventImageUrl);
+        updateStepStatus('banner-upload', 'completed', 'Event image uploaded successfully');
       } else {
-        updateStepStatus('banner-upload', 'completed', 'No banner image provided');
+        updateStepStatus('banner-upload', 'completed', 'No event image provided');
       }
 
       // Step 2: Process NFT images for tiers
@@ -243,7 +243,7 @@ export const useHybridEventCreation = () => {
       console.log('📋 Generating event metadata...');
       const eventMetadata = ipfsImageService.generateEventMetadata(
         eventData,
-        bannerImageUrl,
+        eventImageUrl,
         processedTiers
       );
 
@@ -280,7 +280,7 @@ export const useHybridEventCreation = () => {
       // Add metadata URLs to result
       if (result.success) {
         result.ipfsMetadataUrl = metadataUpload.ipfsUrl;
-        result.bannerImageUrl = bannerImageUrl;
+        result.eventImageUrl = eventImageUrl;
       }
 
       return result;
@@ -329,11 +329,11 @@ export const useHybridEventCreation = () => {
       }
     }
 
-    // Banner image validation (if provided)
-    if (eventData.bannerImage) {
-      const validation = ipfsImageService.validateImage(eventData.bannerImage);
+    // Event image validation (if provided)
+    if (eventData.eventImage) {
+      const validation = ipfsImageService.validateImage(eventData.eventImage);
       if (!validation.valid) {
-        errors.push(`Banner image: ${validation.error}`);
+        errors.push(`Event image: ${validation.error}`);
       }
     }
 

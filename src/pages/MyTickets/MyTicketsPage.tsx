@@ -83,7 +83,7 @@ export const mockTickets: Ticket[] = [
     ticketType: "Standard Entry",
     price: 75,
     currency: "IDRX",
-    status: "transferred",
+    status: "refunded",
     purchaseDate: "2025-04-15T11:23:45",
     tokenId: "NFT-34567890",
     ownerAddress: "0x2345678901bcdef2345678901bcdef23456789",
@@ -162,7 +162,7 @@ export const MyTicketsPage: React.FC = () => {
               </HStack>
             </Tab>
             <Tab onClick={() => filterByStatus("used")}>Used</Tab>
-            <Tab onClick={() => filterByStatus("transferred")}>Transferred</Tab>
+            <Tab onClick={() => filterByStatus("refunded")}>Refunded</Tab>
           </TabList>
 
           <TabPanels>
@@ -230,7 +230,7 @@ export const MyTicketsPage: React.FC = () => {
               )}
             </TabPanel>
 
-            {/* Transferred Tickets Tab */}
+            {/* Refunded Tickets Tab */}
             <TabPanel>
               {filteredTickets.length > 0 ? (
                 <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6}>
@@ -246,7 +246,7 @@ export const MyTicketsPage: React.FC = () => {
                 <Box textAlign="center" py={10}>
                   <Icon as={FaTicketAlt} boxSize={10} color="gray.300" />
                   <Text mt={4} color="gray.500">
-                    No transferred tickets
+                    No refunded tickets
                   </Text>
                 </Box>
               )}

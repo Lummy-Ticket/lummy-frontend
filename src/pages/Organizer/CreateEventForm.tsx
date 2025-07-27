@@ -50,8 +50,7 @@ const CreateEventForm: React.FC = () => {
     time: "",
     endTime: "",
     category: "",
-    bannerImage: null as File | null,
-    featuredImage: null as File | null,
+    eventImage: null as File | null,
     algorithm: "algorithm1" as "algorithm1" | "algorithm2" | "algorithm3", // Algorithm selection
   });
 
@@ -70,10 +69,11 @@ const CreateEventForm: React.FC = () => {
 
   // Resell settings state
   const [resellSettings, setResellSettings] = useState<ResellSettingsData>({
-    maxMarkupPercentage: 20,
-    organizerFeePercentage: 2.5,
-    restrictResellTiming: false,
-    minDaysBeforeEvent: 1,
+    allowResell: true,                // Enable resale by default
+    maxMarkupPercentage: 20,          // 20% markup (contract: 2000 basis points)
+    organizerFeePercentage: 2.5,      // 2.5% fee (contract: 250 basis points)
+    restrictResellTiming: false,      // No timing restrictions by default
+    minDaysBeforeEvent: 1,            // 1 day minimum if timing is enabled
   });
 
   // Handle form input changes
@@ -254,9 +254,22 @@ const CreateEventForm: React.FC = () => {
           <Heading size="md" mb={4}>
             Ticket Algorithm Selection
           </Heading>
-          <Text color="gray.600" mb={6}>
+          <Text color="gray.600" mb={4}>
             Choose the ticketing algorithm that best fits your event type and audience
           </Text>
+          
+          {/* Universal Escrow Notice */}
+          <Alert status="success" mb={6}>
+            <AlertIcon />
+            <VStack align="start" spacing={1}>
+              <Text fontWeight="medium" fontSize="sm">
+                🔒 Universal Escrow Protection
+              </Text>
+              <Text fontSize="xs">
+                All algorithms use escrow-based payments. Funds are held securely until event completion + grace period for maximum buyer protection.
+              </Text>
+            </VStack>
+          </Alert>
           
           <RadioGroup
             value={eventData.algorithm}
@@ -284,13 +297,14 @@ const CreateEventForm: React.FC = () => {
                       <Badge colorScheme="blue">Recommended</Badge>
                     </HStack>
                     <Text fontSize="sm" color="gray.600">
-                      100% blockchain-based with NFT status updates
+                      100% blockchain-based with updatable NFT status + Escrow Protection
                     </Text>
                     <VStack align="start" spacing={1} fontSize="sm" color="gray.600">
                       <Text>• Staff scan QR → User approve → Status "valid" → "used"</Text>
                       <Text>• Pure Web3 architecture, no database needed</Text>
                       <Text>• Gasless transactions with ERC-2771</Text>
-                      <Text>• Best for small-medium events (up to 500 attendees)</Text>
+                      <Text>• Escrow payment with buyer protection</Text>
+                      <Text>• Best for tech-savvy audience (up to 500 attendees)</Text>
                     </VStack>
                   </VStack>
                 </Radio>
@@ -315,13 +329,14 @@ const CreateEventForm: React.FC = () => {
                       <Badge colorScheme="green">Mass Events</Badge>
                     </HStack>
                     <Text fontSize="sm" color="gray.600">
-                      Hybrid Web2/Web3 with time-based QR validation
+                      Hybrid Web2/Web3 with time-based QR validation + Escrow Protection
                     </Text>
                     <VStack align="start" spacing={1} fontSize="sm" color="gray.600">
-                      <Text>• QR code changes every 30 minutes</Text>
-                      <Text>• Database validation for fast entry</Text>
-                      <Text>• No wallet approval needed at venue</Text>
-                      <Text>• Best for large events with general audience</Text>
+                      <Text>• QR code changes every 30 minutes for security</Text>
+                      <Text>• Database validation for fast entry processing</Text>
+                      <Text>• No wallet approval needed at venue entry</Text>
+                      <Text>• Escrow payment with buyer protection</Text>
+                      <Text>• Best for large events with general audience (500+ attendees)</Text>
                     </VStack>
                   </VStack>
                 </Radio>
@@ -346,12 +361,13 @@ const CreateEventForm: React.FC = () => {
                       <Badge colorScheme="purple">Privacy First</Badge>
                     </HStack>
                     <Text fontSize="sm" color="gray.600">
-                      Anonymous verification with complete privacy protection
+                      Anonymous verification with complete privacy protection + Escrow Protection
                     </Text>
                     <VStack align="start" spacing={1} fontSize="sm" color="gray.600">
                       <Text>• Anonymous entry without revealing identity</Text>
-                      <Text>• Local proof validation, no network calls</Text>
-                      <Text>• Privacy-preserving analytics</Text>
+                      <Text>• Local proof validation, no network calls needed</Text>
+                      <Text>• Privacy-preserving analytics and reporting</Text>
+                      <Text>• Escrow payment with buyer protection</Text>
                       <Text>• Best for premium and international events</Text>
                     </VStack>
                   </VStack>
@@ -365,14 +381,14 @@ const CreateEventForm: React.FC = () => {
             <AlertIcon />
             <VStack align="start" spacing={1}>
               <Text fontWeight="medium">
-                {eventData.algorithm === "algorithm1" && "Algorithm 1 Selected: Pure Web3 Experience"}
-                {eventData.algorithm === "algorithm2" && "Algorithm 2 Selected: Mass Event Optimized"}
-                {eventData.algorithm === "algorithm3" && "Algorithm 3 Selected: Privacy-First Approach"}
+                {eventData.algorithm === "algorithm1" && "Algorithm 1 Selected: Pure Web3 Experience + Escrow"}
+                {eventData.algorithm === "algorithm2" && "Algorithm 2 Selected: Mass Event Optimized + Escrow"}
+                {eventData.algorithm === "algorithm3" && "Algorithm 3 Selected: Privacy-First Approach + Escrow"}
               </Text>
               <Text fontSize="sm">
-                {eventData.algorithm === "algorithm1" && "Tech-savvy audience required. Users will need to approve transactions at venue entry."}
-                {eventData.algorithm === "algorithm2" && "No wallet interaction needed at venue. QR codes refresh automatically for security."}
-                {eventData.algorithm === "algorithm3" && "Complete anonymity guaranteed. Advanced cryptography for maximum privacy protection."}
+                {eventData.algorithm === "algorithm1" && "Tech-savvy audience required. Users approve transactions at entry. All payments held in escrow until event completion."}
+                {eventData.algorithm === "algorithm2" && "No wallet interaction at venue. QR codes refresh automatically. All payments secured with escrow protection."}
+                {eventData.algorithm === "algorithm3" && "Complete anonymity guaranteed. Advanced cryptography for privacy. All payments protected with escrow system."}
               </Text>
             </VStack>
           </Alert>
@@ -432,7 +448,7 @@ const CreateEventForm: React.FC = () => {
           </FormControl>
         </Box>
 
-        {/* Images */}
+        {/* Event Image */}
         <Box
           bg={cardBg}
           p={6}
@@ -441,28 +457,47 @@ const CreateEventForm: React.FC = () => {
           borderColor="gray.300"
         >
           <Heading size="md" mb={4}>
-            Images
+            Event Image
           </Heading>
-          <VStack spacing={4}>
-            <FormControl>
-              <FormLabel>Banner Image</FormLabel>
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={(e) => handleFileChange("bannerImage", e)}
-              />
-              <FormHelperText>Recommended: 1200x400px</FormHelperText>
-            </FormControl>
-            <FormControl>
-              <FormLabel>Featured Image</FormLabel>
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={(e) => handleFileChange("featuredImage", e)}
-              />
-              <FormHelperText>Recommended: 600x400px</FormHelperText>
-            </FormControl>
-          </VStack>
+          <FormControl>
+            <FormLabel>Event Image</FormLabel>
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleFileChange("eventImage", e)}
+            />
+            <FormHelperText>
+              Upload high quality image (minimum 1200x800px). Will be automatically resized for different displays - banners, thumbnails, and event cards.
+            </FormHelperText>
+          </FormControl>
+          
+          {/* Image Preview */}
+          {eventData.eventImage && (
+            <Box mt={4}>
+              <Text fontSize="sm" fontWeight="medium" mb={2} color="gray.700">
+                Preview:
+              </Text>
+              <Box
+                borderWidth="1px"
+                borderRadius="md"
+                overflow="hidden"
+                maxW="400px"
+              >
+                <img
+                  src={URL.createObjectURL(eventData.eventImage)}
+                  alt="Event preview"
+                  style={{
+                    width: "100%",
+                    height: "200px",
+                    objectFit: "cover"
+                  }}
+                />
+              </Box>
+              <Text fontSize="xs" color="gray.500" mt={2}>
+                ✓ This image will be used for event banners, thumbnails, and cards
+              </Text>
+            </Box>
+          )}
         </Box>
 
         {/* Tickets */}

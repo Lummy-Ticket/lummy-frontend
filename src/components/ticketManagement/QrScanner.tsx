@@ -16,35 +16,59 @@ interface QrScannerProps {
   isLoading?: boolean;
 }
 
-// Mock scanner result data
+// Contract-compatible ticket status values
+type TicketStatus = 'valid' | 'used' | 'refunded';
+
+// Mock scanner result data with contract-compatible status values
 const mockScanResults = [
   {
     valid: true,
-    ticketId: "ticket-1",
+    ticketId: "1000100001",        // Algorithm 1 format: 1[eventId][tier][sequential]
     eventId: "event-1",
     ticketType: "VIP Pass",
     eventName: "Summer Music Festival",
     ownerName: "John Doe",
     ownerAddress: "0x1234567890abcdef1234567890abcdef12345678",
+    status: "valid" as TicketStatus,
+    algorithm: "Algorithm1",
+    canMarkUsed: true,             // Based on staff role
   },
   {
     valid: false,
-    ticketId: "ticket-2",
+    ticketId: "1000100002", 
     eventId: "event-1",
     error: "Ticket has already been used",
     ticketType: "General Admission",
     eventName: "Summer Music Festival",
     ownerName: "Jane Smith",
     ownerAddress: "0x2345678901bcdef2345678901bcdef23456789",
+    status: "used" as TicketStatus,
+    algorithm: "Algorithm1",
+    canMarkUsed: false,
   },
   {
     valid: false,
-    ticketId: "ticket-3",
+    ticketId: "1000200001",
     eventId: "event-1",
-    error: "Invalid ticket (possible counterfeit)",
+    error: "Ticket has been refunded",
     ticketType: "Weekend Pass",
     eventName: "Summer Music Festival",
     ownerAddress: "0x3456789012cdef3456789012cdef3456789012",
+    status: "refunded" as TicketStatus,
+    algorithm: "Algorithm1",
+    canMarkUsed: false,
+  },
+  {
+    valid: true,
+    ticketId: "42",                // Original algorithm format: sequential
+    eventId: "event-2",
+    ticketType: "General Admission",
+    eventName: "Tech Conference 2025",
+    ownerName: "Alice Chen",
+    ownerAddress: "0x4567890123def4567890123def4567890123de",
+    status: "valid" as TicketStatus,
+    algorithm: "Algorithm2",
+    canMarkUsed: true,
   },
 ];
 
@@ -77,11 +101,13 @@ const QrScanner: React.FC<QrScannerProps> = ({ onScan, isLoading = false }) => {
           setScanResult(mockResult);
           onScan(mockResult);
 
+          const statusMessage = mockResult.valid 
+            ? `${mockResult.ticketType} for ${mockResult.eventName}` 
+            : `${mockResult.error} (Status: ${mockResult.status})`;
+          
           toast({
             title: mockResult.valid ? "Valid Ticket" : "Invalid Ticket",
-            description: mockResult.valid
-              ? `${mockResult.ticketType} for ${mockResult.eventName}`
-              : mockResult.error,
+            description: statusMessage,
             status: mockResult.valid ? "success" : "error",
             duration: 5000,
             isClosable: true,
@@ -209,12 +235,36 @@ const QrScanner: React.FC<QrScannerProps> = ({ onScan, isLoading = false }) => {
                 <Divider my={4} />
                 <VStack align="start" spacing={2} width="100%">
                   <HStack>
-                    <Text fontWeight="medium">Ticket:</Text>
+                    <Text fontWeight="medium">Ticket ID:</Text>
+                    <Text fontFamily="mono">{scanResult.ticketId}</Text>
+                  </HStack>
+                  <HStack>
+                    <Text fontWeight="medium">Type:</Text>
                     <Text>{scanResult.ticketType}</Text>
                   </HStack>
                   <HStack>
                     <Text fontWeight="medium">Event:</Text>
                     <Text>{scanResult.eventName}</Text>
+                  </HStack>
+                  <HStack>
+                    <Text fontWeight="medium">Status:</Text>
+                    <Box
+                      px={2}
+                      py={1}
+                      borderRadius="md"
+                      bg={scanResult.status === 'valid' ? 'green.100' : 
+                          scanResult.status === 'used' ? 'orange.100' : 'red.100'}
+                      color={scanResult.status === 'valid' ? 'green.800' : 
+                             scanResult.status === 'used' ? 'orange.800' : 'red.800'}
+                    >
+                      <Text fontSize="sm" fontWeight="medium" textTransform="uppercase">
+                        {scanResult.status}
+                      </Text>
+                    </Box>
+                  </HStack>
+                  <HStack>
+                    <Text fontWeight="medium">Algorithm:</Text>
+                    <Text fontSize="sm">{scanResult.algorithm}</Text>
                   </HStack>
                   {scanResult.ownerName && (
                     <HStack>
@@ -231,6 +281,13 @@ const QrScanner: React.FC<QrScannerProps> = ({ onScan, isLoading = false }) => {
                       )}
                     </Text>
                   </HStack>
+                  {scanResult.valid && scanResult.canMarkUsed && (
+                    <Box mt={3} p={3} bg="blue.50" borderRadius="md" width="100%">
+                      <Text fontSize="sm" color="blue.700">
+                        ✓ Ready to mark as used by staff
+                      </Text>
+                    </Box>
+                  )}
                 </VStack>
               </Flex>
             )}
