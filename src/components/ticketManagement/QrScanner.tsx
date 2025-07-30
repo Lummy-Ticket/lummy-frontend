@@ -19,18 +19,17 @@ interface QrScannerProps {
 // Contract-compatible ticket status values
 type TicketStatus = 'valid' | 'used' | 'refunded';
 
-// Mock scanner result data with contract-compatible status values
+// Mock scanner result data with Diamond pattern deterministic token IDs
 const mockScanResults = [
   {
     valid: true,
-    ticketId: "1000100001",        // Algorithm 1 format: 1[eventId][tier][sequential]
+    ticketId: "1000100001",        // Diamond format: 1[eventId][tier][sequential] 
     eventId: "event-1",
     ticketType: "VIP Pass",
     eventName: "Summer Music Festival",
     ownerName: "John Doe",
     ownerAddress: "0x1234567890abcdef1234567890abcdef12345678",
     status: "valid" as TicketStatus,
-    algorithm: "Algorithm1",
     canMarkUsed: true,             // Based on staff role
   },
   {
@@ -43,7 +42,6 @@ const mockScanResults = [
     ownerName: "Jane Smith",
     ownerAddress: "0x2345678901bcdef2345678901bcdef23456789",
     status: "used" as TicketStatus,
-    algorithm: "Algorithm1",
     canMarkUsed: false,
   },
   {
@@ -55,19 +53,17 @@ const mockScanResults = [
     eventName: "Summer Music Festival",
     ownerAddress: "0x3456789012cdef3456789012cdef3456789012",
     status: "refunded" as TicketStatus,
-    algorithm: "Algorithm1",
     canMarkUsed: false,
   },
   {
     valid: true,
-    ticketId: "42",                // Original algorithm format: sequential
+    ticketId: "1001100001",        // Different event, same Diamond format
     eventId: "event-2",
     ticketType: "General Admission",
     eventName: "Tech Conference 2025",
     ownerName: "Alice Chen",
     ownerAddress: "0x4567890123def4567890123def4567890123de",
     status: "valid" as TicketStatus,
-    algorithm: "Algorithm2",
     canMarkUsed: true,
   },
 ];
@@ -261,10 +257,6 @@ const QrScanner: React.FC<QrScannerProps> = ({ onScan, isLoading = false }) => {
                         {scanResult.status}
                       </Text>
                     </Box>
-                  </HStack>
-                  <HStack>
-                    <Text fontWeight="medium">Algorithm:</Text>
-                    <Text fontSize="sm">{scanResult.algorithm}</Text>
                   </HStack>
                   {scanResult.ownerName && (
                     <HStack>

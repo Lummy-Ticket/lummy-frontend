@@ -19,8 +19,7 @@ export interface ContractEvent {
   ipfsMetadata: string; // Contract field
   organizer: string;    // Contract field (address)
   cancelled: boolean;   // Contract field
-  useAlgorithm1: boolean; // Contract field
-  factory: string;      // Contract field (address)
+  completed: boolean;   // Contract field (Algorithm 1 only)
   ticketNFT: string;    // Contract field (address)
   idrxToken: string;    // Contract field (address)
   platformFeeReceiver: string; // Contract field (address)
@@ -101,8 +100,7 @@ export interface Event {
   eventId?: string;     // Converted from bigint
   ipfsMetadata?: string;
   cancelled?: boolean;
-  useAlgorithm1?: boolean;
-  algorithm?: "algorithm1" | "algorithm2" | "algorithm3"; // Algorithm selection
+  completed?: boolean;
 }
 
 // Type conversion utilities
@@ -115,9 +113,9 @@ export type ContractToUI = {
   venue: string;
   organizer: Organizer;
   cancelled: boolean;
-  useAlgorithm1: boolean;
+  completed: boolean;
   ipfsMetadata: string;
-} & Omit<Event, 'id' | 'eventId' | 'title' | 'description' | 'date' | 'venue' | 'organizer' | 'cancelled' | 'useAlgorithm1' | 'ipfsMetadata'>;
+} & Omit<Event, 'id' | 'eventId' | 'title' | 'description' | 'date' | 'venue' | 'organizer' | 'cancelled' | 'completed' | 'ipfsMetadata'>;
 
 export type UIToContract = {
   eventId: bigint;
@@ -127,6 +125,6 @@ export type UIToContract = {
   venue: string;
   organizer: string;
   cancelled: boolean;
-  useAlgorithm1: boolean;
+  completed: boolean;
   ipfsMetadata: string;
-} & Omit<ContractEvent, 'eventId' | 'name' | 'description' | 'date' | 'venue' | 'organizer' | 'cancelled' | 'useAlgorithm1' | 'ipfsMetadata'>;
+} & Omit<ContractEvent, 'eventId' | 'name' | 'description' | 'date' | 'venue' | 'organizer' | 'cancelled' | 'completed' | 'ipfsMetadata'>;

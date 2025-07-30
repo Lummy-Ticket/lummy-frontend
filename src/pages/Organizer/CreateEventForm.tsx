@@ -16,9 +16,6 @@ import {
   SimpleGrid,
   IconButton,
   Flex,
-  RadioGroup,
-  Radio,
-  Stack,
   Text,
   Badge,
   Alert,
@@ -51,7 +48,6 @@ const CreateEventForm: React.FC = () => {
     endTime: "",
     category: "",
     eventImage: null as File | null,
-    algorithm: "algorithm1" as "algorithm1" | "algorithm2" | "algorithm3", // Algorithm selection
   });
 
   // Ticket tiers state
@@ -239,156 +235,72 @@ const CreateEventForm: React.FC = () => {
           </VStack>
         </Box>
 
-        {/* Algorithm Selection */}
+        {/* Ticketing System Information */}
         <Box
           bg={cardBg}
           p={6}
           borderRadius="lg"
           border="2px solid"
-          borderColor={
-            eventData.algorithm === "algorithm1" ? "blue.300" : 
-            eventData.algorithm === "algorithm2" ? "green.300" : 
-            "purple.300"
-          }
+          borderColor="blue.300"
         >
           <Heading size="md" mb={4}>
-            Ticket Algorithm Selection
+            Lummy Ticketing System
           </Heading>
           <Text color="gray.600" mb={4}>
-            Choose the ticketing algorithm that best fits your event type and audience
+            Your event uses Lummy's advanced Diamond smart contract system with escrow protection
           </Text>
           
-          {/* Universal Escrow Notice */}
-          <Alert status="success" mb={6}>
+          {/* Escrow Protection Notice */}
+          <Alert status="success" mb={4}>
             <AlertIcon />
             <VStack align="start" spacing={1}>
               <Text fontWeight="medium" fontSize="sm">
-                🔒 Universal Escrow Protection
+                🔒 Built-in Escrow Protection
               </Text>
               <Text fontSize="xs">
-                All algorithms use escrow-based payments. Funds are held securely until event completion + grace period for maximum buyer protection.
+                All ticket sales are held in escrow until event completion. Buyers get automatic refunds if events are cancelled.
               </Text>
             </VStack>
           </Alert>
           
-          <RadioGroup
-            value={eventData.algorithm}
-            onChange={(value: "algorithm1" | "algorithm2" | "algorithm3") => 
-              handleInputChange("algorithm", value)
-            }
+          {/* System Features */}
+          <Box
+            p={4}
+            border="2px solid"
+            borderColor="blue.200"
+            borderRadius="md"
+            bg="blue.50"
           >
-            <Stack spacing={4}>
-              {/* Algorithm 1: Pure Web3 NFT */}
-              <Box
-                p={4}
-                border="2px solid"
-                borderColor={eventData.algorithm === "algorithm1" ? "blue.300" : "gray.200"}
-                borderRadius="md"
-                bg={eventData.algorithm === "algorithm1" ? "blue.50" : "gray.50"}
-                cursor="pointer"
-                onClick={() => handleInputChange("algorithm", "algorithm1")}
-              >
-                <Radio value="algorithm1" size="lg">
-                  <VStack align="start" spacing={2} ml={3}>
-                    <HStack>
-                      <Text fontWeight="bold" fontSize="lg">
-                        Algorithm 1: Pure Web3 NFT
-                      </Text>
-                      <Badge colorScheme="blue">Recommended</Badge>
-                    </HStack>
-                    <Text fontSize="sm" color="gray.600">
-                      100% blockchain-based with updatable NFT status + Escrow Protection
-                    </Text>
-                    <VStack align="start" spacing={1} fontSize="sm" color="gray.600">
-                      <Text>• Staff scan QR → User approve → Status "valid" → "used"</Text>
-                      <Text>• Pure Web3 architecture, no database needed</Text>
-                      <Text>• Gasless transactions with ERC-2771</Text>
-                      <Text>• Escrow payment with buyer protection</Text>
-                      <Text>• Best for tech-savvy audience (up to 500 attendees)</Text>
-                    </VStack>
-                  </VStack>
-                </Radio>
-              </Box>
+            <VStack align="start" spacing={2}>
+              <HStack>
+                <Text fontWeight="bold" fontSize="lg">
+                  Diamond Pattern NFT Tickets
+                </Text>
+                <Badge colorScheme="blue">Enhanced Security</Badge>
+              </HStack>
+              <Text fontSize="sm" color="gray.600">
+                Advanced smart contract architecture with deterministic token IDs and enhanced traceability
+              </Text>
+              <VStack align="start" spacing={1} fontSize="sm" color="gray.600">
+                <Text>• ✅ Deterministic token IDs (1EEETTTSSSSS format)</Text>
+                <Text>• ✅ Enhanced metadata with tier-based designs</Text>
+                <Text>• ✅ Gasless transactions with ERC-2771</Text>
+                <Text>• ✅ Escrow payment protection (7% platform fee)</Text>
+                <Text>• ✅ Secure resale marketplace (3% platform fee)</Text>
+                <Text>• ✅ Staff management and verification tools</Text>
+              </VStack>
+            </VStack>
+          </Box>
 
-              {/* Algorithm 2: Dynamic QR */}
-              <Box
-                p={4}
-                border="2px solid"
-                borderColor={eventData.algorithm === "algorithm2" ? "green.300" : "gray.200"}
-                borderRadius="md"
-                bg={eventData.algorithm === "algorithm2" ? "green.50" : "gray.50"}
-                cursor="pointer"
-                onClick={() => handleInputChange("algorithm", "algorithm2")}
-              >
-                <Radio value="algorithm2" size="lg">
-                  <VStack align="start" spacing={2} ml={3}>
-                    <HStack>
-                      <Text fontWeight="bold" fontSize="lg">
-                        Algorithm 2: Dynamic QR Code
-                      </Text>
-                      <Badge colorScheme="green">Mass Events</Badge>
-                    </HStack>
-                    <Text fontSize="sm" color="gray.600">
-                      Hybrid Web2/Web3 with time-based QR validation + Escrow Protection
-                    </Text>
-                    <VStack align="start" spacing={1} fontSize="sm" color="gray.600">
-                      <Text>• QR code changes every 30 minutes for security</Text>
-                      <Text>• Database validation for fast entry processing</Text>
-                      <Text>• No wallet approval needed at venue entry</Text>
-                      <Text>• Escrow payment with buyer protection</Text>
-                      <Text>• Best for large events with general audience (500+ attendees)</Text>
-                    </VStack>
-                  </VStack>
-                </Radio>
-              </Box>
-
-              {/* Algorithm 3: Zero Knowledge */}
-              <Box
-                p={4}
-                border="2px solid"
-                borderColor={eventData.algorithm === "algorithm3" ? "purple.300" : "gray.200"}
-                borderRadius="md"
-                bg={eventData.algorithm === "algorithm3" ? "purple.50" : "gray.50"}
-                cursor="pointer"
-                onClick={() => handleInputChange("algorithm", "algorithm3")}
-              >
-                <Radio value="algorithm3" size="lg">
-                  <VStack align="start" spacing={2} ml={3}>
-                    <HStack>
-                      <Text fontWeight="bold" fontSize="lg">
-                        Algorithm 3: Zero-Knowledge Proof
-                      </Text>
-                      <Badge colorScheme="purple">Privacy First</Badge>
-                    </HStack>
-                    <Text fontSize="sm" color="gray.600">
-                      Anonymous verification with complete privacy protection + Escrow Protection
-                    </Text>
-                    <VStack align="start" spacing={1} fontSize="sm" color="gray.600">
-                      <Text>• Anonymous entry without revealing identity</Text>
-                      <Text>• Local proof validation, no network calls needed</Text>
-                      <Text>• Privacy-preserving analytics and reporting</Text>
-                      <Text>• Escrow payment with buyer protection</Text>
-                      <Text>• Best for premium and international events</Text>
-                    </VStack>
-                  </VStack>
-                </Radio>
-              </Box>
-            </Stack>
-          </RadioGroup>
-
-          {/* Algorithm-specific information */}
+          {/* Revenue Information */}
           <Alert status="info" mt={4}>
             <AlertIcon />
             <VStack align="start" spacing={1}>
               <Text fontWeight="medium">
-                {eventData.algorithm === "algorithm1" && "Algorithm 1 Selected: Pure Web3 Experience + Escrow"}
-                {eventData.algorithm === "algorithm2" && "Algorithm 2 Selected: Mass Event Optimized + Escrow"}
-                {eventData.algorithm === "algorithm3" && "Algorithm 3 Selected: Privacy-First Approach + Escrow"}
+                Revenue Structure: You receive 93% of ticket sales immediately
               </Text>
               <Text fontSize="sm">
-                {eventData.algorithm === "algorithm1" && "Tech-savvy audience required. Users approve transactions at entry. All payments held in escrow until event completion."}
-                {eventData.algorithm === "algorithm2" && "No wallet interaction at venue. QR codes refresh automatically. All payments secured with escrow protection."}
-                {eventData.algorithm === "algorithm3" && "Complete anonymity guaranteed. Advanced cryptography for privacy. All payments protected with escrow system."}
+                Platform fee (7%) is deducted at purchase time. No hidden fees or withdrawal charges. Escrow funds are released after event completion.
               </Text>
             </VStack>
           </Alert>

@@ -79,8 +79,7 @@ const mockEvent: EventStatsData = {
     { tierName: "VIP Pass", sold: 120, total: 150, price: 100 },
     { tierName: "Backstage Experience", sold: 30, total: 50, price: 150 },
   ],
-  daysUntilEvent: 45,
-  useAlgorithm1: false, // This event uses Original algorithm
+  daysUntilEvent: 45
 };
 
 // Mock sales data

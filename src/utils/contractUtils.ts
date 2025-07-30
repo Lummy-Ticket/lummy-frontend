@@ -135,7 +135,7 @@ export const contractEventToUI = (contractEvent: ContractEvent): Event => {
     ticketsAvailable: 0, // Will be calculated from tiers
     ipfsMetadata: contractEvent.ipfsMetadata,
     cancelled: contractEvent.cancelled,
-    useAlgorithm1: contractEvent.useAlgorithm1,
+    completed: contractEvent.completed,
     imageUrl: "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3", // Default image
     tags: [],
   };
@@ -156,8 +156,7 @@ export const uiEventToContract = (event: Event): ContractEvent => {
     ipfsMetadata: event.ipfsMetadata || "",
     organizer: event.organizer.address || "0x0000000000000000000000000000000000000000",
     cancelled: event.cancelled || false,
-    useAlgorithm1: event.useAlgorithm1 || false,
-    factory: "0x0000000000000000000000000000000000000000",
+    completed: event.completed || false,
     ticketNFT: "0x0000000000000000000000000000000000000000",
     idrxToken: "0x0000000000000000000000000000000000000000",
     platformFeeReceiver: "0x0000000000000000000000000000000000000000",
@@ -322,15 +321,16 @@ export const parseContractError = (error: any): string => {
 };
 
 // ============================================================================
-// ALGORITHM-SPECIFIC UTILITIES
+// DIAMOND PATTERN UTILITIES (Algorithm 1 Escrow-based)
 // ============================================================================
 
 /**
- * Parse Algorithm 1 Token ID format: 1EEETTTSSSSS
+ * Parse Deterministic Token ID format: 1EEETTTSSSSS
+ * Diamond pattern uses deterministic token IDs for enhanced traceability
  * @param tokenId - Token ID as bigint
  * @returns Parsed token ID components
  */
-export const parseAlgorithm1TokenId = (tokenId: bigint): {
+export const parseTokenId = (tokenId: bigint): {
   algorithm: number;
   eventId: number;
   tierCode: number;
@@ -339,7 +339,7 @@ export const parseAlgorithm1TokenId = (tokenId: bigint): {
   const tokenIdStr = tokenId.toString();
   
   if (tokenIdStr.length !== 12 || !tokenIdStr.startsWith('1')) {
-    throw new Error('Invalid Algorithm 1 Token ID format');
+    throw new Error('Invalid Token ID format');
   }
   
   const algorithm = parseInt(tokenIdStr.slice(0, 1));
@@ -351,13 +351,13 @@ export const parseAlgorithm1TokenId = (tokenId: bigint): {
 };
 
 /**
- * Generate Algorithm 1 Token ID format: 1EEETTTSSSSS
+ * Generate Deterministic Token ID format: 1EEETTTSSSSS
  * @param eventId - Event ID (0-999)
  * @param tierCode - Tier code (1-999, 1-indexed)
  * @param sequential - Sequential number (1-99999)
  * @returns Token ID as bigint
  */
-export const generateAlgorithm1TokenId = (
+export const generateTokenId = (
   eventId: number,
   tierCode: number,
   sequential: number
@@ -371,11 +371,104 @@ export const generateAlgorithm1TokenId = (
 };
 
 /**
- * Check if token ID follows Algorithm 1 format
+ * Check if token ID follows Diamond deterministic format
  * @param tokenId - Token ID as bigint
- * @returns true if Algorithm 1 format, false otherwise
+ * @returns true if valid format, false otherwise
  */
-export const isAlgorithm1TokenId = (tokenId: bigint): boolean => {
+export const isValidTokenId = (tokenId: bigint): boolean => {
   const tokenIdStr = tokenId.toString();
   return tokenIdStr.length === 12 && tokenIdStr.startsWith('1');
+};
+
+// ============================================================================
+// PLATFORM FEE UTILITIES
+// ============================================================================
+
+/**
+ * Calculate platform fee for primary ticket sales (7%)
+ * @param price - Ticket price in IDRX
+ * @returns Platform fee amount
+ */
+export const calculatePrimaryPlatformFee = (price: number): number => {
+  return price * 0.07; // 7% platform fee
+};
+
+/**
+ * Calculate platform fee for resale transactions (3%)
+ * @param price - Resale price in IDRX
+ * @returns Platform fee amount
+ */
+export const calculateResalePlatformFee = (price: number): number => {
+  return price * 0.03; // 3% platform fee
+};
+
+/**
+ * Calculate organizer net revenue after platform fee deduction (primary sales)
+ * @param price - Ticket price in IDRX
+ * @returns Amount organizer receives (93% of ticket price)
+ */
+export const calculateOrganizerRevenue = (price: number): number => {
+  return price - calculatePrimaryPlatformFee(price);
+};
+
+/**
+ * Calculate resale fee breakdown
+ * @param resalePrice - Resale price in IDRX
+ * @param organizerFeePercentage - Organizer fee percentage (basis points)
+ * @returns Breakdown of fees for resale transaction
+ */
+export const calculateResaleFeeBreakdown = (
+  resalePrice: number, 
+  organizerFeePercentage: number = 0
+): {
+  platformFee: number;
+  organizerFee: number;
+  sellerAmount: number;
+} => {
+  const platformFee = calculateResalePlatformFee(resalePrice);
+  const organizerFee = (resalePrice * organizerFeePercentage) / 10000; // Convert basis points to decimal
+  const sellerAmount = resalePrice - platformFee - organizerFee;
+  
+  return {
+    platformFee,
+    organizerFee,
+    sellerAmount
+  };
+};
+
+/**
+ * Format fee display with transparency messaging
+ * @param price - Base price
+ * @param isResale - Whether this is a resale transaction
+ * @returns Formatted fee display object
+ */
+export const formatFeeDisplay = (price: number, isResale: boolean = false): {
+  basePrice: string;
+  platformFee: string;
+  platformFeeAmount: number;
+  totalDisplay: string;
+  transparencyMessage: string;
+} => {
+  const platformFeeAmount = isResale 
+    ? calculateResalePlatformFee(price)
+    : calculatePrimaryPlatformFee(price);
+  
+  const basePrice = `${price} IDRX`;
+  const platformFee = `${platformFeeAmount.toFixed(2)} IDRX`;
+  
+  const transparencyMessage = isResale
+    ? "Platform fee (3%) supports secure resale transactions"
+    : "Platform fee (7%) already included - no hidden costs";
+    
+  const totalDisplay = isResale
+    ? `${price} IDRX (incl. ${platformFee} platform fee)`
+    : `${price} IDRX (no hidden fees)`;
+  
+  return {
+    basePrice,
+    platformFee,
+    platformFeeAmount,
+    totalDisplay,
+    transparencyMessage
+  };
 };

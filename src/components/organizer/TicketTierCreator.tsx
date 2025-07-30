@@ -23,6 +23,7 @@ import {
 } from "@chakra-ui/react";
 import { DeleteIcon, AddIcon } from "@chakra-ui/icons";
 import { isValidTokenAmount, isValidUint256, parseTokenAmount } from "../../utils/contractUtils";
+import { FeeDisplay } from "../common";
 import NFTImageUpload from "./NFTImageUpload";
 
 export interface TicketTierInput {
@@ -270,9 +271,9 @@ const TicketTierCreator: React.FC<TicketTierCreatorProps> = ({
                   />
                 </FormControl>
 
-                <HStack spacing={4}>
-                  <FormControl isInvalid={!!errors[tier.id]?.price}>
-                    <FormLabel>Price ({currency})</FormLabel>
+                <HStack spacing={4} align="flex-start">
+                  <FormControl isInvalid={!!errors[tier.id]?.price} flex="1">
+                    <FormLabel>Ticket Price ({currency})</FormLabel>
                     <NumberInput
                       min={0}
                       max={1000000}  // Max 1M tokens
@@ -291,6 +292,27 @@ const TicketTierCreator: React.FC<TicketTierCreatorProps> = ({
                     <FormErrorMessage>{errors[tier.id]?.price}</FormErrorMessage>
                   </FormControl>
 
+                  {/* Fee Display for Organizer */}
+                  {tier.price > 0 && (
+                    <Box
+                      flex="1"
+                      p={3}
+                      borderRadius="md"
+                      bg="blue.50"
+                      borderWidth="1px"
+                      borderColor="blue.200"
+                    >
+                      <FeeDisplay
+                        price={tier.price}
+                        isOrganizerView={true}
+                        showBreakdown={true}
+                        size="sm"
+                      />
+                    </Box>
+                  )}
+                </HStack>
+
+                <HStack spacing={4}>
                   <FormControl isInvalid={!!errors[tier.id]?.quantity}>
                     <FormLabel>Quantity Available</FormLabel>
                     <NumberInput

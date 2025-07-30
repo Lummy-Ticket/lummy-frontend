@@ -1,12 +1,10 @@
 // src/hooks/useSmartContract.ts
 import { useState, useCallback } from "react";
 import { useAccount, useWalletClient, usePublicClient } from "wagmi";
-import {
-  EVENT_FACTORY_ADDRESS,
-  EVENT_FACTORY_ABI,
-} from "../contracts/EventFactory";
-import { EVENT_ABI } from "../contracts/Event";
+import { EVENT_CORE_FACET_ABI } from "../contracts/EventCoreFacet";
+import { TICKET_PURCHASE_FACET_ABI } from "../contracts/TicketPurchaseFacet";
 import { TICKET_NFT_ABI } from "../contracts/TicketNFT";
+import { CONTRACT_ADDRESSES } from "../constants";
 import { 
   parseTokenAmount, 
   parseContractDate,
@@ -14,7 +12,7 @@ import {
 } from "../utils/contractUtils";
 
 /**
- * Interface for Event data returned from contracts (legacy - use ContractEvent)
+ * Interface for Event data returned from Diamond contracts
  */
 export interface EventData {
   eventId: bigint;
@@ -25,7 +23,7 @@ export interface EventData {
   ipfsMetadata: string;
   organizer: string;
   cancelled: boolean;
-  useAlgorithm1: boolean;
+  completed: boolean;
 }
 
 /**
@@ -80,22 +78,21 @@ export const useSmartContract = () => {
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * Creates a new event on the blockchain
+   * Initializes a new event using Diamond pattern (replaces createEvent)
    * @param name Event name
    * @param description Event description
    * @param date Event date
    * @param venue Event venue
    * @param ipfsMetadata Additional metadata in IPFS
-   * @returns Event contract address if successful, null otherwise
+   * @returns Transaction hash if successful, null otherwise
    */
-  const createEvent = useCallback(
+  const initializeEvent = useCallback(
     async (
       name: string,
       description: string,
       date: Date,
       venue: string,
-      ipfsMetadata: string = "",
-      useAlgorithm1: boolean = false
+      ipfsMetadata: string = ""
     ) => {
       if (!walletClient || !address || !publicClient) {
         setError("Wallet not connected or provider not available");
@@ -109,46 +106,19 @@ export const useSmartContract = () => {
         // Convert date to unix timestamp in seconds
         const dateTimestamp = parseContractDate(date.toISOString());
 
-        // Choose the appropriate function based on algorithm preference
-        const functionName = useAlgorithm1 ? "createEvent" : "createEvent";
-        const args = useAlgorithm1 
-          ? [name, description, dateTimestamp, venue, ipfsMetadata, true]
-          : [name, description, dateTimestamp, venue, ipfsMetadata];
-
-        // Prepare transaction
+        // Call initialize function on Diamond contract (EventCoreFacet)
         const hash = await walletClient.writeContract({
-          address: EVENT_FACTORY_ADDRESS as `0x${string}`,
-          abi: EVENT_FACTORY_ABI,
-          functionName,
-          args,
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: EVENT_CORE_FACET_ABI,
+          functionName: "initialize",
+          args: [address, name, description, dateTimestamp, venue, ipfsMetadata],
         });
 
         // Wait for receipt
-        const receipt = await publicClient.waitForTransactionReceipt({ hash });
-
-        // Find EventCreated event from receipt
-        const logs = receipt.logs;
-
-        // Manually find EventCreated event
-        for (const log of logs) {
-          // EventCreated has signature 'EventCreated(uint256,address)'
-          // topic[0] is the event signature hash
-          if (
-            log.topics[0] ===
-            "0x7a74ea23c916c344aa7bb079fa7db0cdb4964ade3d70c7f1c8694f9efa0b8abe"
-          ) {
-            // Decode eventId and eventContract from log
-            // topics[1] is eventId (indexed)
-            // topics[2] is eventContract (indexed)
-            const eventAddress =
-              (`0x${log.topics[2]?.slice(26)}` as `0x${string}`) || "";
-            return eventAddress;
-          }
-        }
-
-        return null;
+        await publicClient.waitForTransactionReceipt({ hash });
+        return hash;
       } catch (err) {
-        console.error("Error creating event:", err);
+        console.error("Error initializing event:", err);
         setError(parseContractError(err));
         return null;
       } finally {
@@ -159,10 +129,57 @@ export const useSmartContract = () => {
   );
 
   /**
-   * Retrieves all events from the factory contract
-   * @returns Array of event contract addresses
+   * Gets event information from Diamond contract
+   * @returns Event information or null if not initialized
    */
-  const getEvents = useCallback(async () => {
+  const getEventInfo = useCallback(async () => {
+    if (!publicClient) {
+      setError("Provider not available");
+      return null;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const eventInfo = await publicClient.readContract({
+        address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+        abi: EVENT_CORE_FACET_ABI,
+        functionName: "getEventInfo",
+      }) as [string, string, bigint, string, string];
+
+      const [cancelled, completed] = await publicClient.readContract({
+        address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+        abi: EVENT_CORE_FACET_ABI,
+        functionName: "getEventStatus",
+      }) as [boolean, boolean];
+
+      return {
+        eventId: BigInt(0), // Diamond uses single event instance
+        name: eventInfo[0],
+        description: eventInfo[1],
+        date: eventInfo[2],
+        venue: eventInfo[3],
+        organizer: eventInfo[4],
+        cancelled,
+        completed,
+        ipfsMetadata: "", // Need to get from storage
+      } as EventData;
+    } catch (err) {
+      console.error("Error getting event info:", err);
+      setError(err instanceof Error ? err.message : "Unknown error occurred");
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [publicClient]);
+
+
+  /**
+   * Gets all ticket tiers from Diamond contract
+   * @returns Array of ticket tiers
+   */
+  const getTicketTiers = useCallback(async () => {
     if (!publicClient) {
       setError("Provider not available");
       return [];
@@ -172,16 +189,37 @@ export const useSmartContract = () => {
     setError(null);
 
     try {
-      const events = (await publicClient.readContract({
-        address: EVENT_FACTORY_ADDRESS as `0x${string}`,
-        abi: EVENT_FACTORY_ABI,
-        functionName: "getEvents",
-      })) as `0x${string}`[];
+      // Get tier count from Diamond contract
+      const tierCount = (await publicClient.readContract({
+        address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+        abi: EVENT_CORE_FACET_ABI,
+        functionName: "getTierCount",
+      })) as bigint;
 
-      return events;
+      // Get tier details for each tier
+      const tiers: TicketTierData[] = [];
+      for (let i = 0; i < Number(tierCount); i++) {
+        const tier = (await publicClient.readContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: EVENT_CORE_FACET_ABI,
+          functionName: "getTicketTier",
+          args: [BigInt(i)],
+        })) as [string, bigint, bigint, bigint, bigint, boolean];
+
+        tiers.push({
+          name: tier[0],
+          price: tier[1],
+          available: tier[2],
+          sold: tier[3],
+          maxPerPurchase: tier[4],
+          active: tier[5],
+        });
+      }
+
+      return tiers;
     } catch (err) {
-      console.error("Error getting events:", err);
-      setError(err instanceof Error ? err.message : "Unknown error occurred");
+      console.error("Error getting ticket tiers:", err);
+      setError(parseContractError(err));
       return [];
     } finally {
       setLoading(false);
@@ -189,155 +227,7 @@ export const useSmartContract = () => {
   }, [publicClient]);
 
   /**
-   * Gets the details of a specific event
-   * @param eventAddress Contract address of the event
-   * @returns Event details or null if error
-   */
-  const getEventDetails = useCallback(
-    async (eventAddress: string) => {
-      if (!publicClient) {
-        setError("Provider not available");
-        return null;
-      }
-
-      setLoading(true);
-      setError(null);
-
-      try {
-        // Read event details directly from the event contract
-        const [name, description, date, venue, ipfsMetadata, organizer, cancelled, useAlgorithm1] = await Promise.all([
-          publicClient.readContract({
-            address: eventAddress as `0x${string}`,
-            abi: EVENT_ABI,
-            functionName: "name",
-          }),
-          publicClient.readContract({
-            address: eventAddress as `0x${string}`,
-            abi: EVENT_ABI,
-            functionName: "description",
-          }),
-          publicClient.readContract({
-            address: eventAddress as `0x${string}`,
-            abi: EVENT_ABI,
-            functionName: "date",
-          }),
-          publicClient.readContract({
-            address: eventAddress as `0x${string}`,
-            abi: EVENT_ABI,
-            functionName: "venue",
-          }),
-          publicClient.readContract({
-            address: eventAddress as `0x${string}`,
-            abi: EVENT_ABI,
-            functionName: "ipfsMetadata",
-          }),
-          publicClient.readContract({
-            address: eventAddress as `0x${string}`,
-            abi: EVENT_ABI,
-            functionName: "organizer",
-          }),
-          publicClient.readContract({
-            address: eventAddress as `0x${string}`,
-            abi: EVENT_ABI,
-            functionName: "cancelled",
-          }),
-          publicClient.readContract({
-            address: eventAddress as `0x${string}`,
-            abi: EVENT_ABI,
-            functionName: "useAlgorithm1",
-          }),
-        ]);
-
-        // Get eventId from factory
-        const eventId = await publicClient.readContract({
-          address: EVENT_FACTORY_ADDRESS as `0x${string}`,
-          abi: EVENT_FACTORY_ABI,
-          functionName: "eventAddressToId",
-          args: [eventAddress as `0x${string}`],
-        });
-
-        const details: EventData = {
-          eventId: eventId as bigint,
-          name: name as string,
-          description: description as string,
-          date: date as bigint,
-          venue: venue as string,
-          ipfsMetadata: ipfsMetadata as string,
-          organizer: organizer as string,
-          cancelled: cancelled as boolean,
-          useAlgorithm1: useAlgorithm1 as boolean,
-        };
-
-        return details;
-      } catch (err) {
-        console.error("Error getting event details:", err);
-        setError(err instanceof Error ? err.message : "Unknown error occurred");
-        return null;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [publicClient]
-  );
-
-  /**
-   * Gets all ticket tiers for an event
-   * @param eventAddress Contract address of the event
-   * @returns Array of ticket tiers
-   */
-  const getTicketTiers = useCallback(
-    async (eventAddress: string) => {
-      if (!publicClient) {
-        setError("Provider not available");
-        return [];
-      }
-
-      setLoading(true);
-      setError(null);
-
-      try {
-        // Get tier count
-        const tierCount = (await publicClient.readContract({
-          address: eventAddress as `0x${string}`,
-          abi: EVENT_ABI,
-          functionName: "tierCount",
-        })) as bigint;
-
-        // Get tier details for each tier
-        const tiers: TicketTierData[] = [];
-        for (let i = 0; i < Number(tierCount); i++) {
-          const tier = (await publicClient.readContract({
-            address: eventAddress as `0x${string}`,
-            abi: EVENT_ABI,
-            functionName: "ticketTiers",
-            args: [BigInt(i)],
-          })) as [string, bigint, bigint, bigint, bigint, boolean];
-
-          tiers.push({
-            name: tier[0],
-            price: tier[1],
-            available: tier[2],
-            sold: tier[3],
-            maxPerPurchase: tier[4],
-            active: tier[5],
-          });
-        }
-
-        return tiers;
-      } catch (err) {
-        console.error("Error getting ticket tiers:", err);
-        setError(parseContractError(err));
-        return [];
-      } finally {
-        setLoading(false);
-      }
-    },
-    [publicClient]
-  );
-
-  /**
-   * Adds a new ticket tier to an event
-   * @param eventAddress Contract address of the event
+   * Adds a new ticket tier to the Diamond contract
    * @param name Tier name
    * @param price Price in IDRX tokens (will be converted to Wei)
    * @param available Number of tickets available
@@ -346,7 +236,6 @@ export const useSmartContract = () => {
    */
   const addTicketTier = useCallback(
     async (
-      eventAddress: string,
       name: string,
       price: number,
       available: number,
@@ -364,8 +253,8 @@ export const useSmartContract = () => {
         const priceInWei = parseTokenAmount(price.toString());
         
         const hash = await walletClient.writeContract({
-          address: eventAddress as `0x${string}`,
-          abi: EVENT_ABI,
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: EVENT_CORE_FACET_ABI,
           functionName: "addTicketTier",
           args: [name, priceInWei, BigInt(available), BigInt(maxPerPurchase)],
         });
@@ -384,18 +273,13 @@ export const useSmartContract = () => {
   );
 
   /**
-   * Purchases tickets for a specific tier
-   * @param eventAddress Contract address of the event
+   * Purchases tickets using Diamond contract (TicketPurchaseFacet)
    * @param tierId Tier ID to purchase
    * @param quantity Number of tickets to purchase
    * @returns Transaction hash if successful
    */
   const purchaseTickets = useCallback(
-    async (
-      eventAddress: string,
-      tierId: number,
-      quantity: number
-    ) => {
+    async (tierId: number, quantity: number) => {
       if (!walletClient || !address) {
         setError("Wallet not connected");
         return null;
@@ -406,8 +290,8 @@ export const useSmartContract = () => {
 
       try {
         const hash = await walletClient.writeContract({
-          address: eventAddress as `0x${string}`,
-          abi: EVENT_ABI,
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: TICKET_PURCHASE_FACET_ABI,
           functionName: "purchaseTicket",
           args: [BigInt(tierId), BigInt(quantity)],
         });
@@ -523,10 +407,9 @@ export const useSmartContract = () => {
   );
 
   return {
-    // Event management
-    createEvent,
-    getEvents,
-    getEventDetails,
+    // Event management (Diamond pattern)
+    initializeEvent,
+    getEventInfo,
     getTicketTiers,
     addTicketTier,
     

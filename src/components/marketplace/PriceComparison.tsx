@@ -7,8 +7,10 @@ import {
   Icon,
   Tooltip,
   VStack,
+  Divider,
 } from "@chakra-ui/react";
 import { FaArrowUp, FaArrowDown, FaEquals } from "react-icons/fa";
+import { FeeDisplay } from "../common";
 
 interface PriceComparisonProps {
   originalPrice: number;
@@ -61,12 +63,32 @@ export const PriceComparison: React.FC<PriceComparisonProps> = ({
       </Flex>
 
       {showDetail && (
-        <HStack mt={1} fontSize="xs" color="gray.500">
-          <Text>Original price:</Text>
-          <Text>
-            {currency} {originalPrice.toLocaleString()}
-          </Text>
-        </HStack>
+        <VStack mt={2} spacing={2} align="stretch">
+          <HStack fontSize="xs" color="gray.500">
+            <Text>Original price:</Text>
+            <Text>
+              {currency} {originalPrice.toLocaleString()}
+            </Text>
+          </HStack>
+          
+          <Divider />
+          
+          {/* Resale Fee Display */}
+          <Box
+            p={2}
+            borderRadius="md"
+            bg="purple.50"
+            borderWidth="1px"
+            borderColor="purple.200"
+          >
+            <FeeDisplay
+              price={resalePrice}
+              isResale={true}
+              showBreakdown={true}
+              size="sm"
+            />
+          </Box>
+        </VStack>
       )}
     </Box>
   );

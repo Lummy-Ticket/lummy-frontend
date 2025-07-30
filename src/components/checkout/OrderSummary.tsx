@@ -12,9 +12,11 @@ import {
   NumberIncrementStepper,
   NumberDecrementStepper,
   Flex,
+  Badge,
 } from "@chakra-ui/react";
 import { Event, TicketTier } from "../../types/Event";
 import { FaCalendarAlt, FaMapMarkerAlt } from "react-icons/fa";
+import { FeeDisplay } from "../common";
 
 interface OrderSummaryProps {
   event: Event;
@@ -133,6 +135,13 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
         </HStack>
 
         <HStack justify="space-between">
+          <Text>Platform Fee</Text>
+          <Badge colorScheme="green" size="sm" variant="subtle">
+            Already included
+          </Badge>
+        </HStack>
+
+        <HStack justify="space-between">
           <Text>Blockchain fee</Text>
           <Text fontSize="sm" color="gray.600">
             Free
@@ -147,6 +156,21 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
             {tier.currency} {subtotal.toLocaleString()}
           </Text>
         </HStack>
+
+        {/* Fee Transparency Display */}
+        <Box
+          p={3}
+          borderRadius="md"
+          bg="green.50"
+          borderWidth="1px"
+          borderColor="green.200"
+        >
+          <FeeDisplay
+            price={tier.price}
+            showBreakdown={false}
+            size="sm"
+          />
+        </Box>
       </VStack>
     </Box>
   );

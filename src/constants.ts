@@ -3,15 +3,16 @@ export const IDRX_LISK_SEPOLIA = "0xD63029C1a3dA68b51c67c6D1DeC3DEe50D681661";
 // Legacy naming for compatibility
 export const IDRX_SEPOLIA = IDRX_LISK_SEPOLIA;
 
-// Contract addresses - UPDATE THESE WITH ACTUAL DEPLOYED ADDRESSES
+// Contract addresses - DEPLOYED ON LISK SEPOLIA
 export const CONTRACT_ADDRESSES = {
-  EventFactory: "0x0000000000000000000000000000000000000000", // PLACEHOLDER - UPDATE WITH DEPLOYED ADDRESS
-  MockIDRX: IDRX_LISK_SEPOLIA,    // IDRX token on Lisk Sepolia
-  TrustedForwarder: "0x0000000000000000000000000000000000000000", // PLACEHOLDER - UPDATE WITH FORWARDER ADDRESS
+  DiamondLummy: "0x5677c194A7efca97853Cb434Aa59252A0c364074", // Main Diamond contract
+  MockIDRX: "0xBAc0800a4F278853973669B6F4Ec70ae03be1184",    // IDRX token on Lisk Sepolia  
+  TrustedForwarder: "0xA86b473A3f16146c7981015bD191F29aF7894988", // SimpleForwarder for gasless txs
 } as const;
 
-// Contract constants (from smart contract)
-export const PLATFORM_FEE_PERCENTAGE = 100; // 1% (100 basis points)
+// Contract constants (from smart contract - UPDATED FOR 7%/3% FEE STRUCTURE)
+export const PLATFORM_PRIMARY_FEE_PERCENTAGE = 700; // 7% primary sales (700 basis points)
+export const PLATFORM_RESALE_FEE_PERCENTAGE = 300; // 3% resale (300 basis points)
 export const BASIS_POINTS = 10000;
 export const DEFAULT_MAX_MARKUP_PERCENTAGE = 2000; // 20% (2000 basis points)
 

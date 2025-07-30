@@ -88,15 +88,20 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
           pt={3}
           width="100%"
           justify="space-between"
-          align="center"
+          align="flex-start"
         >
           <Badge colorScheme="purple" variant="subtle">
             {category}
           </Badge>
 
-          <Text fontWeight="bold" color="lummy.purple.600" fontSize="md">
-            {currency} {price.toLocaleString()}
-          </Text>
+          <VStack align="flex-end" spacing={1}>
+            <Text fontWeight="bold" color="lummy.purple.600" fontSize="md">
+              {currency} {price.toLocaleString()}
+            </Text>
+            <Badge colorScheme="green" size="xs" variant="subtle">
+              No hidden fees
+            </Badge>
+          </VStack>
         </Flex>
       </VStack>
     </Card>

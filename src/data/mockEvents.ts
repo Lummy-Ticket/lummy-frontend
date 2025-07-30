@@ -107,8 +107,7 @@ Don't miss out on the biggest music event of the summer!`,
     eventId: "1",
     ipfsMetadata: "QmSummerMusicFestival2025Hash",
     cancelled: false,
-    useAlgorithm1: true,  // All algorithms now use escrow
-    algorithm: "algorithm1" as "algorithm1" | "algorithm2" | "algorithm3", // Algorithm 1: Pure Web3 NFT + Escrow
+    completed: false
   },
   {
     id: "2",
@@ -193,8 +192,7 @@ Don't miss this opportunity to stay ahead of the curve in the rapidly evolving t
     eventId: "2",
     ipfsMetadata: "QmTechConference2025Hash",
     cancelled: false,
-    useAlgorithm1: true,  // All algorithms now use escrow
-    algorithm: "algorithm2" as "algorithm1" | "algorithm2" | "algorithm3", // Algorithm 2: Dynamic QR + Escrow
+    completed: false
   },
   {
     id: "3",
@@ -254,8 +252,7 @@ Don't miss this opportunity to stay ahead of the curve in the rapidly evolving t
     eventId: "3",
     ipfsMetadata: "QmBlockchainWorkshop2025Hash",
     cancelled: false,
-    useAlgorithm1: true,  // All algorithms now use escrow
-    algorithm: "algorithm3" as "algorithm1" | "algorithm2" | "algorithm3", // Algorithm 3: Zero Knowledge + Escrow
+    completed: false
   },
   {
     id: "4",
@@ -368,12 +365,11 @@ Get ready to rock the night away at Thunder Night - where legends are made and m
     eventId: "4",
     ipfsMetadata: "QmThunderNightRockConcert2025Hash",
     cancelled: false,
-    useAlgorithm1: true,  // All algorithms now use escrow
-    algorithm: "algorithm1" as "algorithm1" | "algorithm2" | "algorithm3", // Algorithm 1: Pure Web3 NFT + Escrow
+    completed: false
   },
 ];
 
-// Contract-compatible mock data for testing
+// Contract-compatible mock data for testing (Diamond pattern)
 export const mockContractEvents = [
   {
     eventId: 1n,
@@ -384,8 +380,7 @@ export const mockContractEvents = [
     ipfsMetadata: "QmSummerMusicFestival2025Hash",
     organizer: "0x1234567890abcdef1234567890abcdef12345678",
     cancelled: false,
-    useAlgorithm1: false,
-    factory: "0x0000000000000000000000000000000000000000",
+    completed: false,
     ticketNFT: "0x0000000000000000000000000000000000000000",
     idrxToken: "0xD63029C1a3dA68b51c67c6D1DeC3DEe50D681661",
     platformFeeReceiver: "0x0000000000000000000000000000000000000000",
@@ -400,9 +395,7 @@ export const mockContractEvents = [
     ipfsMetadata: "QmTechConference2025Hash",
     organizer: "0xabcdef1234567890abcdef1234567890abcdef12",
     cancelled: false,
-    useAlgorithm1: true,  // All algorithms now use escrow
-    algorithm: "algorithm3" as "algorithm1" | "algorithm2" | "algorithm3", // Algorithm 3: Zero-Knowledge + Escrow
-    factory: "0x0000000000000000000000000000000000000000",
+    completed: false,
     ticketNFT: "0x0000000000000000000000000000000000000000",
     idrxToken: "0xD63029C1a3dA68b51c67c6D1DeC3DEe50D681661",
     platformFeeReceiver: "0x0000000000000000000000000000000000000000",

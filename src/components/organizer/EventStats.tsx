@@ -26,7 +26,6 @@ export interface EventStatsData {
     price: number;
   }>;
   daysUntilEvent: number;
-  useAlgorithm1?: boolean; // Algorithm selection
 }
 
 interface EventStatsProps {
