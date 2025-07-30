@@ -14,7 +14,7 @@ import {
   Flex,
   useToast,
 } from "@chakra-ui/react";
-import { FaUser, FaWallet, FaHistory, FaCalendarAlt } from "react-icons/fa";
+import { FaUser, FaWallet, FaHistory, FaCalendarAlt, FaEnvelope } from "react-icons/fa";
 import { useAccount, useBalance } from "wagmi";
 import { ConnectButton } from "@xellar/kit";
 import {
@@ -22,6 +22,7 @@ import {
   TransactionHistory,
   WalletDetails,
   MyEvents,
+  EmailPreferences,
 } from "../../components/profile";
 import { useRole } from "../../context/RoleContext";
 import { IDRX_SEPOLIA } from "../../constants"; // Import token address
@@ -126,6 +127,9 @@ const ProfilePage: React.FC = () => {
   const { address, isConnected } = useAccount();
   const { role } = useRole();
   
+  // Debug: Log current role
+  console.log('🎭 Current role:', role);
+  
   // Get IDRX balance
   const { data: balanceData } = useBalance({
     address,
@@ -156,6 +160,9 @@ const ProfilePage: React.FC = () => {
         <TabList>
           <Tab>
             <Icon as={FaUser} mr={2} /> Personal Info
+          </Tab>
+          <Tab>
+            <Icon as={FaEnvelope} mr={2} /> Email Settings
           </Tab>
           {role === "staff" ? (
             <Tab>
@@ -191,6 +198,11 @@ const ProfilePage: React.FC = () => {
             )}
           </TabPanel>
 
+          {/* Email Settings Tab */}
+          <TabPanel px={0} py={4}>
+            <EmailPreferences />
+          </TabPanel>
+
           {role === "staff" ? (
             /* My Events Tab for Staff */
             <TabPanel px={0} py={4}>
@@ -213,6 +225,10 @@ const ProfilePage: React.FC = () => {
 
               {/* Transactions Tab */}
               <TabPanel px={0} py={4}>
+                {(() => {
+                  console.log('📊 Rendering Transactions Tab - Connected:', isConnected, 'Address:', address);
+                  return null;
+                })()}
                 {isConnected && address ? (
                   <TransactionHistory
                     transactions={mockTransactions.map((tx) => ({

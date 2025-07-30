@@ -44,6 +44,8 @@ interface TransactionHistoryProps {
 const TransactionHistory: React.FC<TransactionHistoryProps> = ({
   transactions,
 }) => {
+  console.log('📊 TransactionHistory component rendered with', transactions.length, 'transactions');
+  
   const [filter, setFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const itemsPerPage = 5;

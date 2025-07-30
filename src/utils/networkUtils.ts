@@ -25,8 +25,9 @@ export const LISK_SEPOLIA_CONFIG = {
  * Auto-adds network if not exists in wallet
  */
 export const switchToLiskSepolia = async (): Promise<boolean> => {
+  // Check for any wallet provider (MetaMask, Xellar, etc.)
   if (!window.ethereum) {
-    console.error("MetaMask not detected");
+    console.warn("No wallet provider detected - skipping network switch");
     return false;
   }
 

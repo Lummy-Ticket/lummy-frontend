@@ -11,9 +11,13 @@ import {
   useToast,
   HStack,
   IconButton,
+  Badge,
+  Spinner,
 } from "@chakra-ui/react";
 import { EditIcon, CloseIcon, CheckIcon } from "@chakra-ui/icons";
 import { ConnectButton } from "@xellar/kit";
+import { useEmailService } from "../../hooks/useEmailService";
+import { useAccount } from "wagmi";
 
 interface PersonalInfoProps {
   initialData: {
@@ -26,47 +30,36 @@ interface PersonalInfoProps {
 }
 
 const PersonalInfo: React.FC<PersonalInfoProps> = ({ initialData, onSave }) => {
+  const { address } = useAccount();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState(initialData);
   const toast = useToast();
+  
+  // Use email service hook to get real email data from Supabase
+  const {
+    loading: emailLoading,
+    userEmail,
+    isEmailVerified,
+    checkEmailExists,
+  } = useEmailService();
 
-  // Sync verified email from localStorage
+  // Load email data from Supabase when wallet is connected
   useEffect(() => {
-    const verifiedEmail = localStorage.getItem("userEmail");
-    if (verifiedEmail && !formData.email) {
-      setFormData((prev) => ({ ...prev, email: verifiedEmail }));
+    if (address) {
+      checkEmailExists();
     }
-  }, [formData.email]);
+  }, [address, checkEmailExists]);
 
-  // Listen for storage changes (when email is verified in another tab/component)
+  // Update form data when email data is loaded from Supabase
   useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "userEmail" && e.newValue) {
-        setFormData((prev) => ({ ...prev, email: e.newValue || "" }));
-      }
-    };
-
-    // Listen for custom emailVerified event for real-time sync
-    const handleEmailVerified = (e: CustomEvent) => {
-      const { email } = e.detail;
-      setFormData((prev) => ({ ...prev, email }));
-      toast({
-        title: "Email Verified",
-        description: "Your email has been verified and auto-filled",
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-      });
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-    window.addEventListener("emailVerified", handleEmailVerified as EventListener);
-    
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener("emailVerified", handleEmailVerified as EventListener);
-    };
-  }, [toast]);
+    if (userEmail) {
+      setFormData((prev) => ({ 
+        ...prev, 
+        email: userEmail.email,
+        walletAddress: userEmail.wallet_address 
+      }));
+    }
+  }, [userEmail]);
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -196,28 +189,38 @@ const PersonalInfo: React.FC<PersonalInfoProps> = ({ initialData, onSave }) => {
           {/* Email */}
           <FormControl>
             <FormLabel>
-              Email Address
-              {localStorage.getItem("userEmail") && (
-                <Text as="span" color="green.500" fontSize="sm" ml={2}>
-                  ✓ Verified
-                </Text>
-              )}
+              <HStack spacing={2}>
+                <Text>Email Address</Text>
+                {emailLoading && <Spinner size="xs" />}
+                {isEmailVerified && !emailLoading && (
+                  <Badge colorScheme="green" size="sm">
+                    ✓ Verified
+                  </Badge>
+                )}
+                {userEmail && !isEmailVerified && !emailLoading && (
+                  <Badge colorScheme="orange" size="sm">
+                    Pending Verification
+                  </Badge>
+                )}
+              </HStack>
             </FormLabel>
             <Input
               name="email"
               type="email"
               value={formData.email}
               onChange={handleChange}
-              isReadOnly={!isEditing || !!localStorage.getItem("userEmail")}
-              bg={localStorage.getItem("userEmail") ? "green.50" : isEditing ? "white" : "gray.50"}
-              placeholder="Enter your email"
-              borderColor={localStorage.getItem("userEmail") ? "green.200" : "gray.200"}
+              isReadOnly={!isEditing || isEmailVerified}
+              bg={isEmailVerified ? "green.50" : isEditing ? "white" : "gray.50"}
+              placeholder={address ? "Loading email..." : "Connect wallet to see email"}
+              borderColor={isEmailVerified ? "green.200" : "gray.200"}
+              isDisabled={!address}
             />
-            <Text fontSize="xs" color={localStorage.getItem("userEmail") ? "green.600" : "gray.500"} mt={1}>
-              {localStorage.getItem("userEmail") 
-                ? "✓ This email has been verified and will receive notifications"
-                : "Email address for event notifications and receipts"
-              }
+            <Text fontSize="xs" color={isEmailVerified ? "green.600" : "gray.500"} mt={1}>
+              {!address && "Connect your wallet to view email settings"}
+              {address && emailLoading && "Loading email from database..."}
+              {address && !emailLoading && !userEmail && "No email registered. Email verification modal will appear when you connect."}
+              {address && !emailLoading && userEmail && !isEmailVerified && "⚠️ Email pending verification. Check your inbox for verification code."}
+              {address && !emailLoading && isEmailVerified && "✓ This email is verified and will receive notifications"}
             </Text>
           </FormControl>
         </VStack>

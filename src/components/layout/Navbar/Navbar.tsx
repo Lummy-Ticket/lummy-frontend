@@ -34,6 +34,7 @@ import { useRole } from "../../../context/RoleContext";
 import RoleSwitcher from "../../common/RoleSwitcher";
 import { EmailVerificationModal } from "../../common";
 import { switchToLiskSepolia, isOnLiskSepolia } from "../../../utils/networkUtils";
+import { useEmailService } from "../../../hooks/useEmailService";
 
 // Define navigation links for each role
 const getNavigationLinks = (role: string) => {
@@ -91,15 +92,10 @@ export const Navbar: React.FC = () => {
   
   // Email verification modal state
   const [showEmailModal, setShowEmailModal] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-
-  // Check if user has verified email
-  useEffect(() => {
-    const savedEmail = localStorage.getItem("userEmail");
-    if (savedEmail) {
-      setUserEmail(savedEmail);
-    }
-  }, []);
+  const [hasShownEmailModal, setHasShownEmailModal] = useState(false);
+  
+  // Use real email service
+  const { isEmailVerified, checkEmailExists } = useEmailService();
 
   // Auto switch to Lisk Sepolia when wallet connects
   useEffect(() => {
@@ -118,28 +114,63 @@ export const Navbar: React.FC = () => {
     }
   }, [isConnected, address]);
 
+  // Check for existing email when wallet connects
+  useEffect(() => {
+    if (isConnected && address) {
+      checkEmailExists();
+    }
+  }, [isConnected, address, checkEmailExists]);
+
   // Show email modal when wallet connects but no email verified
   useEffect(() => {
-    if (isConnected && address && !userEmail) {
-      // Small delay to ensure connection is stable
-      const timer = setTimeout(() => {
-        setShowEmailModal(true);
-      }, 2000); // Increased delay to allow network switch first
-      return () => clearTimeout(timer);
+    if (isConnected && address && !hasShownEmailModal) {
+      // Check if email is already verified from localStorage (development mode)
+      const isDevelopment = import.meta.env.DEV;
+      let emailVerified = isEmailVerified;
+      
+      if (isDevelopment) {
+        const localData = localStorage.getItem(`email_${address.toLowerCase()}`);
+        if (localData) {
+          const data = JSON.parse(localData);
+          emailVerified = data.email_verified;
+        }
+      }
+      
+      console.log('🔍 Wallet connected. Email verified:', emailVerified);
+      
+      if (!emailVerified) {
+        // Small delay to ensure connection is stable
+        const timer = setTimeout(() => {
+          console.log('📧 Showing email verification modal');
+          setShowEmailModal(true);
+          setHasShownEmailModal(true); // Mark as shown
+        }, 3000);
+        return () => clearTimeout(timer);
+      } else {
+        console.log('✅ Email already verified, skipping modal');
+        setHasShownEmailModal(true); // Mark as shown even if not needed
+      }
     }
-  }, [isConnected, address, userEmail]);
+  }, [isConnected, address, isEmailVerified, hasShownEmailModal]);
+
+  // Reset modal state when wallet disconnects
+  useEffect(() => {
+    if (!isConnected) {
+      setHasShownEmailModal(false);
+      setShowEmailModal(false);
+    }
+  }, [isConnected]);
 
   // Email verification handlers
-  const handleEmailVerified = (email: string) => {
-    setUserEmail(email);
+  const handleVerificationComplete = () => {
     setShowEmailModal(false);
+    // Don't reset hasShownEmailModal - keep it true to prevent re-showing
   };
 
   const handleCloseEmailModal = () => {
-    // Only allow closing if user disconnects wallet
-    if (!isConnected) {
-      setShowEmailModal(false);
-    }
+    // Allow closing modal (user can skip email setup)
+    setShowEmailModal(false);
+    // Don't reset hasShownEmailModal - keep it true to prevent re-showing
   };
 
   // Get navigation links based on current role
@@ -482,7 +513,7 @@ export const Navbar: React.FC = () => {
       <EmailVerificationModal
         isOpen={showEmailModal}
         onClose={handleCloseEmailModal}
-        onEmailVerified={handleEmailVerified}
+        onVerificationComplete={handleVerificationComplete}
       />
     </Box>
   );

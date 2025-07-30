@@ -60,7 +60,7 @@ const mockFinanceData = {
   availableBalance: 12000,  // Will be updated with escrow logic
   platformFeePaid: 720,     // 1% of 72000 (updated from 5% to 1%)
   
-  // Escrow system simulation (Algorithm 1)
+  // Escrow system simulation (Diamond Pattern)
   escrowData: {
     organizerEscrow: 60000,        // Funds held until event completion
     eventCompleted: false,         // Mock: event not completed yet
@@ -79,7 +79,7 @@ const mockFinanceData = {
       netRevenue: 22275,   // Updated calculation
       status: "completed",
       date: "2025-06-15",
-      algorithm: "Algorithm1", // Pure Web3 NFT + Escrow
+      ticketingSystem: "Diamond Pattern", // Enhanced NFT + Escrow
       escrowAmount: 0,     // Released after completion + grace period
     },
     {
@@ -90,7 +90,7 @@ const mockFinanceData = {
       netRevenue: 41580,   // Updated calculation
       status: "ongoing",
       date: "2025-07-25",
-      algorithm: "Algorithm2", // Dynamic QR + Escrow
+      ticketingSystem: "Diamond Pattern", // Enhanced NFT + Escrow
       escrowAmount: 41580, // Held in escrow until completion
     },
     {
@@ -101,7 +101,7 @@ const mockFinanceData = {
       netRevenue: 7425,    // Updated calculation
       status: "completed",
       date: "2025-08-10",
-      algorithm: "Algorithm3", // Zero Knowledge + Escrow
+      ticketingSystem: "Diamond Pattern", // Enhanced NFT + Escrow
       escrowAmount: 0,     // Released after completion + grace period
     },
   ],
@@ -111,13 +111,13 @@ const mockFinanceData = {
     {
       id: "tx-001",
       type: "revenue",
-      description: "Ticket sales - Summer Music Festival (Algorithm 1 + Escrow)",
+      description: "Ticket sales - Summer Music Festival (Diamond Pattern + Escrow)",
       amount: 22500,
       fee: 225,       // 1% platform fee
       netAmount: 22275,
       date: "2025-06-15T10:30:00",
       txHash: "0x1234567890abcdef...",
-      algorithm: "Algorithm1",
+      ticketingSystem: "Diamond Pattern",
       escrowStatus: "released_after_completion",
     },
     {
@@ -129,31 +129,31 @@ const mockFinanceData = {
       netAmount: -22000,
       date: "2025-06-16T14:20:00",
       txHash: "0xabcdef1234567890...",
-      algorithm: "Algorithm1",
+      ticketingSystem: "Diamond Pattern",
       escrowStatus: "withdrawal_completed",
     },
     {
       id: "tx-003",
       type: "escrow", 
-      description: "Escrow deposit - Tech Conference 2025 (Algorithm 2)",
+      description: "Escrow deposit - Tech Conference 2025 (Diamond Pattern)",
       amount: 42000,
       fee: 420,       // 1% platform fee
       netAmount: 41580,
       date: "2025-07-25T09:15:00",
       txHash: "0x5678901234abcdef...",
-      algorithm: "Algorithm2",
+      ticketingSystem: "Diamond Pattern",
       escrowStatus: "held_until_completion",
     },
     {
       id: "tx-004",
       type: "escrow",
-      description: "Escrow deposit - Blockchain Workshop (Algorithm 3)", 
+      description: "Escrow deposit - Blockchain Workshop (Diamond Pattern)", 
       amount: 7500,
       fee: 75,        // 1% platform fee
       netAmount: 7425,
       date: "2025-08-10T11:00:00",
       txHash: "0x9876543210fedcba...",
-      algorithm: "Algorithm3",
+      ticketingSystem: "Diamond Pattern",
       escrowStatus: "held_until_completion",
     },
     {
@@ -165,7 +165,7 @@ const mockFinanceData = {
       netAmount: 7425,
       date: "2025-08-12T00:00:00",
       txHash: "0xescrow123456789...",
-      algorithm: "Algorithm3",
+      ticketingSystem: "Diamond Pattern",
       escrowStatus: "released_after_grace_period",
     },
   ],
@@ -539,11 +539,11 @@ const FinancePage: React.FC = () => {
                 </Box>
               </Alert>
               
-              {/* Grace Period Info for Algorithm 1 Events */}
+              {/* Grace Period Info for Diamond Pattern Events */}
               {!mockFinanceData.escrowData.canWithdraw && (
                 <Box p={4} bg="blue.50" borderRadius="lg" borderLeft="4px" borderLeftColor="blue.400">
                   <Text fontSize="sm" fontWeight="medium" mb={2} color="blue.800">
-                    Algorithm 1 Escrow Protection
+                    Diamond Pattern Escrow Protection
                   </Text>
                   <VStack align="start" spacing={1}>
                     <Text fontSize="xs" color="blue.700">
@@ -659,7 +659,7 @@ const FinancePage: React.FC = () => {
                   <Text fontSize="xs" color="gray.700">• Platform fee: 1% of withdrawal amount</Text>
                   <Text fontSize="xs" color="gray.700">• Gas fees are paid from your LSK balance</Text>
                   <Text fontSize="xs" color="gray.700">• Minimum withdrawal: IDRX 1</Text>
-                  <Text fontSize="xs" color="gray.700">• Algorithm 1 events: Funds held in escrow until completion + grace period</Text>
+                  <Text fontSize="xs" color="gray.700">• Diamond Pattern events: Funds held in escrow until completion + grace period</Text>
                 </VStack>
               </Box>
             </VStack>

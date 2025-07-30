@@ -334,7 +334,7 @@ class TransactionService {
   }
 
   /**
-   * Burn a ticket NFT to generate QR code (Algorithm 1)
+   * Burn a ticket NFT to generate QR code (Diamond Pattern)
    * @param nftAddress NFT contract address
    * @param tokenId Token ID to burn
    * @returns Transaction result with QR code

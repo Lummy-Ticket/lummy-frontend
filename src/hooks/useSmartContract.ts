@@ -5,6 +5,7 @@ import { EVENT_CORE_FACET_ABI } from "../contracts/EventCoreFacet";
 import { TICKET_PURCHASE_FACET_ABI } from "../contracts/TicketPurchaseFacet";
 import { TICKET_NFT_ABI } from "../contracts/TicketNFT";
 import { CONTRACT_ADDRESSES } from "../constants";
+import { useEmailService } from "./useEmailService";
 import { 
   parseTokenAmount, 
   parseContractDate,
@@ -74,6 +75,7 @@ export const useSmartContract = () => {
   const { address } = useAccount();
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
+  const { sendTicketPurchaseNotification } = useEmailService();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -276,10 +278,19 @@ export const useSmartContract = () => {
    * Purchases tickets using Diamond contract (TicketPurchaseFacet)
    * @param tierId Tier ID to purchase
    * @param quantity Number of tickets to purchase
+   * @param eventData Optional event data for email notifications
    * @returns Transaction hash if successful
    */
   const purchaseTickets = useCallback(
-    async (tierId: number, quantity: number) => {
+    async (tierId: number, quantity: number, eventData?: {
+      eventName: string;
+      tierName: string;
+      totalPrice: number;
+      currency: string;
+      eventDate: string;
+      venue: string;
+      eventId?: string;
+    }) => {
       if (!walletClient || !address) {
         setError("Wallet not connected");
         return null;
@@ -297,6 +308,27 @@ export const useSmartContract = () => {
         });
 
         await publicClient?.waitForTransactionReceipt({ hash });
+        
+        // Send email notification if event data provided
+        if (eventData) {
+          try {
+            await sendTicketPurchaseNotification({
+              eventName: eventData.eventName,
+              tierName: eventData.tierName,
+              quantity,
+              totalPrice: eventData.totalPrice,
+              currency: eventData.currency,
+              transactionHash: hash,
+              eventDate: eventData.eventDate,
+              venue: eventData.venue,
+              eventId: eventData.eventId,
+            });
+          } catch (emailError) {
+            // Email notification failure shouldn't block transaction success
+            console.warn('Email notification failed:', emailError);
+          }
+        }
+        
         return hash;
       } catch (err) {
         console.error("Error purchasing tickets:", err);
@@ -306,7 +338,7 @@ export const useSmartContract = () => {
         setLoading(false);
       }
     },
-    [walletClient, address, publicClient]
+    [walletClient, address, publicClient, sendTicketPurchaseNotification]
   );
 
   /**
@@ -361,7 +393,7 @@ export const useSmartContract = () => {
   );
 
   /**
-   * Burns a ticket NFT to generate QR code (Algorithm 1)
+   * Burns a ticket NFT to generate QR code (Diamond Pattern)
    * @param nftAddress NFT contract address
    * @param tokenId Token ID to burn
    * @returns QR code data if successful

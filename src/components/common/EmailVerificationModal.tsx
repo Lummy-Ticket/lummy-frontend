@@ -1,386 +1,527 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   ModalOverlay,
   ModalContent,
   ModalHeader,
   ModalBody,
+  ModalFooter,
+  Button,
+  Input,
   VStack,
   Text,
-  Input,
-  Button,
-  HStack,
+  Alert,
+  AlertIcon,
+  FormControl,
+  FormLabel,
+  FormErrorMessage,
   PinInput,
   PinInputField,
-  useToast,
+  HStack,
+  Badge,
   Box,
+  Divider,
+  Switch,
+  FormHelperText,
+  useToast,
+  Spinner,
   Icon,
-  Heading,
-} from "@chakra-ui/react";
-import { FaEnvelope, FaCheckCircle } from "react-icons/fa";
+} from '@chakra-ui/react';
+import { FaEnvelope, FaCheck, FaCog } from 'react-icons/fa';
+import { useAccount } from 'wagmi';
+import { useEmailService } from '../../hooks/useEmailService';
 
 interface EmailVerificationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onEmailVerified: (email: string) => void;
+  onVerificationComplete?: () => void;
 }
 
-type ModalStep = "email" | "otp" | "success";
+type Step = 'submit' | 'verify' | 'preferences' | 'complete';
 
-export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
+const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
   isOpen,
   onClose,
-  onEmailVerified,
+  onVerificationComplete,
 }) => {
-  const [step, setStep] = useState<ModalStep>("email");
-  const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [countdown, setCountdown] = useState(0);
+  const { address } = useAccount();
+  const {
+    loading,
+    error,
+    checkEmailExists,
+    submitEmail,
+    verifyEmail,
+    updateNotificationPreferences,
+    resendVerificationCode,
+  } = useEmailService();
+  
   const toast = useToast();
+  const [currentStep, setCurrentStep] = useState<Step>('submit');
+  const [email, setEmail] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [preferences, setPreferences] = useState({
+    ticket_purchase: true,
+    ticket_resale: true, 
+    event_reminders: true,
+    price_alerts: false,
+    marketing: false,
+  });
 
-  // Countdown timer for resend OTP
+  // Check existing email on modal open
   useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [countdown]);
-
-  const handleEmailSubmit = useCallback(async () => {
-    console.log("handleEmailSubmit called with email:", email);
-    if (!email || !email.includes("@")) {
-      toast({
-        title: "Invalid Email",
-        description: "Please enter a valid email address",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
+    if (isOpen && address) {
+      checkEmailExists().then((existingEmail) => {
+        if (existingEmail) {
+          setEmail(existingEmail.email);
+          setPreferences(existingEmail.notification_preferences);
+          
+          if (existingEmail.email_verified) {
+            setCurrentStep('complete');
+          } else {
+            setCurrentStep('verify');
+          }
+        } else {
+          setCurrentStep('submit');
+        }
       });
+    }
+  }, [isOpen, address, checkEmailExists]);
+
+  // Handle verification
+  const handleVerification = async () => {
+    if (verificationCode.length !== 6) {
       return;
     }
 
-    setIsLoading(true);
-
-    try {
-      // Simulate API call to send OTP
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      
-      setStep("otp");
-      setCountdown(60); // 60 second countdown
-      
-      // For demo: auto-fill OTP after 1 second
-      setTimeout(() => {
-        setOtp("123456"); // Mock OTP
-        toast({
-          title: "Demo: OTP Auto-filled",
-          description: "Code auto-filled for demo",
-          status: "info",
-          duration: 1500,
-          isClosable: true,
-        });
-      }, 1000);
-      
+    const success = await verifyEmail(verificationCode);
+    if (success) {
+      setCurrentStep('preferences');
       toast({
-        title: "Demo: OTP Simulation",
-        description: `Demo code will auto-fill in 1 second (Frontend Only)`,
-        status: "info",
+        title: 'Email verified successfully!',
+        description: 'Now you can customize your notification preferences.',
+        status: 'success',
         duration: 3000,
         isClosable: true,
       });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to send verification code",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [email, toast]);
-
-  const handleOTPSubmit = useCallback(async () => {
-    if (otp.length !== 6) {
-      toast({
-        title: "Invalid OTP",
-        description: "Please enter the 6-digit verification code",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      // Simulate OTP verification
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      // For demo, accept any 6-digit code
-      setStep("success");
-      
-      // Save email to localStorage
-      localStorage.setItem("userEmail", email);
-      
-      // Dispatch custom event for real-time sync
-      window.dispatchEvent(new CustomEvent("emailVerified", { detail: { email } }));
-      
-      setTimeout(() => {
-        onEmailVerified(email);
-        onClose();
-      }, 2000);
-
-    } catch (error) {
-      toast({
-        title: "Invalid Code",
-        description: "The verification code is incorrect",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [otp, email, onEmailVerified, onClose, toast]);
-
-  const handleResendOTP = async () => {
-    if (countdown > 0) return;
-
-    setIsLoading(true);
-    try {
-      // Simulate resend
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      setCountdown(60);
-      toast({
-        title: "Code Resent",
-        description: `New verification code sent to ${email}`,
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to resend verification code",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  // Reset state when modal opens and auto-fill demo email
+  // Listen for auto-fill verification code event (development mode)
   useEffect(() => {
-    if (isOpen) {
-      setStep("email");
-      setEmail("test@gmail.com"); // Auto-fill demo email
-      setOtp("");
-      setCountdown(0);
+    const handleAutoFill = (event: CustomEvent) => {
+      const { code } = event.detail;
+      console.log('🎯 Auto-filling verification code:', code, 'Current step:', currentStep);
       
-      // Auto-click send button after 1 second
-      const timer = setTimeout(() => {
-        console.log("Auto-submitting email...");
-        handleEmailSubmit();
-      }, 1000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen, handleEmailSubmit]);
-
-  // Auto-submit OTP when it's filled (for auto-fill scenario)
-  useEffect(() => {
-    if (otp.length === 6 && step === "otp") {
-      // Auto-submit after a brief delay
-      const timer = setTimeout(() => {
-        handleOTPSubmit();
-      }, 500); // Faster auto-submit
-      return () => clearTimeout(timer);
-    }
-  }, [otp, step, handleOTPSubmit]);
-
-  const renderEmailStep = () => (
-    <VStack spacing={6} align="stretch">
-      <Box textAlign="center">
-        <Icon as={FaEnvelope} boxSize={12} color="purple.500" mb={4} />
-        <Heading size="md" mb={2}>
-          Verify Your Email
-        </Heading>
-        <Text color="gray.600">
-          Demo: Email verification (Frontend Only)
-        </Text>
-        <Text fontSize="sm" color="orange.500" textAlign="center">
-          ⏳ Auto-submitting in 1 second...
-        </Text>
-      </Box>
-
-      <VStack spacing={4} align="stretch">
-        <Input
-          type="email"
-          placeholder="Enter your email address"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          size="lg"
-          focusBorderColor="purple.500"
-        />
+      // Only auto-fill if we're in verify step and not loading
+      if (currentStep === 'verify' && !loading) {
+        console.log('✨ Auto-filling code and setting up auto-submit');
+        setVerificationCode(code);
         
-        <Button
-          colorScheme="purple"
-          size="lg"
-          onClick={handleEmailSubmit}
-          isLoading={isLoading}
-          loadingText="Sending..."
-          _hover={{
-            bg: isLoading ? "purple.500" : "purple.600",
-            opacity: isLoading ? 1 : undefined,
-          }}
-          _focus={{
-            bg: isLoading ? "purple.500" : "purple.600",
-            opacity: isLoading ? 1 : undefined,
-          }}
-        >
-          Send Verification Code
-        </Button>
-      </VStack>
+        // Auto-submit after a brief delay (only if still not loading)
+        setTimeout(() => {
+          if (!loading && currentStep === 'verify') {
+            console.log('🚀 Auto-submitting verification...');
+            handleVerification();
+          } else {
+            console.log('⏳ Conditions changed, skipping auto-submit. Loading:', loading, 'Step:', currentStep);
+          }
+        }, 1500); // Increased delay to 1.5 seconds
+      } else {
+        console.log('⚠️ Not ready for auto-fill. Step:', currentStep, 'Loading:', loading);
+      }
+    };
 
-      <Text fontSize="sm" color="gray.500" textAlign="center">
-        This email will be used for ticket confirmations and event notifications
-      </Text>
-    </VStack>
-  );
+    console.log('👂 Setting up auto-fill listener. Current step:', currentStep);
+    window.addEventListener('devVerificationCode', handleAutoFill as EventListener);
 
-  const renderOTPStep = () => (
-    <VStack spacing={6} align="stretch">
-      <Box textAlign="center">
-        <Icon as={FaEnvelope} boxSize={12} color="purple.500" mb={4} />
-        <Heading size="md" mb={2}>
-          Enter Verification Code
-        </Heading>
-        <Text color="gray.600">
-          Demo: Code will auto-fill to <strong>{email}</strong>
-        </Text>
-        <Text fontSize="sm" color="orange.500" textAlign="center">
-          (Frontend demo - no real OTP sent)
-        </Text>
-      </Box>
+    return () => {
+      window.removeEventListener('devVerificationCode', handleAutoFill as EventListener);
+    };
+  }, [handleVerification, currentStep, loading]);
 
-      <VStack spacing={4}>
-        <HStack justify="center">
-          <PinInput
-            size="lg"
-            value={otp}
-            onChange={setOtp}
-            onComplete={handleOTPSubmit}
-            focusBorderColor="purple.500"
+  // Handle email submission
+  const handleEmailSubmit = async () => {
+    setEmailError('');
+    
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailError('Please enter a valid email address');
+      return;
+    }
+
+    const success = await submitEmail(email);
+    if (success) {
+      setCurrentStep('verify');
+      toast({
+        title: 'Verification code sent!',
+        description: 'Please check your email for the 6-digit verification code.',
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
+  // Handle preferences update
+  const handlePreferencesUpdate = async () => {
+    const success = await updateNotificationPreferences(preferences);
+    if (success) {
+      setCurrentStep('complete');
+      toast({
+        title: 'Preferences saved!',
+        description: 'You will receive notifications based on your preferences.',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+      
+      // Auto-close modal after 3 seconds on complete
+      setTimeout(() => {
+        handleClose();
+      }, 3000);
+    }
+  };
+
+  // Handle modal close
+  const handleClose = () => {
+    if (currentStep === 'complete' && onVerificationComplete) {
+      onVerificationComplete();
+    }
+    onClose();
+  };
+
+  // Resend code
+  const handleResendCode = async () => {
+    const success = await resendVerificationCode();
+    if (success) {
+      toast({
+        title: 'Verification code resent!',
+        description: 'Please check your email for the new code.',
+        status: 'info',
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 'submit':
+        return (
+          <VStack spacing={6} align="stretch">
+            <Box textAlign="center">
+              <Icon as={FaEnvelope} boxSize={12} color="purple.500" mb={4} />
+              <Text fontSize="lg" fontWeight="medium" mb={2}>
+                Set up Email Notifications
+              </Text>
+              <Text color="gray.600" fontSize="sm">
+                Get notified about your ticket purchases, resales, and event updates.
+              </Text>
+            </Box>
+
+            <FormControl isInvalid={!!emailError}>
+              <FormLabel>Email Address</FormLabel>
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setEmailError('');
+                }}
+                placeholder="Enter your email address"
+                size="lg"
+              />
+              <FormErrorMessage>{emailError}</FormErrorMessage>
+              <FormHelperText>
+                We'll send a verification code to this email address.
+              </FormHelperText>
+            </FormControl>
+
+            {address && (
+              <Box p={3} bg="gray.50" borderRadius="md" fontSize="sm">
+                <Text fontWeight="medium" mb={1}>Wallet Address:</Text>
+                <Text fontFamily="mono" color="gray.600">
+                  {address.slice(0, 6)}...{address.slice(-4)}
+                </Text>
+              </Box>
+            )}
+          </VStack>
+        );
+
+      case 'verify':
+        return (
+          <VStack spacing={6} align="stretch">
+            <Box textAlign="center">
+              <Icon as={FaEnvelope} boxSize={12} color="green.500" mb={4} />
+              <Text fontSize="lg" fontWeight="medium" mb={2}>
+                Check Your Email
+              </Text>
+              <Text color="gray.600" fontSize="sm" mb={4}>
+                We sent a 6-digit verification code to:
+              </Text>
+              <Badge colorScheme="green" fontSize="sm" px={3} py={1}>
+                {email}
+              </Badge>
+            </Box>
+
+            <FormControl>
+              <FormLabel textAlign="center">Enter Verification Code</FormLabel>
+              <HStack justify="center" spacing={2}>
+                <PinInput
+                  value={verificationCode}
+                  onChange={setVerificationCode}
+                  onComplete={handleVerification}
+                  size="lg"
+                  colorScheme="purple"
+                >
+                  <PinInputField />
+                  <PinInputField />
+                  <PinInputField />
+                  <PinInputField />
+                  <PinInputField />
+                  <PinInputField />
+                </PinInput>
+              </HStack>
+              <FormHelperText textAlign="center">
+                Code expires in 24 hours
+              </FormHelperText>
+            </FormControl>
+
+            <Button
+              variant="link"
+              size="sm"
+              onClick={handleResendCode}
+              isLoading={loading}
+              alignSelf="center"
+            >
+              Didn't receive the code? Resend
+            </Button>
+          </VStack>
+        );
+
+      case 'preferences':
+        return (
+          <VStack spacing={6} align="stretch">
+            <Box textAlign="center">
+              <Icon as={FaCog} boxSize={12} color="blue.500" mb={4} />
+              <Text fontSize="lg" fontWeight="medium" mb={2}>
+                Notification Preferences
+              </Text>
+              <Text color="gray.600" fontSize="sm">
+                Choose which notifications you'd like to receive.
+              </Text>
+            </Box>
+
+            <VStack spacing={4} align="stretch">
+              <FormControl display="flex" alignItems="center">
+                <FormLabel htmlFor="ticket-purchase" mb="0" flex="1">
+                  <VStack align="start" spacing={1}>
+                    <Text fontWeight="medium">Ticket Purchases</Text>
+                    <Text fontSize="sm" color="gray.600">
+                      Confirmation emails when you buy tickets
+                    </Text>
+                  </VStack>
+                </FormLabel>
+                <Switch
+                  id="ticket-purchase"
+                  isChecked={preferences.ticket_purchase}
+                  onChange={(e) => setPreferences(prev => ({
+                    ...prev,
+                    ticket_purchase: e.target.checked
+                  }))}
+                  colorScheme="purple"
+                />
+              </FormControl>
+
+              <Divider />
+
+              <FormControl display="flex" alignItems="center">
+                <FormLabel htmlFor="ticket-resale" mb="0" flex="1">
+                  <VStack align="start" spacing={1}>
+                    <Text fontWeight="medium">Ticket Resales</Text>
+                    <Text fontSize="sm" color="gray.600">
+                      Notifications when you sell or buy resale tickets
+                    </Text>
+                  </VStack>
+                </FormLabel>
+                <Switch
+                  id="ticket-resale"
+                  isChecked={preferences.ticket_resale}
+                  onChange={(e) => setPreferences(prev => ({
+                    ...prev,
+                    ticket_resale: e.target.checked
+                  }))}
+                  colorScheme="purple"
+                />
+              </FormControl>
+
+              <Divider />
+
+              <FormControl display="flex" alignItems="center">
+                <FormLabel htmlFor="event-reminders" mb="0" flex="1">
+                  <VStack align="start" spacing={1}>
+                    <Text fontWeight="medium">Event Reminders</Text>
+                    <Text fontSize="sm" color="gray.600">
+                      Reminders before your events start
+                    </Text>
+                  </VStack>
+                </FormLabel>
+                <Switch
+                  id="event-reminders"
+                  isChecked={preferences.event_reminders}
+                  onChange={(e) => setPreferences(prev => ({
+                    ...prev,
+                    event_reminders: e.target.checked
+                  }))}
+                  colorScheme="purple"
+                />
+              </FormControl>
+
+              <Divider />
+
+              <FormControl display="flex" alignItems="center">
+                <FormLabel htmlFor="price-alerts" mb="0" flex="1">
+                  <VStack align="start" spacing={1}>
+                    <Text fontWeight="medium">Price Alerts</Text>
+                    <Text fontSize="sm" color="gray.600">
+                      Notify when ticket prices drop in marketplace
+                    </Text>
+                  </VStack>
+                </FormLabel>
+                <Switch
+                  id="price-alerts"
+                  isChecked={preferences.price_alerts}
+                  onChange={(e) => setPreferences(prev => ({
+                    ...prev,
+                    price_alerts: e.target.checked
+                  }))}
+                  colorScheme="purple"
+                />
+              </FormControl>
+            </VStack>
+          </VStack>
+        );
+
+      case 'complete':
+        return (
+          <VStack spacing={6} align="stretch" textAlign="center">
+            <Box>
+              <Icon as={FaCheck} boxSize={16} color="green.500" mb={4} />
+              <Text fontSize="xl" fontWeight="bold" color="green.600" mb={2}>
+                All Set! 🎉
+              </Text>
+              <Text color="gray.600" mb={4}>
+                Your email has been verified and preferences saved.
+              </Text>
+            </Box>
+
+            <Box p={4} bg="green.50" borderRadius="md" border="1px solid" borderColor="green.200">
+              <Text fontSize="sm" fontWeight="medium" mb={2}>
+                You'll receive notifications for:
+              </Text>
+              <VStack spacing={1} fontSize="sm">
+                {preferences.ticket_purchase && <Text>✅ Ticket purchases</Text>}
+                {preferences.ticket_resale && <Text>✅ Ticket resales</Text>}
+                {preferences.event_reminders && <Text>✅ Event reminders</Text>}
+                {preferences.price_alerts && <Text>✅ Price alerts</Text>}
+              </VStack>
+            </Box>
+
+            <Text fontSize="sm" color="gray.500">
+              You can change these preferences anytime in your profile settings.
+            </Text>
+          </VStack>
+        );
+    }
+  };
+
+  const getModalTitle = () => {
+    switch (currentStep) {
+      case 'submit': return 'Email Setup';
+      case 'verify': return 'Email Verification';
+      case 'preferences': return 'Notification Settings';
+      case 'complete': return 'Setup Complete';
+    }
+  };
+
+  const getActionButton = () => {
+    switch (currentStep) {
+      case 'submit':
+        return (
+          <Button
+            colorScheme="purple"
+            onClick={handleEmailSubmit}
+            isLoading={loading}
+            isDisabled={!email}
           >
-            <PinInputField />
-            <PinInputField />
-            <PinInputField />
-            <PinInputField />
-            <PinInputField />
-            <PinInputField />
-          </PinInput>
-        </HStack>
-
-        <Button
-          colorScheme="purple"
-          size="lg"
-          onClick={handleOTPSubmit}
-          isLoading={isLoading}
-          loadingText="Verifying..."
-          isDisabled={otp.length !== 6}
-          _hover={{
-            bg: isLoading ? "purple.500" : "purple.600",
-            opacity: isLoading ? 1 : undefined,
-          }}
-          _focus={{
-            bg: isLoading ? "purple.500" : "purple.600",
-            opacity: isLoading ? 1 : undefined,
-          }}
-        >
-          Verify Code
-        </Button>
-      </VStack>
-
-      <VStack spacing={2}>
-        <Text fontSize="sm" color="gray.500">
-          Didn't receive the code?
-        </Text>
-        <Button
-          variant="link"
-          colorScheme="purple"
-          onClick={handleResendOTP}
-          isDisabled={countdown > 0 || isLoading}
-          size="sm"
-          _hover={{
-            opacity: (countdown > 0 || isLoading) ? 0.4 : 0.8,
-          }}
-        >
-          {countdown > 0 ? `Resend in ${countdown}s` : "Resend Code"}
-        </Button>
-        <Button
-          variant="link"
-          size="sm"
-          onClick={() => setStep("email")}
-          color="gray.500"
-        >
-          Change Email
-        </Button>
-      </VStack>
-    </VStack>
-  );
-
-  const renderSuccessStep = () => (
-    <VStack spacing={6} align="stretch" textAlign="center">
-      <Box display="flex" justifyContent="center">
-      <Icon as={FaCheckCircle} boxSize={16} color="green.500" />
-      </Box>
-      <Heading size="md" color="green.600">
-      Demo Email Verified!
-      </Heading>
-      <Text color="gray.600">
-      Demo email <strong>{email}</strong> saved for frontend demo.
-      </Text>
-      <Text fontSize="sm" color="orange.500" textAlign="center">
-      (No real verification - Frontend demo only)
-      </Text>
-    </VStack>
-  );
-
-  const getStepContent = () => {
-    switch (step) {
-      case "email":
-        return renderEmailStep();
-      case "otp":
-        return renderOTPStep();
-      case "success":
-        return renderSuccessStep();
-      default:
-        return renderEmailStep();
+            Send Verification Code
+          </Button>
+        );
+      case 'verify':
+        return (
+          <Button
+            colorScheme="purple"
+            onClick={handleVerification}
+            isLoading={loading}
+            isDisabled={verificationCode.length !== 6}
+          >
+            Verify Email
+          </Button>
+        );
+      case 'preferences':
+        return (
+          <Button
+            colorScheme="purple"
+            onClick={handlePreferencesUpdate}
+            isLoading={loading}
+          >
+            Save Preferences
+          </Button>
+        );
+      case 'complete':
+        return (
+          <Button colorScheme="green" onClick={handleClose}>
+            Continue to App
+          </Button>
+        );
     }
   };
 
   return (
-    <Modal 
-      isOpen={isOpen} 
-      onClose={() => {}} // Prevent closing completely
-      closeOnOverlayClick={false}
-      closeOnEsc={false}
-      size="md"
-      isCentered
-    >
-      <ModalOverlay bg="blackAlpha.600" />
-      <ModalContent mx={4}>
-        <ModalHeader>
-          {/* No close button - modal must be completed */}
-        </ModalHeader>
-        <ModalBody pb={6}>
-          {getStepContent()}
+    <Modal isOpen={isOpen} onClose={handleClose} size="md" closeOnOverlayClick={false}>
+      <ModalOverlay />
+      <ModalContent>
+        <ModalHeader>{getModalTitle()}</ModalHeader>
+        
+        <ModalBody>
+          {error && (
+            <Alert status="error" mb={4} borderRadius="md">
+              <AlertIcon />
+              <Text fontSize="sm">{error}</Text>
+            </Alert>
+          )}
+          
+          {loading && currentStep !== 'verify' && (
+            <Box textAlign="center" mb={4}>
+              <Spinner size="sm" mr={2} />
+              <Text fontSize="sm" display="inline">Processing...</Text>
+            </Box>
+          )}
+          
+          {renderStepContent()}
         </ModalBody>
+
+        <ModalFooter>
+          <VStack spacing={3} width="100%">
+            {getActionButton()}
+            
+            {currentStep !== 'complete' && (
+              <Button variant="ghost" size="sm" onClick={handleClose}>
+                Skip for now
+              </Button>
+            )}
+          </VStack>
+        </ModalFooter>
       </ModalContent>
     </Modal>
   );

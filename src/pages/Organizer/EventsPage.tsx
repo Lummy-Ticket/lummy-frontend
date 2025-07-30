@@ -33,7 +33,7 @@ const mockEvents = [
     venue: "Jakarta Convention Center",
     category: "Music",
     daysUntilEvent: 45,
-    algorithm: "algorithm1" as const,
+    ticketingSystem: "Diamond Pattern" as const,
   },
   {
     eventId: "2", 
@@ -46,7 +46,7 @@ const mockEvents = [
     venue: "Digital Hub Bandung",
     category: "Technology",
     daysUntilEvent: 5,
-    algorithm: "algorithm2" as const,
+    ticketingSystem: "Diamond Pattern" as const,
   },
   {
     eventId: "3",
@@ -59,7 +59,7 @@ const mockEvents = [
     venue: "Blockchain Center Jakarta",
     category: "Workshop",
     daysUntilEvent: -2,
-    algorithm: "algorithm3" as const,
+    ticketingSystem: "Diamond Pattern" as const,
   },
 ];
 
@@ -83,17 +83,8 @@ const getBadgeColor = (status: string) => {
   }
 };
 
-const getAlgorithmBadge = (algorithm: string) => {
-  switch (algorithm) {
-    case "algorithm1":
-      return { label: "Algorithm 1", color: "blue" };
-    case "algorithm2": 
-      return { label: "Algorithm 2", color: "green" };
-    case "algorithm3":
-      return { label: "Algorithm 3", color: "purple" };
-    default:
-      return { label: "Default", color: "gray" };
-  }
+const getTicketingSystemBadge = () => {
+  return { label: "Diamond Pattern", color: "purple" };
 };
 
 const EventsPage: React.FC = () => {
@@ -131,7 +122,7 @@ const EventsPage: React.FC = () => {
 
   const renderEventCard = (event: typeof mockEvents[0]) => {
     const status = getEventStatus(event.daysUntilEvent);
-    const algorithmBadge = getAlgorithmBadge(event.algorithm);
+    const ticketingSystemBadge = getTicketingSystemBadge();
     
     return (
       <Box
@@ -158,7 +149,7 @@ const EventsPage: React.FC = () => {
               </Heading>
               <HStack spacing={2}>
                 <Badge colorScheme={getBadgeColor(status)}>{status}</Badge>
-                <Badge colorScheme={algorithmBadge.color}>{algorithmBadge.label}</Badge>
+                <Badge colorScheme={ticketingSystemBadge.color}>{ticketingSystemBadge.label}</Badge>
               </HStack>
             </VStack>
           </Flex>

@@ -19,7 +19,7 @@ export interface ContractEvent {
   ipfsMetadata: string; // Contract field
   organizer: string;    // Contract field (address)
   cancelled: boolean;   // Contract field
-  completed: boolean;   // Contract field (Algorithm 1 only)
+  completed: boolean;   // Contract field (Diamond Pattern)
   ticketNFT: string;    // Contract field (address)
   idrxToken: string;    // Contract field (address)
   platformFeeReceiver: string; // Contract field (address)
