@@ -1,20 +1,31 @@
 // src/lib/supabase.ts
 import { createClient } from '@supabase/supabase-js';
 
-// Environment variables
+// Environment variables with fallbacks for production deployment
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
+// Development mode: Allow missing Supabase env variables
+const isDevelopment = import.meta.env.DEV;
+const isSupabaseEnabled = supabaseUrl && supabaseAnonKey;
+
+if (!isSupabaseEnabled && !isDevelopment) {
+  console.warn('⚠️ Supabase environment variables missing - email features disabled');
 }
 
-// Create Supabase client
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: false, // We don't need Supabase auth, just database access
-  },
-});
+// Create Supabase client only if environment variables are available
+export const supabase = isSupabaseEnabled 
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false, // We don't need Supabase auth, just database access
+      },
+    })
+  : null;
+
+// Helper function to check if Supabase is available
+export const isSupabaseAvailable = () => {
+  return supabase !== null;
+};
 
 // Database Types
 export interface UserEmailMapping {

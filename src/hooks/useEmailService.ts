@@ -2,7 +2,7 @@
 import { useState, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import CryptoJS from 'crypto-js';
-import { supabase, UserEmailMapping, InsertUserEmailMapping } from '../lib/supabase';
+import { supabase, isSupabaseAvailable, UserEmailMapping, InsertUserEmailMapping } from '../lib/supabase';
 import { EmailService } from '../services/EmailService';
 
 // Hook interface
@@ -66,7 +66,43 @@ export const useEmailService = (): UseEmailServiceReturn => {
     setError(null);
 
     try {
-      const { data, error: supabaseError } = await supabase
+      // Check if Supabase is available
+      if (!isSupabaseAvailable()) {
+        console.log('🔄 Supabase not available, checking localStorage');
+        
+        // Fall back to localStorage in development or when Supabase is not configured
+        const localData = localStorage.getItem(`email_${address.toLowerCase()}`);
+        if (localData) {
+          try {
+            const data = JSON.parse(localData);
+            const emailData: UserEmailMapping = {
+              id: 'local',
+              wallet_address: data.wallet_address,
+              email: data.email,
+              email_verified: data.email_verified,
+              notification_preferences: data.notification_preferences || {
+                ticket_purchase: true,
+                ticket_resale: true,
+                event_reminders: true,
+                price_alerts: false,
+                marketing: false,
+              },
+              created_at: data.created_at || new Date().toISOString(),
+              updated_at: data.updated_at || new Date().toISOString(),
+            };
+            
+            setUserEmail(emailData);
+            return emailData;
+          } catch (e) {
+            console.warn('Failed to parse localStorage email data');
+          }
+        }
+        
+        setUserEmail(null);
+        return null;
+      }
+
+      const { data, error: supabaseError } = await supabase!
         .from('user_email_mapping')
         .select('*')
         .eq('wallet_address', address.toLowerCase())
@@ -108,12 +144,45 @@ export const useEmailService = (): UseEmailServiceReturn => {
     setLoading(true);
     setError(null);
 
-    // Development mode - store locally if Supabase fails
-    const isDevelopment = import.meta.env.DEV;
-
     try {
       // Generate verification code and hash
       const verificationCode = generateVerificationCode();
+      
+      // Check if Supabase is available - if not, use localStorage mode
+      if (!isSupabaseAvailable()) {
+        console.log('🔄 Supabase not available, using localStorage mode');
+        
+        // Send email (will show in console for development)
+        await EmailService.sendEmailVerification({
+          to: email,
+          walletAddress: address,
+          verificationCode,
+          expiresInHours: 24,
+        });
+
+        // Store in localStorage
+        const devData = {
+          email: email.toLowerCase(),
+          wallet_address: address.toLowerCase(),
+          email_verified: false,
+          verification_code: verificationCode,
+          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          notification_preferences: {
+            ticket_purchase: true,
+            ticket_resale: true,
+            event_reminders: true,
+            price_alerts: false,
+            marketing: false,
+          },
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        localStorage.setItem(`email_${address.toLowerCase()}`, JSON.stringify(devData));
+        return true;
+      }
+
+      // Supabase is available, use normal flow
       const hashedCode = hashVerificationCode(verificationCode);
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
@@ -134,7 +203,7 @@ export const useEmailService = (): UseEmailServiceReturn => {
       };
 
       // Upsert email mapping
-      const { data, error: supabaseError } = await supabase
+      const { data, error: supabaseError } = await supabase!
         .from('user_email_mapping')
         .upsert(emailData, { 
           onConflict: 'wallet_address',
@@ -165,6 +234,7 @@ export const useEmailService = (): UseEmailServiceReturn => {
       const errorMessage = err instanceof Error ? err.message : 'Failed to submit email';
       console.warn('🚨 Supabase error in submitEmail:', errorMessage);
       
+      const isDevelopment = import.meta.env.DEV;
       if (isDevelopment) {
         console.warn('💡 Development mode: Continuing with local-only verification');
         
@@ -277,8 +347,20 @@ export const useEmailService = (): UseEmailServiceReturn => {
         return false;
       }
 
-      // Update email as verified
-      const { data, error: supabaseError } = await supabase
+      // Update email as verified (only if Supabase is available)
+      if (!isSupabaseAvailable()) {
+        console.log('💡 Supabase not available, updating localStorage');
+        // Update localStorage
+        const localData = localStorage.getItem(`email_${address.toLowerCase()}`);
+        if (localData) {
+          const updatedData = { ...JSON.parse(localData), email_verified: true };
+          localStorage.setItem(`email_${address.toLowerCase()}`, JSON.stringify(updatedData));
+        }
+        setUserEmail({ ...userEmail, email_verified: true });
+        return true;
+      }
+
+      const { data, error: supabaseError } = await supabase!
         .from('user_email_mapping')
         .update({
           email_verified: true,
@@ -333,7 +415,20 @@ export const useEmailService = (): UseEmailServiceReturn => {
         ...preferences,
       };
 
-      const { data, error: supabaseError } = await supabase
+      // Check if Supabase is available
+      if (!isSupabaseAvailable()) {
+        console.log('💡 Supabase not available, updating localStorage preferences');
+        // Update localStorage
+        const localData = localStorage.getItem(`email_${address.toLowerCase()}`);
+        if (localData) {
+          const updatedData = { ...JSON.parse(localData), notification_preferences: updatedPreferences };
+          localStorage.setItem(`email_${address.toLowerCase()}`, JSON.stringify(updatedData));
+        }
+        setUserEmail({ ...userEmail, notification_preferences: updatedPreferences });
+        return true;
+      }
+
+      const { data, error: supabaseError } = await supabase!
         .from('user_email_mapping')
         .update({ notification_preferences: updatedPreferences })
         .eq('wallet_address', address.toLowerCase())
@@ -386,22 +481,26 @@ export const useEmailService = (): UseEmailServiceReturn => {
         ...data,
       });
 
-      // Log notification history
-      const historyData = {
-        wallet_address: address.toLowerCase(),
-        email: userEmail.email,
-        notification_type: 'ticket_purchase' as const,
-        event_id: data.eventId,
-        transaction_hash: data.transactionHash,
-        event_data: data,
-        email_sent: emailSent,
-        sent_at: emailSent ? new Date().toISOString() : undefined,
-        error_message: emailSent ? undefined : 'Failed to send email',
-      };
+      // Log notification history (only if Supabase is available)
+      if (isSupabaseAvailable()) {
+        const historyData = {
+          wallet_address: address.toLowerCase(),
+          email: userEmail.email,
+          notification_type: 'ticket_purchase' as const,
+          event_id: data.eventId,
+          transaction_hash: data.transactionHash,
+          event_data: data,
+          email_sent: emailSent,
+          sent_at: emailSent ? new Date().toISOString() : undefined,
+          error_message: emailSent ? undefined : 'Failed to send email',
+        };
 
-      await supabase
-        .from('notification_history')
-        .insert(historyData);
+        await supabase!
+          .from('notification_history')
+          .insert(historyData);
+      } else {
+        console.log('💡 Supabase not available, skipping notification history');
+      }
 
       return emailSent;
     } catch (err) {
