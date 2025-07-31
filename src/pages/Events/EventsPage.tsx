@@ -19,7 +19,7 @@ import { EventCard } from "../../components/core/Card";
 import { mockEvents } from "../../data/mockEvents";
 import { Event } from "../../types/Event";
 import { EventsFilter, EventsSorter } from "../../components/events";
-import { useSmartContract } from "../../hooks/useSmartContract";
+// import { useSmartContract } from "../../hooks/useSmartContract";
 
 const EventsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -43,8 +43,8 @@ const EventsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState("");
   const [sortBy, setSortBy] = useState("date-asc");
 
-  // Import smart contract hook
-  const { getEvents, getEventDetails } = useSmartContract();
+  // Import smart contract hook (for future blockchain integration)
+  // const { getEventInfo } = useSmartContract();
 
   // SIMPLIFIED: Load events only once, no retry loops
   useEffect(() => {
@@ -55,65 +55,17 @@ const EventsPage: React.FC = () => {
       setErrorMsg(null);
 
       try {
-        // Try to get events from blockchain
-        console.log("Attempting to fetch events from blockchain...");
-        const eventAddresses = await getEvents();
-
+        // For now, use mock data since Diamond pattern supports single event
+        // and doesn't have getEvents functionality yet
+        console.log("Using mock data for events list");
+        
         if (!isMounted) return; // Component unmounted, don't continue
 
-        if (eventAddresses && eventAddresses.length > 0) {
-          console.log("Found blockchain events:", eventAddresses);
-          
-          // Get details for each event (but limit to prevent too many calls)
-          const limitedAddresses = eventAddresses.slice(0, 5); // Max 5 events to prevent spam
-          const eventPromises = limitedAddresses.map(async (address) => {
-            try {
-              const details = await getEventDetails(address);
-              if (details) {
-                return {
-                  id: address,
-                  title: details.name,
-                  description: details.description,
-                  date: new Date(Number(details.date) * 1000).toISOString(),
-                  location: details.venue,
-                  venue: details.venue,
-                  imageUrl: "https://images.unsplash.com/photo-1459865264687-595d652de67e",
-                  price: 0,
-                  currency: "IDRX",
-                  category: "Event",
-                  status: "available" as const,
-                  organizer: {
-                    id: details.organizer,
-                    name: "Event Organizer",
-                    verified: true,
-                    description: "Event organizer",
-                  },
-                  ticketsAvailable: 0,
-                } as Event;
-              }
-              return null;
-            } catch (error) {
-              console.log("Failed to get details for event:", address);
-              return null;
-            }
-          });
-
-          const eventsData = (await Promise.all(eventPromises)).filter(
-            (event): event is Event => event !== null
-          );
-
-          if (!isMounted) return;
-
-          if (eventsData.length > 0) {
-            setEvents(eventsData);
-            setFilteredEvents(eventsData);
-            setUsingMockData(false);
-          } else {
-            throw new Error("No valid event data found");
-          }
-        } else {
-          throw new Error("No events found on blockchain");
-        }
+        // Use mock data
+        setEvents(mockEvents);
+        setFilteredEvents(mockEvents);
+        setUsingMockData(true);
+        
       } catch (error) {
         console.log("Blockchain fetch failed, using mock data:", error);
         

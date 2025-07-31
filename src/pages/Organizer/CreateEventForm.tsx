@@ -90,7 +90,7 @@ const CreateEventForm: React.FC = () => {
     }
   };
 
-  const { createEvent, loading, error } = useSmartContract();
+  const { initializeEvent, loading, error } = useSmartContract();
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -117,7 +117,7 @@ const CreateEventForm: React.FC = () => {
 
     // Call createEvent function from hook
     try {
-      const eventAddress = await createEvent(
+      const result = await initializeEvent(
         eventData.title,
         eventData.description,
         eventDate,
@@ -125,10 +125,10 @@ const CreateEventForm: React.FC = () => {
         "" // ipfsMetadata (empty for now)
       );
 
-      if (eventAddress) {
+      if (result) {
         toast({
           title: "Event created",
-          description: `Your event has been created successfully at ${eventAddress}`,
+          description: `Your event has been initialized successfully`,
           status: "success",
           duration: 5000,
           isClosable: true,

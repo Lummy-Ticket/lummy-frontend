@@ -36,7 +36,7 @@ export const useHybridEventCreation = () => {
     detail?: string;
   }>>([]);
   
-  const { createEvent: contractCreateEvent, loading: contractLoading, error: contractError } = useSmartContract();
+  const { initializeEvent: contractInitializeEvent, loading: contractLoading, error: contractError } = useSmartContract();
 
   const updateStepStatus = (stepId: string, status: 'pending' | 'in-progress' | 'completed' | 'error', detail?: string) => {
     setCurrentStep(stepId);
@@ -125,7 +125,7 @@ export const useHybridEventCreation = () => {
       const eventDate = new Date(`${eventData.date}T${eventData.time}`);
       const eventTimestamp = Math.floor(eventDate.getTime() / 1000);
       
-      console.log('🔗 Calling contract createEvent with:', {
+      console.log('🔗 Calling contract initializeEvent with:', {
         name: eventData.title,
         description: eventData.description,
         date: eventTimestamp,
@@ -134,7 +134,7 @@ export const useHybridEventCreation = () => {
       });
 
       // Call actual contract with processed metadata URL
-      const eventAddress = await contractCreateEvent(
+      const eventResult = await contractInitializeEvent(
         eventData.title,
         eventData.description,
         eventDate,
@@ -142,16 +142,16 @@ export const useHybridEventCreation = () => {
         ipfsMetadataUrl
       );
 
-      if (eventAddress) {
+      if (eventResult) {
         return {
           success: true,
-          eventAddress,
-          eventId: eventAddress // Use address as ID for now
+          eventAddress: 'initialized', // Diamond pattern doesn't return address
+          eventId: 'main-event' // Use fixed ID for Diamond pattern
         };
       } else {
         return {
           success: false,
-          error: 'Contract call returned empty address'
+          error: 'Contract initialization failed'
         };
       }
 
@@ -361,13 +361,58 @@ export const useHybridEventCreation = () => {
     };
   };
 
+  /**
+   * Initialize event data structure (for compatibility)
+   */
+  const initializeEvent = (
+    name: string,
+    description: string,
+    date: Date,
+    venue: string,
+    ipfsMetadata: string
+  ) => {
+    // This is for backward compatibility with components expecting this function
+    console.log('📋 Initialize event called:', { name, description, date, venue, ipfsMetadata });
+    return {
+      name,
+      description,
+      date,
+      venue,
+      ipfsMetadata
+    };
+  };
+
+  /**
+   * Get events list (mock implementation for compatibility)
+   */
+  const getEvents = () => {
+    // Return mock events for development
+    return [];
+  };
+
+  /**
+   * Get event details by ID (mock implementation for compatibility)
+   */
+  const getEventDetails = (eventId: string) => {
+    console.log('📋 Getting event details for:', eventId);
+    // Return mock event details
+    return null;
+  };
+
   return {
+    // Main functions
     createEvent,
     validateEventData,
     loading: loading || contractLoading,
     error: contractError,
+    
     // Progress tracking
     currentStep,
-    progressSteps
+    progressSteps,
+    
+    // Compatibility functions
+    initializeEvent,
+    getEvents,
+    getEventDetails
   };
 };

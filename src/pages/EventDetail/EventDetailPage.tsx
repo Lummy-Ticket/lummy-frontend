@@ -128,7 +128,7 @@ export const EventDetailPage: React.FC = () => {
 
   // Import smart contract hooks
   const {
-    getEventDetails,
+    getEventInfo,
     getTicketTiers,
     loading: contractLoading,
     error: contractError,
@@ -156,7 +156,7 @@ export const EventDetailPage: React.FC = () => {
         // Check if id is a blockchain address
         if (id.startsWith("0x") && id.length === 42) {
           // Get event details from blockchain
-          const details = await getEventDetails(id);
+          const details = await getEventInfo();
 
           if (details) {
             // Convert blockchain data to Event
@@ -194,7 +194,7 @@ export const EventDetailPage: React.FC = () => {
             };
 
             // Fetch ticket tiers
-            const tiers = await getTicketTiers(id);
+            const tiers = await getTicketTiers();
 
             if (tiers && tiers.length > 0) {
               // Convert blockchain ticket tiers to frontend format
@@ -261,7 +261,7 @@ export const EventDetailPage: React.FC = () => {
     };
 
     fetchEventDetails();
-  }, [id, getEventDetails, getTicketTiers, contractError]);
+  }, [id, getEventInfo, getTicketTiers, contractError]);
 
   // Add scroll listener for sticky button
   useEffect(() => {
