@@ -29,9 +29,24 @@ import { mockEvents } from "../../data/mockEvents";
 import { Event, TicketTier } from "../../types/Event";
 import { useWallet } from "../../hooks/useWallet";
 import { TokenBalance } from "../../components/wallet";
+import { useSmartContract } from "../../hooks/useSmartContract";
+import { DEVELOPMENT_CONFIG, CONTRACT_ADDRESSES } from "../../constants";
+import { TICKET_PURCHASE_FACET_ABI } from "../../contracts/TicketPurchaseFacet";
+import { usePublicClient, useAccount } from "wagmi";
 
-// This will be replaced with an API call in a real application
-const fetchEventById = (id: string): Promise<Event | undefined> => {
+// Fetch event from blockchain or mock data
+const fetchEventById = async (id: string): Promise<Event | undefined> => {
+  // Check if it's a blockchain event (contract address)
+  if (DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN && id.startsWith("0x") && id.length === 42) {
+    try {
+      // This is a blockchain event - we'll load it in the component using useSmartContract
+      return null; // Will be loaded by useSmartContract in component
+    } catch (error) {
+      console.error("Error fetching blockchain event:", error);
+    }
+  }
+  
+  // Mock event fallback
   return new Promise((resolve) => {
     setTimeout(() => {
       const event = mockEvents.find((e) => e.id === id);
@@ -84,6 +99,11 @@ export const CheckoutPage: React.FC = () => {
 
   // Wallet integration - using only what we need and removing unused variables
   const { isConnected, wallet } = useWallet();
+  const publicClient = usePublicClient();
+  const { address } = useAccount();
+  
+  // Smart contract integration for blockchain events
+  const { getEventInfo, getTicketTiers, approveIDRX, purchaseTickets } = useSmartContract();
   // Removed unused variables: hasEnoughBalance, buyTicket
 
   // Update stepper when wallet is connected
@@ -98,19 +118,84 @@ export const CheckoutPage: React.FC = () => {
     const getEvent = async () => {
       if (eventId) {
         try {
-          const eventData = await fetchEventById(eventId);
-          setEvent(eventData || null);
-
-          // Set the selected tier if we have one from navigation
-          if (eventData && checkoutState?.tierId) {
-            const tier = eventData.ticketTiers?.find(
-              (t) => t.id === checkoutState.tierId
-            );
-            if (tier) {
-              setSelectedTier(tier);
+          console.log("🔍 CheckoutPage - Loading event:", eventId);
+          
+          // Check if this is a blockchain event
+          if (DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN && eventId.startsWith("0x") && eventId.length === 42) {
+            console.log("🔗 Loading blockchain event...");
+            
+            // Load event from blockchain
+            const eventInfo = await getEventInfo();
+            const tiers = await getTicketTiers();
+            
+            if (eventInfo && eventInfo.name) {
+              // Convert blockchain event to UI format
+              const blockchainEvent: Event = {
+                id: eventId,
+                title: eventInfo.name,
+                description: eventInfo.description,
+                date: new Date(Number(eventInfo.date) * 1000).toISOString(),
+                location: eventInfo.venue,
+                price: 0,
+                image: "/api/placeholder/300/200",
+                category: "blockchain",
+                status: "available",
+                organizer: eventInfo.organizer,
+                ticketsAvailable: 0,
+                totalTickets: 0,
+                ticketTiers: []
+              };
+              
+              // Add tiers
+              if (tiers && tiers.length > 0) {
+                const formattedTiers: TicketTier[] = tiers.map((tier, index) => ({
+                  id: index.toString(),
+                  name: tier.name || `Tier ${index + 1}`,
+                  price: Number(tier.price || 0) / 1e18,
+                  currency: "IDRX",
+                  description: tier.name || `Tier ${index + 1}`,
+                  available: Number(tier.available || 0) - Number(tier.sold || 0),
+                  maxPerPurchase: Number(tier.maxPerPurchase || 0),
+                  benefits: [],
+                }));
+                
+                blockchainEvent.ticketTiers = formattedTiers;
+                blockchainEvent.price = Math.min(...formattedTiers.map(t => t.price));
+              }
+              
+              setEvent(blockchainEvent);
+              console.log("✅ Blockchain event loaded:", blockchainEvent.title);
+              
+              // Set the selected tier for blockchain event
+              if (checkoutState?.tierId && blockchainEvent.ticketTiers) {
+                const tier = blockchainEvent.ticketTiers.find(
+                  (t) => t.id === checkoutState.tierId
+                );
+                if (tier) {
+                  setSelectedTier(tier);
+                  console.log("✅ Selected tier:", tier.name);
+                }
+              }
+            } else {
+              console.log("⚠️ No blockchain event data found");
+            }
+          } else {
+            // Load mock event
+            const eventData = await fetchEventById(eventId);
+            setEvent(eventData || null);
+            
+            // Set the selected tier for mock event
+            if (eventData && checkoutState?.tierId) {
+              const tier = eventData.ticketTiers?.find(
+                (t) => t.id === checkoutState.tierId
+              );
+              if (tier) {
+                setSelectedTier(tier);
+              }
             }
           }
 
+          console.log("🔧 Setting loading to false");
           setLoading(false);
         } catch (error) {
           console.error("Error fetching event:", error);
@@ -179,38 +264,74 @@ export const CheckoutPage: React.FC = () => {
       return;
     }
 
-    // Check if we have enough balance (simulation)
-    const simulatedBalance = 1000; // Example value
     const totalPrice = getTotalPrice();
+    
+    console.log("💳 Starting real blockchain purchase...");
+    console.log("Event ID:", eventId);
+    console.log("Selected Tier:", selectedTier);
+    console.log("Quantity:", quantity);
+    console.log("Total Price:", totalPrice);
 
-    if (simulatedBalance < totalPrice) {
+    try {
+      // Step 1: Approve IDRX spending first
+      console.log("🔓 Step 1: Approving IDRX spending...");
+      const approvalTx = await approveIDRX(totalPrice);
+      
+      if (!approvalTx) {
+        throw new Error("IDRX approval failed");
+      }
+      
+      console.log("✅ IDRX approved, proceeding to purchase...");
+
+      // Step 2: Real blockchain purchase
+      const tierId = parseInt(selectedTier.id);
+      
+      // Call real smart contract
+      const txHash = await purchaseTickets(tierId, quantity, {
+        eventName: event?.title || "Event",
+        tierName: selectedTier.name,
+        totalPrice: totalPrice,
+        currency: selectedTier.currency,
+        eventDate: event?.date || new Date().toISOString(),
+        venue: event?.location || "Venue",
+        eventId: eventId,
+      });
+
+      if (txHash) {
+        console.log("✅ Purchase successful! TX:", txHash);
+        setTransactionHash(txHash);
+        setIsProcessingPayment(false);
+        setActiveStep(3); // Move to confirmation step
+
+        toast({
+          title: "Payment successful",
+          description: "Your tickets have been minted as NFTs",
+          status: "success",
+          duration: 5000,
+          isClosable: true,
+        });
+      } else {
+        console.log("❌ Purchase failed - no transaction hash");
+        setIsProcessingPayment(false);
+        toast({
+          title: "Payment failed",
+          description: "Transaction was not completed. Please try again.",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+    } catch (error) {
+      console.error("❌ Purchase error:", error);
+      setIsProcessingPayment(false);
       toast({
-        title: "Insufficient balance",
-        description: `You need at least ${selectedTier.currency} ${totalPrice} to complete this purchase`,
+        title: "Payment failed",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
         status: "error",
         duration: 5000,
         isClosable: true,
       });
-      setIsProcessingPayment(false);
-      return;
     }
-
-    // Simulate transaction for development
-    setTimeout(() => {
-      // Generate a mock transaction hash
-      const mockTxHash = "0x" + Math.random().toString(16).substring(2, 62);
-      setTransactionHash(mockTxHash);
-      setIsProcessingPayment(false);
-      setActiveStep(3); // Move to confirmation step
-
-      toast({
-        title: "Payment successful",
-        description: "Your tickets have been minted as NFTs",
-        status: "success",
-        duration: 5000,
-        isClosable: true,
-      });
-    }, 3000);
   };
 
   const handleGoToTickets = () => {

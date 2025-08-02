@@ -19,6 +19,9 @@ import {
 import { AddIcon, CalendarIcon, SearchIcon } from "@chakra-ui/icons";
 import { FaTicketAlt, FaUserCheck } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import { useSmartContract } from "../../hooks/useSmartContract";
+import { DEVELOPMENT_CONFIG } from "../../constants";
+import { useEffect } from "react";
 
 // Mock Events Data (reusing from dashboard)
 const mockEvents = [
@@ -92,8 +95,62 @@ const EventsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [events, setEvents] = useState(mockEvents);
+  const [isLoading, setIsLoading] = useState(false);
   
+  const { getEventInfo, getTicketTiers, addTicketTier } = useSmartContract();
   const cardBg = "white";
+
+  // Load blockchain event if enabled
+  useEffect(() => {
+    if (DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN) {
+      loadBlockchainEvent();
+    }
+  }, []);
+
+  const loadBlockchainEvent = async () => {
+    setIsLoading(true);
+    try {
+      const eventInfo = await getEventInfo();
+      
+      if (eventInfo && eventInfo.name && eventInfo.name !== "") {
+        // Convert blockchain event to UI format
+        const blockchainEvent = {
+          eventId: "blockchain-1",
+          eventName: eventInfo.name,
+          ticketsSold: 0, // Will be updated
+          totalTickets: 0, // Will be updated
+          revenue: 0,
+          currency: "IDRX",
+          date: new Date(Number(eventInfo.date) * 1000).toISOString().split('T')[0],
+          venue: eventInfo.venue,
+          category: "Blockchain",
+          daysUntilEvent: Math.ceil((Number(eventInfo.date) * 1000 - Date.now()) / (1000 * 60 * 60 * 24)),
+          ticketingSystem: "Diamond Pattern" as const,
+        };
+
+        // Try to get ticket tiers
+        try {
+          const tiers = await getTicketTiers();
+          if (tiers && tiers.length > 0) {
+            blockchainEvent.totalTickets = tiers.reduce((sum, tier) => sum + Number(tier.available) + Number(tier.sold), 0);
+            blockchainEvent.ticketsSold = tiers.reduce((sum, tier) => sum + Number(tier.sold), 0);
+            blockchainEvent.revenue = tiers.reduce((sum, tier) => sum + (Number(tier.sold) * Number(tier.price) / 1e18), 0);
+          }
+        } catch (tierError) {
+          console.log("Could not load tiers:", tierError);
+        }
+
+        // Replace mock events with blockchain event
+        setEvents([blockchainEvent]);
+        console.log("✅ Loaded blockchain event for organizer:", blockchainEvent.eventName);
+      }
+    } catch (error) {
+      console.log("Blockchain load failed, using mock events:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleCreateEvent = () => {
     navigate("/organizer/events/create");
@@ -108,7 +165,7 @@ const EventsPage: React.FC = () => {
   };
 
   // Filter events based on search and filters
-  const filteredEvents = mockEvents.filter((event) => {
+  const filteredEvents = events.filter((event) => {
     const matchesSearch = event.eventName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          event.venue.toLowerCase().includes(searchTerm.toLowerCase());
     
@@ -177,6 +234,34 @@ const EventsPage: React.FC = () => {
 
           {/* Actions */}
           <HStack spacing={2} pt={2}>
+            {event.eventId === "blockchain-1" && (
+              <Button
+                colorScheme="green"
+                size="sm"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  
+                  const tierName = prompt("Tier name:", "VIP");
+                  const tierPrice = prompt("Price (IDRX):", "100");
+                  const tierAvailable = prompt("Available tickets:", "50");
+                  const tierMax = prompt("Max per purchase:", "5");
+                  
+                  if (tierName && tierPrice && tierAvailable && tierMax) {
+                    console.log("🎫 Adding tier via My Events...");
+                    const result = await addTicketTier(tierName, parseInt(tierPrice), parseInt(tierAvailable), parseInt(tierMax));
+                    if (result) {
+                      alert("✅ Tier added! Check console for transaction hash");
+                      loadBlockchainEvent(); // Refresh data
+                    } else {
+                      alert("❌ Failed to add tier - check console for errors");
+                    }
+                  }
+                }}
+                flex="1"
+              >
+                + Add Tier
+              </Button>
+            )}
             <Button
               colorScheme="blue"
               variant="outline"

@@ -4,6 +4,7 @@ import { useAccount, useWalletClient, usePublicClient } from "wagmi";
 import { EVENT_CORE_FACET_ABI } from "../contracts/EventCoreFacet";
 import { TICKET_PURCHASE_FACET_ABI } from "../contracts/TicketPurchaseFacet";
 import { TICKET_NFT_ABI } from "../contracts/TicketNFT";
+import { IDRX_TOKEN_ABI } from "../contracts/MockIDRX";
 import { CONTRACT_ADDRESSES } from "../constants";
 import { useEmailService } from "./useEmailService";
 import { 
@@ -198,6 +199,8 @@ export const useSmartContract = () => {
         functionName: "getTierCount",
       })) as bigint;
 
+      console.log("🔍 useSmartContract - Tier count:", tierCount.toString());
+
       // Get tier details for each tier
       const tiers: TicketTierData[] = [];
       for (let i = 0; i < Number(tierCount); i++) {
@@ -208,14 +211,19 @@ export const useSmartContract = () => {
           args: [BigInt(i)],
         })) as [string, bigint, bigint, bigint, bigint, boolean];
 
-        tiers.push({
-          name: tier[0],
-          price: tier[1],
-          available: tier[2],
-          sold: tier[3],
-          maxPerPurchase: tier[4],
-          active: tier[5],
-        });
+        console.log(`🔍 Raw tier ${i}:`, tier);
+
+        const tierData = {
+          name: tier.name || tier[0],
+          price: tier.price || tier[1],
+          available: tier.available || tier[2],
+          sold: tier.sold || tier[3],
+          maxPerPurchase: tier.maxPerPurchase || tier[4],
+          active: tier.active || tier[5],
+        };
+
+        console.log(`🔍 Formatted tier ${i}:`, tierData);
+        tiers.push(tierData);
       }
 
       return tiers;
@@ -227,6 +235,48 @@ export const useSmartContract = () => {
       setLoading(false);
     }
   }, [publicClient]);
+
+  /**
+   * Sets up the TicketNFT contract for the Diamond pattern
+   * This must be called before adding ticket tiers
+   * @param ticketNFTAddress Address of the TicketNFT contract
+   * @param platformFeeReceiver Address to receive platform fees
+   * @returns Transaction hash if successful
+   */
+  const setTicketNFT = useCallback(
+    async (ticketNFTAddress?: string, platformFeeReceiver?: string) => {
+      if (!walletClient || !address) {
+        setError("Wallet not connected");
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Use Diamond address as temporary NFT contract if not specified
+        const nftAddress = ticketNFTAddress || CONTRACT_ADDRESSES.DiamondLummy;
+        const feeReceiver = platformFeeReceiver || address;
+
+        const hash = await walletClient.writeContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: EVENT_CORE_FACET_ABI,
+          functionName: "setTicketNFT",
+          args: [nftAddress, CONTRACT_ADDRESSES.MockIDRX, feeReceiver],
+        });
+
+        await publicClient?.waitForTransactionReceipt({ hash });
+        return hash;
+      } catch (err) {
+        console.error("Error setting up TicketNFT:", err);
+        setError(parseContractError(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [walletClient, address, publicClient]
+  );
 
   /**
    * Adds a new ticket tier to the Diamond contract
@@ -254,6 +304,15 @@ export const useSmartContract = () => {
       try {
         const priceInWei = parseTokenAmount(price.toString());
         
+        console.log("🎫 ADD TIER DEBUG:");
+        console.log("Name:", name);
+        console.log("Price (IDRX):", price);
+        console.log("Price (Wei):", priceInWei.toString());
+        console.log("Available:", available);
+        console.log("Max per purchase:", maxPerPurchase);
+        console.log("Contract address:", CONTRACT_ADDRESSES.DiamondLummy);
+        console.log("Wallet address:", address);
+        
         const hash = await walletClient.writeContract({
           address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
           abi: EVENT_CORE_FACET_ABI,
@@ -261,10 +320,58 @@ export const useSmartContract = () => {
           args: [name, priceInWei, BigInt(available), BigInt(maxPerPurchase)],
         });
 
-        await publicClient?.waitForTransactionReceipt({ hash });
+        console.log("✅ Transaction sent:", hash);
+        
+        const receipt = await publicClient?.waitForTransactionReceipt({ hash });
+        console.log("✅ Transaction confirmed:", receipt);
+        
         return hash;
       } catch (err) {
         console.error("Error adding ticket tier:", err);
+        setError(parseContractError(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [walletClient, address, publicClient]
+  );
+
+  /**
+   * Approves IDRX spending for the Diamond contract
+   * @param amount Amount in IDRX to approve
+   * @returns Transaction hash if successful
+   */
+  const approveIDRX = useCallback(
+    async (amount: number) => {
+      if (!walletClient || !address) {
+        setError("Wallet not connected");
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const amountInWei = parseTokenAmount(amount.toString());
+        
+        console.log("🔓 Approving IDRX spending...");
+        console.log("Amount:", amount, "IDRX");
+        console.log("Amount (Wei):", amountInWei.toString());
+        console.log("Spender:", CONTRACT_ADDRESSES.DiamondLummy);
+        
+        const hash = await walletClient.writeContract({
+          address: CONTRACT_ADDRESSES.MockIDRX as `0x${string}`,
+          abi: IDRX_TOKEN_ABI,
+          functionName: "approve",
+          args: [CONTRACT_ADDRESSES.DiamondLummy, amountInWei],
+        });
+
+        await publicClient?.waitForTransactionReceipt({ hash });
+        console.log("✅ IDRX approval successful:", hash);
+        return hash;
+      } catch (err) {
+        console.error("Error approving IDRX:", err);
         setError(parseContractError(err));
         return null;
       } finally {
@@ -438,16 +545,225 @@ export const useSmartContract = () => {
     [walletClient, address, publicClient]
   );
 
+  /**
+   * Gets user's ticket NFTs using Transfer events (since ERC721Enumerable is not available)
+   * @param userAddress User's wallet address (optional, defaults to connected address)
+   * @returns Array of user's ticket NFTs with enhanced metadata
+   */
+  const getUserTicketNFTs = useCallback(
+    async (userAddress?: string) => {
+      if (!publicClient) {
+        setError("Provider not available");
+        return [];
+      }
+
+      const targetAddress = userAddress || address;
+      if (!targetAddress) {
+        setError("User address not available");
+        return [];
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        console.log("🎫 Loading user's ticket NFTs for:", targetAddress);
+        console.log("TicketNFT contract:", CONTRACT_ADDRESSES.TicketNFT);
+
+        // Get user's NFT balance first
+        const balance = await publicClient.readContract({
+          address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+          abi: TICKET_NFT_ABI,
+          functionName: "balanceOf",
+          args: [targetAddress as `0x${string}`],
+        }) as bigint;
+
+        console.log("User NFT balance:", balance.toString());
+
+        if (balance === 0n) {
+          return [];
+        }
+
+        // Since we don't have enumeration, we'll need to check recent token IDs
+        // This is a temporary solution - ideally we'd query Transfer events
+        const userNFTs: any[] = [];
+        
+        // Check a reasonable range of recent token IDs (based on purchase history)
+        // In production, this should be done via event logs
+        const maxTokensToCheck = 100; // Check last 100 minted tokens
+        
+        for (let tokenId = 1; tokenId <= maxTokensToCheck; tokenId++) {
+          try {
+            // Check if user owns this token
+            const owner = await publicClient.readContract({
+              address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+              abi: TICKET_NFT_ABI,
+              functionName: "ownerOf",
+              args: [BigInt(tokenId)],
+            }) as string;
+
+            if (owner.toLowerCase() === targetAddress.toLowerCase()) {
+              console.log(`✅ User owns token ${tokenId}`);
+              
+              // Get enhanced ticket metadata
+              const metadata = await publicClient.readContract({
+                address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+                abi: TICKET_NFT_ABI,
+                functionName: "getTicketMetadata",
+                args: [BigInt(tokenId)],
+              }) as any;
+
+              // Convert to our expected format
+              const ticketData = {
+                tokenId: BigInt(tokenId),
+                owner: owner,
+                eventId: metadata.eventId,
+                tierId: metadata.tierId,
+                originalPrice: metadata.originalPrice,
+                used: metadata.used,
+                purchaseDate: metadata.purchaseDate,
+                eventName: metadata.eventName,
+                eventVenue: metadata.eventVenue,
+                eventDate: metadata.eventDate,
+                tierName: metadata.tierName,
+                organizerName: metadata.organizerName,
+                serialNumber: metadata.serialNumber,
+                status: metadata.status,
+                transferCount: metadata.transferCount,
+              };
+
+              userNFTs.push(ticketData);
+              console.log(`✅ Loaded metadata for token ${tokenId}:`, ticketData);
+            }
+          } catch (tokenError) {
+            // Token doesn't exist or we don't own it, continue
+            if (!tokenError.toString().includes("ERC721: invalid token ID")) {
+              console.log(`Token ${tokenId} not owned by user or doesn't exist`);
+            }
+          }
+        }
+
+        console.log("✅ Loaded user NFTs:", userNFTs);
+        return userNFTs;
+      } catch (err) {
+        console.error("Error getting user ticket NFTs:", err);
+        setError(parseContractError(err));
+        return [];
+      } finally {
+        setLoading(false);
+      }
+    },
+    [publicClient, address]
+  );
+
+  /**
+   * Updates all user's NFTs with enhanced metadata from current event
+   * @returns Number of NFTs updated successfully
+   */
+  const updateUserNFTsMetadata = useCallback(
+    async () => {
+      if (!publicClient || !walletClient || !address) {
+        setError("Wallet not connected");
+        return 0;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        console.log("🔄 Updating user's NFT metadata...");
+        
+        // Get current event info
+        const eventInfo = await getEventInfo();
+        const tiers = await getTicketTiers();
+        
+        if (!eventInfo || !tiers) {
+          throw new Error("Could not get event or tier information");
+        }
+
+        // Get user's NFT balance
+        const balance = await publicClient.readContract({
+          address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+          abi: TICKET_NFT_ABI,
+          functionName: "balanceOf",
+          args: [address as `0x${string}`],
+        }) as bigint;
+
+        if (balance === 0n) {
+          console.log("No NFTs to update");
+          return 0;
+        }
+
+        let updatedCount = 0;
+
+        // Check token range for user's NFTs
+        for (let tokenId = 1000100001; tokenId <= 1000100010; tokenId++) { // Check reasonable range
+          try {
+            const owner = await publicClient.readContract({
+              address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+              abi: TICKET_NFT_ABI,
+              functionName: "ownerOf",
+              args: [BigInt(tokenId)],
+            }) as string;
+
+            if (owner.toLowerCase() === address.toLowerCase()) {
+              console.log(`Updating metadata for token ${tokenId}...`);
+              
+              // Get tier info for this token (assume tier 0 for now)
+              const tier = tiers[0];
+              
+              const hash = await walletClient.writeContract({
+                address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+                abi: TICKET_NFT_ABI,
+                functionName: "setEnhancedMetadata",
+                args: [
+                  BigInt(tokenId),
+                  eventInfo.name,
+                  eventInfo.venue,
+                  eventInfo.date,
+                  tier?.name || "General Admission",
+                  eventInfo.organizer
+                ],
+              });
+              
+              await publicClient.waitForTransactionReceipt({ hash });
+              
+              updatedCount++;
+              console.log(`✅ Updated token ${tokenId} with hash:`, hash);
+            }
+          } catch (tokenError) {
+            // Token doesn't exist or not owned by user
+            console.log(`Token ${tokenId} not owned by user or doesn't exist`);
+          }
+        }
+
+        console.log(`✅ Updated ${updatedCount} NFT(s) with enhanced metadata`);
+        return updatedCount;
+      } catch (err) {
+        console.error("Error updating NFT metadata:", err);
+        setError(parseContractError(err));
+        return 0;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [publicClient, walletClient, address, getEventInfo, getTicketTiers]
+  );
+
   return {
     // Event management (Diamond pattern)
     initializeEvent,
     getEventInfo,
     getTicketTiers,
+    setTicketNFT,
     addTicketTier,
     
     // Ticket operations
+    approveIDRX,
     purchaseTickets,
     getTicketMetadata,
+    getUserTicketNFTs,
+    updateUserNFTsMetadata,
     burnTicketForQR,
     
     // State

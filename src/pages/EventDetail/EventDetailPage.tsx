@@ -195,19 +195,38 @@ export const EventDetailPage: React.FC = () => {
 
             // Fetch ticket tiers
             const tiers = await getTicketTiers();
+            console.log("🎫 EventDetail - Raw tiers:", tiers);
 
             if (tiers && tiers.length > 0) {
               // Convert blockchain ticket tiers to frontend format
-              const formattedTiers: TicketTier[] = tiers.map((tier, index) => ({
-                id: index.toString(),
-                name: tier.name,
-                price: Number(tier.price),
-                currency: "IDRX",
-                description: tier.name, // No description in contract, use name
-                available: Number(tier.available) - Number(tier.sold),
-                maxPerPurchase: Number(tier.maxPerPurchase),
-                benefits: [], // No benefits in contract data
-              }));
+              const formattedTiers: TicketTier[] = tiers.map((tier, index) => {
+                // Handle different tier data structures
+                const price = tier.price || tier[1] || 0;
+                const available = tier.available || tier[2] || 0;
+                const sold = tier.sold || tier[3] || 0;
+                const maxPerPurchase = tier.maxPerPurchase || tier[4] || 0;
+                const name = tier.name || tier[0] || `Tier ${index + 1}`;
+                
+                console.log(`🎫 Processing tier ${index}:`, {
+                  name,
+                  priceWei: price,
+                  priceIDRX: Number(price) / 1e18,
+                  available,
+                  sold,
+                  maxPerPurchase
+                });
+                
+                return {
+                  id: index.toString(),
+                  name,
+                  price: Number(price) / 1e18, // Convert Wei to IDRX
+                  currency: "IDRX",
+                  description: name,
+                  available: Number(available) - Number(sold),
+                  maxPerPurchase: Number(maxPerPurchase),
+                  benefits: [],
+                };
+              });
 
               // Update event with tiers and lowest price
               blockchainEvent.ticketTiers = formattedTiers;

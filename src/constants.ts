@@ -3,11 +3,12 @@ export const IDRX_LISK_SEPOLIA = "0xD63029C1a3dA68b51c67c6D1DeC3DEe50D681661";
 // Legacy naming for compatibility
 export const IDRX_SEPOLIA = IDRX_LISK_SEPOLIA;
 
-// Contract addresses - DEPLOYED ON LISK SEPOLIA
+// Contract addresses - DEPLOYED ON LISK SEPOLIA (UPDATED)
 export const CONTRACT_ADDRESSES = {
-  DiamondLummy: "0x5677c194A7efca97853Cb434Aa59252A0c364074", // Main Diamond contract
-  MockIDRX: "0xBAc0800a4F278853973669B6F4Ec70ae03be1184",    // IDRX token on Lisk Sepolia  
-  TrustedForwarder: "0xA86b473A3f16146c7981015bD191F29aF7894988", // SimpleForwarder for gasless txs
+  DiamondLummy: "0x954d6EFb8d83ef0b5219e3d53546f449906ee7c4", // Main Diamond contract (NEW)
+  MockIDRX: "0x1268A3cAe5f29131DFe3fC27Bc242702B62e3376",    // IDRX token on Lisk Sepolia (NEW)
+  TrustedForwarder: "0xC6dB67E900c9966F6F68a0c2fB8d6CE0A5b1C346", // SimpleForwarder for gasless txs (NEW)
+  TicketNFT: "0x7f504E678fB01F42015a6EbD3d30DAF5f69cAc59",    // TicketNFT contract (NEW)
 } as const;
 
 // Contract constants (from smart contract - UPDATED FOR 7%/3% FEE STRUCTURE)
@@ -22,7 +23,7 @@ export const IDRX_DECIMALS = 18;
 // Development configuration
 export const DEVELOPMENT_CONFIG = {
   // Feature flags for hybrid development
-  ENABLE_BLOCKCHAIN: false, // Toggle untuk development vs production
+  ENABLE_BLOCKCHAIN: true, // Toggle untuk development vs production
   ENABLE_REAL_IPFS: false,  // Toggle untuk IPFS vs mock storage
   ENABLE_CONTRACT_DEPLOYMENT: false, // Toggle untuk contract calls
   

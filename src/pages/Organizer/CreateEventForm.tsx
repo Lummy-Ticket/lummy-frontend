@@ -90,7 +90,7 @@ const CreateEventForm: React.FC = () => {
     }
   };
 
-  const { initializeEvent, loading, error } = useSmartContract();
+  const { initializeEvent, addTicketTier, loading, error } = useSmartContract();
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -117,7 +117,9 @@ const CreateEventForm: React.FC = () => {
 
     // Call createEvent function from hook
     try {
-      const result = await initializeEvent(
+      // Step 1: Initialize the event
+      console.log("🚀 Step 1: Initializing event...");
+      const eventResult = await initializeEvent(
         eventData.title,
         eventData.description,
         eventDate,
@@ -125,52 +127,76 @@ const CreateEventForm: React.FC = () => {
         "" // ipfsMetadata (empty for now)
       );
 
-      if (result) {
+      if (!eventResult) {
+        throw new Error("Event initialization failed");
+      }
+
+      console.log("✅ Event initialized successfully:", eventResult);
+
+      // Step 2: Create ticket tiers
+      console.log("🎫 Step 2: Creating ticket tiers...");
+      let successfulTiers = 0;
+      
+      for (const tier of ticketTiers) {
+        try {
+          console.log(`Creating tier: ${tier.name} - ${tier.price} IDRX`);
+          const tierResult = await addTicketTier(
+            tier.name,
+            tier.price,
+            tier.quantity,
+            tier.maxPerPurchase
+          );
+          
+          if (tierResult) {
+            successfulTiers++;
+            console.log(`✅ Tier "${tier.name}" created successfully`);
+          } else {
+            console.log(`❌ Failed to create tier "${tier.name}"`);
+          }
+        } catch (tierError) {
+          console.error(`Error creating tier "${tier.name}":`, tierError);
+          // Continue with other tiers even if one fails
+        }
+      }
+
+      if (successfulTiers > 0) {
         toast({
-          title: "Event created",
-          description: `Your event has been initialized successfully`,
+          title: "Event created successfully!",
+          description: `Event initialized with ${successfulTiers}/${ticketTiers.length} ticket tiers created`,
           status: "success",
           duration: 5000,
           isClosable: true,
         });
 
-        // For demo, directly redirect to dashboard
+        // Navigate to organizer dashboard
         navigate("/organizer");
       } else {
         toast({
-          title: "Error creating event",
-          description: "There was an error creating your event",
-          status: "error",
-          duration: 3000,
+          title: "Event created with warnings",
+          description: "Event was created but no ticket tiers were added. You can add them later.",
+          status: "warning",
+          duration: 5000,
           isClosable: true,
         });
+        
+        navigate("/organizer");
       }
     } catch (err) {
       console.error("Error creating event:", err);
       toast({
-        title: "Transaction failed",
-        description: error || "There was an error processing your transaction",
+        title: "Event creation failed",
+        description: error || "There was an error creating your event",
         status: "error",
-        duration: 3000,
+        duration: 5000,
         isClosable: true,
       });
+      return; // Don't proceed if event creation failed
     }
 
-    // Would handle actual form submission to API in real application
-    toast({
-      title: "Event created",
-      description: "Your event has been created successfully",
-      status: "success",
-      duration: 3000,
-      isClosable: true,
-    });
-
+    // Log form data for debugging
     console.log("Event Data:", eventData);
     console.log("Ticket Tiers:", ticketTiers);
     console.log("Resell Settings:", resellSettings);
-
-    // Redirect to organizer dashboard
-    navigate("/organizer");
   };
 
   return (
@@ -420,11 +446,25 @@ const CreateEventForm: React.FC = () => {
           border="1px"
           borderColor="gray.300"
         >
-          <TicketTierCreator
-            tiers={ticketTiers}
-            onChange={setTicketTiers}
-            currency="IDRX"
-          />
+          <VStack spacing={4} align="stretch">
+            <Alert status="info" borderRadius="md">
+              <AlertIcon />
+              <VStack align="start" spacing={1}>
+                <Text fontWeight="medium" fontSize="sm">
+                  ✨ Integrated Tier Creation
+                </Text>
+                <Text fontSize="xs">
+                  Your ticket tiers will be created automatically when you submit this form. No need to add them later!
+                </Text>
+              </VStack>
+            </Alert>
+            
+            <TicketTierCreator
+              tiers={ticketTiers}
+              onChange={setTicketTiers}
+              currency="IDRX"
+            />
+          </VStack>
         </Box>
 
         {/* Resell Settings */}
@@ -449,7 +489,7 @@ const CreateEventForm: React.FC = () => {
                 Cancel
               </Button>
               <Button colorScheme="purple" type="submit" isLoading={loading}>
-                Create Event
+                {loading ? "Creating Event & Tiers..." : "Create Event & Tiers"}
               </Button>
             </HStack>
           </Flex>

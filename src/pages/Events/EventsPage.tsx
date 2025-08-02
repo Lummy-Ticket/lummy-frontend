@@ -19,7 +19,8 @@ import { EventCard } from "../../components/core/Card";
 import { mockEvents } from "../../data/mockEvents";
 import { Event } from "../../types/Event";
 import { EventsFilter, EventsSorter } from "../../components/events";
-// import { useSmartContract } from "../../hooks/useSmartContract";
+import { useSmartContract } from "../../hooks/useSmartContract";
+import { DEVELOPMENT_CONFIG, CONTRACT_ADDRESSES } from "../../constants";
 
 const EventsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -43,8 +44,8 @@ const EventsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState("");
   const [sortBy, setSortBy] = useState("date-asc");
 
-  // Import smart contract hook (for future blockchain integration)
-  // const { getEventInfo } = useSmartContract();
+  // Smart contract hook for blockchain integration
+  const { getEventInfo, getTicketTiers } = useSmartContract();
 
   // SIMPLIFIED: Load events only once, no retry loops
   useEffect(() => {
@@ -55,16 +56,93 @@ const EventsPage: React.FC = () => {
       setErrorMsg(null);
 
       try {
-        // For now, use mock data since Diamond pattern supports single event
-        // and doesn't have getEvents functionality yet
-        console.log("Using mock data for events list");
-        
-        if (!isMounted) return; // Component unmounted, don't continue
+        if (DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN) {
+          // Fetching blockchain data
+          
+          // Try to get event from Diamond contract
+          const eventInfo = await getEventInfo();
+          
+          if (eventInfo && eventInfo.name && eventInfo.name !== "") {
+            // Convert blockchain event to UI format
+            const blockchainEvent: Event = {
+              id: CONTRACT_ADDRESSES.DiamondLummy, // Use contract address as ID
+              title: eventInfo.name,
+              description: eventInfo.description,
+              date: new Date(Number(eventInfo.date) * 1000).toISOString(),
+              location: eventInfo.venue,
+              price: 0, // Will be updated when tiers are loaded
+              image: "/api/placeholder/300/200", // Placeholder image
+              category: "blockchain",
+              status: eventInfo.cancelled ? "cancelled" : "available",
+              organizer: eventInfo.organizer,
+              ticketsAvailable: 0, // Will be updated
+              totalTickets: 0 // Will be updated
+            };
 
-        // Use mock data
-        setEvents(mockEvents);
-        setFilteredEvents(mockEvents);
-        setUsingMockData(true);
+            // Try to get ticket tiers for pricing
+            try {
+              const tiers = await getTicketTiers();
+              console.log("🔍 DEBUG: Loaded tiers:", tiers);
+              
+              if (tiers && tiers.length > 0) {
+                // Calculate minimum price from tiers (tiers have BigInt price in Wei)
+                const prices = tiers.map(tier => {
+                  const priceInWei = typeof tier.price === 'bigint' ? tier.price : BigInt(tier.price || 0);
+                  const priceInTokens = Number(priceInWei) / 1e18; // Convert from Wei to IDRX
+                  console.log(`🔍 Tier "${tier.name}": ${priceInWei} Wei = ${priceInTokens} IDRX`);
+                  return priceInTokens;
+                });
+                
+                const minPrice = Math.min(...prices.filter(p => p > 0)); // Exclude zero prices
+                blockchainEvent.price = minPrice || 0;
+                
+                // Calculate total tickets
+                blockchainEvent.ticketsAvailable = tiers.reduce((sum, tier) => {
+                  const available = typeof tier.available === 'bigint' ? Number(tier.available) : Number(tier.available || 0);
+                  return sum + available;
+                }, 0);
+                
+                blockchainEvent.totalTickets = tiers.reduce((sum, tier) => {
+                  const available = typeof tier.available === 'bigint' ? Number(tier.available) : Number(tier.available || 0);
+                  const sold = typeof tier.sold === 'bigint' ? Number(tier.sold) : Number(tier.sold || 0);
+                  return sum + available + sold;
+                }, 0);
+                
+                console.log("✅ Final event price:", blockchainEvent.price, "IDRX");
+                console.log("✅ Available tickets:", blockchainEvent.ticketsAvailable);
+              } else {
+                console.log("⚠️ No tiers found");
+                blockchainEvent.price = 0;
+              }
+            } catch (tierError) {
+              console.log("❌ Tier loading failed:", tierError);
+              blockchainEvent.price = 0;
+            }
+
+            if (!isMounted) return;
+            
+            setEvents([blockchainEvent]);
+            setFilteredEvents([blockchainEvent]);
+            setUsingMockData(false);
+          } else {
+            // No event initialized yet, fall back to mock data
+            if (!isMounted) return;
+            
+            setEvents(mockEvents);
+            setFilteredEvents(mockEvents);
+            setUsingMockData(true);
+            setErrorMsg("No events found on blockchain - showing demo data");
+          }
+        } else {
+          // Blockchain disabled, use mock data
+          console.log("Using mock data (blockchain disabled)");
+          
+          if (!isMounted) return;
+
+          setEvents(mockEvents);
+          setFilteredEvents(mockEvents);
+          setUsingMockData(true);
+        }
         
       } catch (error) {
         console.log("Blockchain fetch failed, using mock data:", error);

@@ -13,6 +13,7 @@ import { AddIcon } from "@chakra-ui/icons";
 import { useNavigate } from "react-router-dom";
 
 import SalesStatistics from "../../components/organizer/SalesStatistics";
+import { useSmartContract } from "../../hooks/useSmartContract";
 // import EventStats from "../../components/organizer/EventStats"; // optional if used later
 
 // Mock Events Data
@@ -111,6 +112,9 @@ const mockSalesData = {
 const OrganizerDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [selectedEvent, setSelectedEvent] = useState<string>("all");
+  
+  // Smart contract hook untuk setup
+  const { setTicketNFT, loading } = useSmartContract();
 
   const filteredSalesData =
     selectedEvent === "all" ? mockSalesData : { ...mockSalesData }; // Add real filter later
@@ -127,13 +131,32 @@ const OrganizerDashboard: React.FC = () => {
           <Heading size="lg">Organizer Dashboard</Heading>
           <Text color="gray.600">Manage your events and track performance</Text>
         </Box>
-        <Button
-          colorScheme="purple"
-          leftIcon={<AddIcon />}
-          onClick={handleCreateEvent}
-        >
-          Create Event
-        </Button>
+        <HStack spacing={3}>
+          <Button
+            colorScheme="blue"
+            size="sm"
+            onClick={async () => {
+              console.log("🔧 Setting up TicketNFT...");
+              const result = await setTicketNFT();
+              if (result) {
+                alert("✅ Setup berhasil! Sekarang bisa add tier");
+                console.log("✅ Transaction hash:", result);
+              } else {
+                alert("❌ Setup gagal, coba lagi");
+              }
+            }}
+            isLoading={loading}
+          >
+            🔧 Setup TicketNFT
+          </Button>
+          <Button
+            colorScheme="purple"
+            leftIcon={<AddIcon />}
+            onClick={handleCreateEvent}
+          >
+            Create Event
+          </Button>
+        </HStack>
       </Flex>
 
       {/* Sales Overview Section */}
