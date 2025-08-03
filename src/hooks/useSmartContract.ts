@@ -199,7 +199,7 @@ export const useSmartContract = () => {
         functionName: "getTierCount",
       })) as bigint;
 
-      console.log("🔍 useSmartContract - Tier count:", tierCount.toString());
+      // console.log("🔍 useSmartContract - Tier count:", tierCount.toString());
 
       // Get tier details for each tier
       const tiers: TicketTierData[] = [];
@@ -211,18 +211,18 @@ export const useSmartContract = () => {
           args: [BigInt(i)],
         })) as [string, bigint, bigint, bigint, bigint, boolean];
 
-        console.log(`🔍 Raw tier ${i}:`, tier);
+        // console.log(`🔍 Raw tier ${i}:`, tier);
 
         const tierData = {
-          name: tier.name || tier[0],
-          price: tier.price || tier[1],
-          available: tier.available || tier[2],
-          sold: tier.sold || tier[3],
-          maxPerPurchase: tier.maxPerPurchase || tier[4],
-          active: tier.active || tier[5],
+          name: tier[0],
+          price: tier[1],
+          available: tier[2],
+          sold: tier[3],
+          maxPerPurchase: tier[4],
+          active: tier[5],
         };
 
-        console.log(`🔍 Formatted tier ${i}:`, tierData);
+        // console.log(`🔍 Formatted tier ${i}:`, tierData);
         tiers.push(tierData);
       }
 
@@ -637,7 +637,8 @@ export const useSmartContract = () => {
             }
           } catch (tokenError) {
             // Token doesn't exist or we don't own it, continue
-            if (!tokenError.toString().includes("ERC721: invalid token ID")) {
+            const errorMessage = tokenError instanceof Error ? tokenError.message : String(tokenError);
+            if (!errorMessage.includes("ERC721: invalid token ID")) {
               console.log(`Token ${tokenId} not owned by user or doesn't exist`);
             }
           }

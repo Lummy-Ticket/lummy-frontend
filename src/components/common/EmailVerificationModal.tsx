@@ -128,11 +128,11 @@ const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
           }
         }, 1500); // Increased delay to 1.5 seconds
       } else {
-        console.log('⚠️ Not ready for auto-fill. Step:', currentStep, 'Loading:', loading);
+        // console.log('⚠️ Not ready for auto-fill. Step:', currentStep, 'Loading:', loading);
       }
     };
 
-    console.log('👂 Setting up auto-fill listener. Current step:', currentStep);
+    // console.log('👂 Setting up auto-fill listener. Current step:', currentStep);
     window.addEventListener('devVerificationCode', handleAutoFill as EventListener);
 
     return () => {

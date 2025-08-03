@@ -33,7 +33,7 @@ import {
 import { FaTicketAlt, FaSearch, FaCalendarAlt } from "react-icons/fa";
 import { TicketCard, Ticket } from "../../components/tickets/TicketCard";
 import { TicketDetails } from "../../components/tickets/TicketDetails";
-import { useSmartContract, TicketNFTMetadata } from "../../hooks/useSmartContract";
+import { useSmartContract } from "../../hooks/useSmartContract";
 import { useAccount } from "wagmi";
 import { DEVELOPMENT_CONFIG } from "../../constants";
 
@@ -125,8 +125,7 @@ export const MyTicketsPage: React.FC = () => {
   const { 
     getUserTicketNFTs,
     updateUserNFTsMetadata, 
-    loading, 
-    error 
+    loading 
   } = useSmartContract();
 
   // State

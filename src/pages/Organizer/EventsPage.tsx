@@ -96,7 +96,6 @@ const EventsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [events, setEvents] = useState(mockEvents);
-  const [isLoading, setIsLoading] = useState(false);
   
   const { getEventInfo, getTicketTiers, addTicketTier } = useSmartContract();
   const cardBg = "white";
@@ -109,7 +108,6 @@ const EventsPage: React.FC = () => {
   }, []);
 
   const loadBlockchainEvent = async () => {
-    setIsLoading(true);
     try {
       const eventInfo = await getEventInfo();
       
@@ -147,8 +145,6 @@ const EventsPage: React.FC = () => {
       }
     } catch (error) {
       console.log("Blockchain load failed, using mock events:", error);
-    } finally {
-      setIsLoading(false);
     }
   };
 

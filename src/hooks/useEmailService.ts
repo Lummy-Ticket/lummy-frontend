@@ -322,7 +322,7 @@ export const useEmailService = (): UseEmailServiceReturn => {
           const updatedData = { ...emailData, email_verified: true };
           localStorage.setItem(`email_${address.toLowerCase()}`, JSON.stringify(updatedData));
           setUserEmail(updatedData as UserEmailMapping);
-          console.log('✅ Email verified in development mode');
+          // console.log('✅ Email verified in development mode');
           return true;
         }
       }

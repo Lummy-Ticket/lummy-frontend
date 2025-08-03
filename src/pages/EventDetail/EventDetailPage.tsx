@@ -200,12 +200,12 @@ export const EventDetailPage: React.FC = () => {
             if (tiers && tiers.length > 0) {
               // Convert blockchain ticket tiers to frontend format
               const formattedTiers: TicketTier[] = tiers.map((tier, index) => {
-                // Handle different tier data structures
-                const price = tier.price || tier[1] || 0;
-                const available = tier.available || tier[2] || 0;
-                const sold = tier.sold || tier[3] || 0;
-                const maxPerPurchase = tier.maxPerPurchase || tier[4] || 0;
-                const name = tier.name || tier[0] || `Tier ${index + 1}`;
+                // Access tier data directly from object properties (fixed in useSmartContract.ts)
+                const price = tier.price || 0;
+                const available = tier.available || 0;
+                const sold = tier.sold || 0;
+                const maxPerPurchase = tier.maxPerPurchase || 0;
+                const name = tier.name || `Tier ${index + 1}`;
                 
                 console.log(`🎫 Processing tier ${index}:`, {
                   name,

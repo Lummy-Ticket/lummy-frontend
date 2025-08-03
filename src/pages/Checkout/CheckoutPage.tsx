@@ -30,9 +30,7 @@ import { Event, TicketTier } from "../../types/Event";
 import { useWallet } from "../../hooks/useWallet";
 import { TokenBalance } from "../../components/wallet";
 import { useSmartContract } from "../../hooks/useSmartContract";
-import { DEVELOPMENT_CONFIG, CONTRACT_ADDRESSES } from "../../constants";
-import { TICKET_PURCHASE_FACET_ABI } from "../../contracts/TicketPurchaseFacet";
-import { usePublicClient, useAccount } from "wagmi";
+import { DEVELOPMENT_CONFIG } from "../../constants";
 
 // Fetch event from blockchain or mock data
 const fetchEventById = async (id: string): Promise<Event | undefined> => {
@@ -40,7 +38,7 @@ const fetchEventById = async (id: string): Promise<Event | undefined> => {
   if (DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN && id.startsWith("0x") && id.length === 42) {
     try {
       // This is a blockchain event - we'll load it in the component using useSmartContract
-      return null; // Will be loaded by useSmartContract in component
+      return undefined; // Will be loaded by useSmartContract in component
     } catch (error) {
       console.error("Error fetching blockchain event:", error);
     }
@@ -99,8 +97,8 @@ export const CheckoutPage: React.FC = () => {
 
   // Wallet integration - using only what we need and removing unused variables
   const { isConnected, wallet } = useWallet();
-  const publicClient = usePublicClient();
-  const { address } = useAccount();
+  // const publicClient = usePublicClient(); // Unused
+  // const { address } = useAccount(); // Unused
   
   // Smart contract integration for blockchain events
   const { getEventInfo, getTicketTiers, approveIDRX, purchaseTickets } = useSmartContract();
@@ -137,12 +135,18 @@ export const CheckoutPage: React.FC = () => {
                 date: new Date(Number(eventInfo.date) * 1000).toISOString(),
                 location: eventInfo.venue,
                 price: 0,
-                image: "/api/placeholder/300/200",
+                imageUrl: "/api/placeholder/300/200",
+                currency: "IDRX",
+                time: "00:00",
                 category: "blockchain",
                 status: "available",
-                organizer: eventInfo.organizer,
+                organizer: {
+                  id: eventInfo.organizer,
+                  name: "Event Organizer",
+                  verified: false,
+                  address: eventInfo.organizer
+                },
                 ticketsAvailable: 0,
-                totalTickets: 0,
                 ticketTiers: []
               };
               

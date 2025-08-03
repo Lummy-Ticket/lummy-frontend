@@ -1,4 +1,4 @@
-export type EventStatus = "available" | "limited" | "soldout";
+export type EventStatus = "available" | "limited" | "soldout" | "cancelled" | "completed";
 
 // Contract-compatible types
 export interface ContractTicketTier {

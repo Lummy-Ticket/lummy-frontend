@@ -33,6 +33,7 @@ export const DEVELOPMENT_CONFIG = {
   
   // Development helpers
   LOG_CONTRACT_CALLS: true, // Log semua contract calls ke console
+  LOG_VERBOSE: false,       // Verbose logging (email, wallet, etc.)
   SHOW_DEV_NOTICES: true,   // Show development notices
 };
 

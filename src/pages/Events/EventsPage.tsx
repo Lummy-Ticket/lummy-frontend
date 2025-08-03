@@ -69,14 +69,20 @@ const EventsPage: React.FC = () => {
               title: eventInfo.name,
               description: eventInfo.description,
               date: new Date(Number(eventInfo.date) * 1000).toISOString(),
+              time: "00:00", // Default time, could be extracted from date
               location: eventInfo.venue,
               price: 0, // Will be updated when tiers are loaded
-              image: "/api/placeholder/300/200", // Placeholder image
+              imageUrl: "/api/placeholder/300/200", // Placeholder image
+              currency: "IDRX",
               category: "blockchain",
               status: eventInfo.cancelled ? "cancelled" : "available",
-              organizer: eventInfo.organizer,
-              ticketsAvailable: 0, // Will be updated
-              totalTickets: 0 // Will be updated
+              organizer: {
+                id: eventInfo.organizer,
+                name: "Event Organizer", // Default name, could be enhanced later
+                verified: false,
+                address: eventInfo.organizer
+              },
+              ticketsAvailable: 0 // Will be updated
             };
 
             // Try to get ticket tiers for pricing
@@ -102,11 +108,7 @@ const EventsPage: React.FC = () => {
                   return sum + available;
                 }, 0);
                 
-                blockchainEvent.totalTickets = tiers.reduce((sum, tier) => {
-                  const available = typeof tier.available === 'bigint' ? Number(tier.available) : Number(tier.available || 0);
-                  const sold = typeof tier.sold === 'bigint' ? Number(tier.sold) : Number(tier.sold || 0);
-                  return sum + available + sold;
-                }, 0);
+                // Note: totalTickets is not part of Event interface, using ticketsAvailable only
                 
                 console.log("✅ Final event price:", blockchainEvent.price, "IDRX");
                 console.log("✅ Available tickets:", blockchainEvent.ticketsAvailable);
