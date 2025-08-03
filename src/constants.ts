@@ -23,16 +23,16 @@ export const IDRX_DECIMALS = 18;
 // Development configuration
 export const DEVELOPMENT_CONFIG = {
   // Feature flags for hybrid development
-  ENABLE_BLOCKCHAIN: true, // Toggle untuk development vs production
+  ENABLE_BLOCKCHAIN: false, // Toggle untuk development vs production
   ENABLE_REAL_IPFS: false,  // Toggle untuk IPFS vs mock storage
   ENABLE_CONTRACT_DEPLOYMENT: false, // Toggle untuk contract calls
   
   // Mock behavior configurations
-  MOCK_TRANSACTION_DELAY: 2000, // Simulate blockchain delay
-  MOCK_SUCCESS_RATE: 0.95, // 95% success rate untuk mock transactions
+  MOCK_TRANSACTION_DELAY: 1000, // Simulate blockchain delay (reduced for better UX)
+  MOCK_SUCCESS_RATE: 0.98, // 98% success rate untuk mock transactions (increased)
   
   // Development helpers
-  LOG_CONTRACT_CALLS: true, // Log semua contract calls ke console
+  LOG_CONTRACT_CALLS: false, // Log semua contract calls ke console (disabled for cleaner output)
   LOG_VERBOSE: false,       // Verbose logging (email, wallet, etc.)
   SHOW_DEV_NOTICES: true,   // Show development notices
 };
