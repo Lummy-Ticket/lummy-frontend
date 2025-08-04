@@ -940,7 +940,7 @@ const EventManagement: React.FC = () => {
             <VStack spacing={8} align="stretch">
               <ResellSettings
                 settings={resellSettings}
-                onSave={handleResellSettingsUpdate}
+                onChange={handleResellSettingsUpdate}
               />
             </VStack>
           </TabPanel>
