@@ -2,6 +2,7 @@ import React from "react";
 import { HStack, Text, Icon, Spinner } from "@chakra-ui/react";
 import { FaCoins } from "react-icons/fa";
 import { useBalance, useAccount } from "wagmi";
+import { CONTRACT_ADDRESSES } from "../../constants";
 
 interface TokenBalanceProps {
   tokenType?: string; // Make this prop optional
@@ -13,8 +14,7 @@ export const TokenBalance: React.FC<TokenBalanceProps> = ({
   const { address } = useAccount();
   const { data: balance, isLoading } = useBalance({
     address,
-    // You can add a specific token here if needed
-    // token: '0x123...', // IDRX token address
+    token: CONTRACT_ADDRESSES.MockIDRX as `0x${string}`, // Use IDRX token address
   });
 
   if (isLoading) {
@@ -27,10 +27,8 @@ export const TokenBalance: React.FC<TokenBalanceProps> = ({
       <Text fontWeight="medium">Balance:</Text>
       <Text ml="auto">
         {balance
-          ? `${parseFloat(balance.formatted).toLocaleString()} ${
-              balance.symbol
-            }`
-          : `0 ${tokenType}`}
+          ? `${parseFloat(balance.formatted).toLocaleString()} IDRX`
+          : `0 IDRX`}
       </Text>
     </HStack>
   );

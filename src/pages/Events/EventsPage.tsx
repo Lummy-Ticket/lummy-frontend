@@ -71,6 +71,7 @@ const EventsPage: React.FC = () => {
               date: new Date(Number(eventInfo.date) * 1000).toISOString(),
               location: eventInfo.venue,
               price: 0, // Will be updated when tiers are loaded
+              currency: "IDRX", // Add currency for price display
               image: "/api/placeholder/300/200", // Placeholder image
               category: "blockchain",
               status: eventInfo.cancelled ? "cancelled" : "available",

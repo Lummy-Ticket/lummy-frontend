@@ -750,6 +750,69 @@ export const useSmartContract = () => {
     [publicClient, walletClient, address, getEventInfo, getTicketTiers]
   );
 
+  /**
+   * Sets resale rules for the event
+   * @param maxMarkupPercentage Maximum markup percentage (e.g., 20 for 20%)
+   * @param organizerFeePercentage Organizer fee percentage (e.g., 2.5 for 2.5%)
+   * @param restrictResellTiming Whether to restrict resale timing
+   * @param minDaysBeforeEvent Minimum days before event for resale cutoff
+   * @returns Transaction hash if successful
+   */
+  const setResaleRules = useCallback(
+    async (
+      maxMarkupPercentage: number,
+      organizerFeePercentage: number,
+      restrictResellTiming: boolean,
+      minDaysBeforeEvent: number
+    ) => {
+      if (!walletClient || !address) {
+        setError("Wallet not connected");
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Convert percentages to basis points (e.g., 20% = 2000 basis points)
+        const maxMarkupBasisPoints = Math.floor(maxMarkupPercentage * 100);
+        const organizerFeeBasisPoints = Math.floor(organizerFeePercentage * 100);
+        
+        console.log("📋 SET RESALE RULES DEBUG:");
+        console.log("Max markup %:", maxMarkupPercentage, "→", maxMarkupBasisPoints, "basis points");
+        console.log("Organizer fee %:", organizerFeePercentage, "→", organizerFeeBasisPoints, "basis points");
+        console.log("Restrict timing:", restrictResellTiming);
+        console.log("Min days before:", minDaysBeforeEvent);
+        
+        const hash = await walletClient.writeContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: EVENT_CORE_FACET_ABI,
+          functionName: "setResaleRules",
+          args: [
+            BigInt(maxMarkupBasisPoints),
+            BigInt(organizerFeeBasisPoints),
+            restrictResellTiming,
+            BigInt(minDaysBeforeEvent)
+          ],
+        });
+
+        console.log("✅ Resale rules transaction sent:", hash);
+        
+        const receipt = await publicClient?.waitForTransactionReceipt({ hash });
+        console.log("✅ Resale rules transaction confirmed:", receipt);
+        
+        return hash;
+      } catch (err) {
+        console.error("Error setting resale rules:", err);
+        setError(parseContractError(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [walletClient, address, publicClient]
+  );
+
   return {
     // Event management (Diamond pattern)
     initializeEvent,
@@ -757,6 +820,7 @@ export const useSmartContract = () => {
     getTicketTiers,
     setTicketNFT,
     addTicketTier,
+    setResaleRules,
     
     // Ticket operations
     approveIDRX,

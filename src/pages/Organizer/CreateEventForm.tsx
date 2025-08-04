@@ -90,7 +90,7 @@ const CreateEventForm: React.FC = () => {
     }
   };
 
-  const { initializeEvent, addTicketTier, loading, error } = useSmartContract();
+  const { initializeEvent, addTicketTier, setResaleRules, loading, error } = useSmartContract();
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -157,6 +157,26 @@ const CreateEventForm: React.FC = () => {
           console.error(`Error creating tier "${tier.name}":`, tierError);
           // Continue with other tiers even if one fails
         }
+      }
+
+      // Step 4: Set resale rules
+      console.log("📋 Step 4: Setting resale rules...");
+      try {
+        const resaleResult = await setResaleRules(
+          resellSettings.maxMarkupPercentage,
+          resellSettings.organizerFeePercentage,
+          resellSettings.restrictResellTiming,
+          resellSettings.minDaysBeforeEvent
+        );
+
+        if (resaleResult) {
+          console.log("✅ Resale rules configured successfully");
+        } else {
+          console.warn("⚠️ Resale rules setup failed, but event creation succeeded");
+        }
+      } catch (resaleError) {
+        console.error("Error setting resale rules:", resaleError);
+        // Don't fail the entire event creation if resale rules fail
       }
 
       if (successfulTiers > 0) {

@@ -157,21 +157,20 @@ export const TicketTierCard: React.FC<TicketTierCardProps> = ({
                 justifyContent="center"
                 flexShrink={0}
               >
-                {tier.nftImageUrl ? (
-                  <Image
-                    src={tier.nftImageUrl}
-                    alt={`NFT preview for ${tier.name}`}
-                    width="100%"
-                    height="100%"
-                    objectFit="cover"
-                  />
-                ) : (
-                  <Text fontSize="xs" color="gray.400" textAlign="center" px={2}>
-                    NFT
-                    <br />
-                    Preview
-                  </Text>
-                )}
+                <Image
+                  src={tier.nftImageUrl || "/assets/images/nft-preview.png"}
+                  alt={`NFT preview for ${tier.name}`}
+                  width="100%"
+                  height="100%"
+                  objectFit="cover"
+                  fallback={
+                    <Text fontSize="xs" color="gray.400" textAlign="center" px={2}>
+                      NFT
+                      <br />
+                      Preview
+                    </Text>
+                  }
+                />
               </Box>
             </HStack>
 

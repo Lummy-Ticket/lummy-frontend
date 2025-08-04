@@ -136,18 +136,18 @@ export const Navbar: React.FC = () => {
         }
       }
       
-      console.log('🔍 Wallet connected. Email verified:', emailVerified);
+      // console.log('🔍 Wallet connected. Email verified:', emailVerified);
       
       if (!emailVerified) {
         // Small delay to ensure connection is stable
         const timer = setTimeout(() => {
-          console.log('📧 Showing email verification modal');
+          // console.log('📧 Showing email verification modal');
           setShowEmailModal(true);
           setHasShownEmailModal(true); // Mark as shown
         }, 3000);
         return () => clearTimeout(timer);
       } else {
-        console.log('✅ Email already verified, skipping modal');
+        // console.log('✅ Email already verified, skipping modal');
         setHasShownEmailModal(true); // Mark as shown even if not needed
       }
     }
