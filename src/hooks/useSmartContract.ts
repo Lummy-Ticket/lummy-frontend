@@ -12,6 +12,12 @@ import {
   parseContractDate,
   parseContractError 
 } from "../utils/contractUtils";
+import { 
+  executeContractOperation, 
+  withTimeout, 
+  createErrorNotification,
+  DEFAULT_RETRY_CONFIG
+} from "../utils/errorHandling";
 
 /**
  * Interface for Event data returned from Diamond contracts
@@ -82,6 +88,7 @@ export const useSmartContract = () => {
 
   /**
    * Initializes a new event using Diamond pattern (replaces createEvent)
+   * NOTE: This also resets all existing tiers to prevent accumulation
    * @param name Event name
    * @param description Event description
    * @param date Event date
@@ -106,23 +113,37 @@ export const useSmartContract = () => {
       setError(null);
 
       try {
-        // Convert date to unix timestamp in seconds
-        const dateTimestamp = parseContractDate(date.toISOString());
+        return await executeContractOperation(async () => {
+          // Convert date to unix timestamp in seconds
+          const dateTimestamp = parseContractDate(date.toISOString());
 
-        // Call initialize function on Diamond contract (EventCoreFacet)
-        const hash = await walletClient.writeContract({
-          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
-          abi: EVENT_CORE_FACET_ABI,
-          functionName: "initialize",
-          args: [address, name, description, dateTimestamp, venue, ipfsMetadata],
+          console.log("🔄 Initializing new event (this will reset all tiers)");
+
+          // Call initialize function on Diamond contract (EventCoreFacet)
+          const hash = await walletClient.writeContract({
+            address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+            abi: EVENT_CORE_FACET_ABI,
+            functionName: "initialize",
+            args: [address, name, description, dateTimestamp, venue, ipfsMetadata],
+          });
+
+          // Wait for receipt with timeout
+          await withTimeout(
+            publicClient.waitForTransactionReceipt({ hash }),
+            60000, // 60 second timeout
+            'Transaction confirmation timed out'
+          );
+          
+          console.log("✅ Event initialized, tiers should be reset");
+          return hash;
+        }, 'Event Initialization', {
+          maxAttempts: 2, // Lower retry for write operations
+          baseDelay: 2000,
         });
-
-        // Wait for receipt
-        await publicClient.waitForTransactionReceipt({ hash });
-        return hash;
       } catch (err) {
         console.error("Error initializing event:", err);
-        setError(parseContractError(err));
+        const errorNotification = createErrorNotification(err);
+        setError(errorNotification.description);
         return null;
       } finally {
         setLoading(false);
@@ -145,32 +166,43 @@ export const useSmartContract = () => {
     setError(null);
 
     try {
-      const eventInfo = await publicClient.readContract({
-        address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
-        abi: EVENT_CORE_FACET_ABI,
-        functionName: "getEventInfo",
-      }) as [string, string, bigint, string, string];
+      return await executeContractOperation(async () => {
+        const eventInfo = await withTimeout(
+          publicClient.readContract({
+            address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+            abi: EVENT_CORE_FACET_ABI,
+            functionName: "getEventInfo",
+          }),
+          15000, // 15 second timeout for reads
+          'Reading event info timed out'
+        ) as [string, string, bigint, string, string];
 
-      const [cancelled, completed] = await publicClient.readContract({
-        address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
-        abi: EVENT_CORE_FACET_ABI,
-        functionName: "getEventStatus",
-      }) as [boolean, boolean];
+        const [cancelled, completed] = await withTimeout(
+          publicClient.readContract({
+            address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+            abi: EVENT_CORE_FACET_ABI,
+            functionName: "getEventStatus", 
+          }),
+          15000,
+          'Reading event status timed out'
+        ) as [boolean, boolean];
 
-      return {
-        eventId: BigInt(0), // Diamond uses single event instance
-        name: eventInfo[0],
-        description: eventInfo[1],
-        date: eventInfo[2],
-        venue: eventInfo[3],
-        organizer: eventInfo[4],
-        cancelled,
-        completed,
-        ipfsMetadata: "", // Need to get from storage
-      } as EventData;
+        return {
+          eventId: BigInt(0), // Diamond uses single event instance
+          name: eventInfo[0],
+          description: eventInfo[1],
+          date: eventInfo[2],
+          venue: eventInfo[3],
+          organizer: eventInfo[4],
+          cancelled,
+          completed,
+          ipfsMetadata: "", // Need to get from storage
+        } as EventData;
+      }, 'Get Event Info', DEFAULT_RETRY_CONFIG);
     } catch (err) {
       console.error("Error getting event info:", err);
-      setError(err instanceof Error ? err.message : "Unknown error occurred");
+      const errorNotification = createErrorNotification(err);
+      setError(errorNotification.description);
       return null;
     } finally {
       setLoading(false);
@@ -199,7 +231,7 @@ export const useSmartContract = () => {
         functionName: "getTierCount",
       })) as bigint;
 
-      // console.log("🔍 useSmartContract - Tier count:", tierCount.toString());
+      console.log("🔍 useSmartContract - Tier count:", tierCount.toString());
 
       // Get tier details for each tier
       const tiers: TicketTierData[] = [];
@@ -211,7 +243,7 @@ export const useSmartContract = () => {
           args: [BigInt(i)],
         })) as [string, bigint, bigint, bigint, bigint, boolean];
 
-        // console.log(`🔍 Raw tier ${i}:`, tier);
+        console.log(`🔍 Raw tier ${i}:`, tier);
 
         const tierData = {
           name: tier[0],
@@ -222,7 +254,7 @@ export const useSmartContract = () => {
           active: tier[5],
         };
 
-        // console.log(`🔍 Formatted tier ${i}:`, tierData);
+        console.log(`🔍 Formatted tier ${i}:`, tierData);
         tiers.push(tierData);
       }
 
@@ -313,22 +345,28 @@ export const useSmartContract = () => {
         console.log("Contract address:", CONTRACT_ADDRESSES.DiamondLummy);
         console.log("Wallet address:", address);
         
-        const hash = await walletClient.writeContract({
-          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
-          abi: EVENT_CORE_FACET_ABI,
-          functionName: "addTicketTier",
-          args: [name, priceInWei, BigInt(available), BigInt(maxPerPurchase)],
-        });
+        return await executeContractOperation(async () => {
+          const hash = await walletClient.writeContract({
+            address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+            abi: EVENT_CORE_FACET_ABI,
+            functionName: "addTicketTier",
+            args: [name, priceInWei, BigInt(available), BigInt(maxPerPurchase)],
+          });
 
-        console.log("✅ Transaction sent:", hash);
-        
-        const receipt = await publicClient?.waitForTransactionReceipt({ hash });
-        console.log("✅ Transaction confirmed:", receipt);
-        
-        return hash;
+          console.log("✅ Transaction sent:", hash);
+          
+          const receipt = await publicClient?.waitForTransactionReceipt({ hash });
+          console.log("✅ Transaction confirmed:", receipt);
+          
+          return hash;
+        }, 'Add Ticket Tier', {
+          maxAttempts: 2,
+          baseDelay: 2000,
+        });
       } catch (err) {
         console.error("Error adding ticket tier:", err);
-        setError(parseContractError(err));
+        const errorNotification = createErrorNotification(err);
+        setError(errorNotification.description);
         return null;
       } finally {
         setLoading(false);
@@ -407,39 +445,52 @@ export const useSmartContract = () => {
       setError(null);
 
       try {
-        const hash = await walletClient.writeContract({
-          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
-          abi: TICKET_PURCHASE_FACET_ABI,
-          functionName: "purchaseTicket",
-          args: [BigInt(tierId), BigInt(quantity)],
-        });
+        return await executeContractOperation(async () => {
+          const hash = await walletClient.writeContract({
+            address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+            abi: TICKET_PURCHASE_FACET_ABI,
+            functionName: "purchaseTicket",
+            args: [BigInt(tierId), BigInt(quantity)],
+          });
 
-        await publicClient?.waitForTransactionReceipt({ hash });
-        
-        // Send email notification if event data provided
-        if (eventData) {
-          try {
-            await sendTicketPurchaseNotification({
-              eventName: eventData.eventName,
-              tierName: eventData.tierName,
-              quantity,
-              totalPrice: eventData.totalPrice,
-              currency: eventData.currency,
-              transactionHash: hash,
-              eventDate: eventData.eventDate,
-              venue: eventData.venue,
-              eventId: eventData.eventId,
-            });
-          } catch (emailError) {
-            // Email notification failure shouldn't block transaction success
-            console.warn('Email notification failed:', emailError);
+          // Wait for receipt with timeout
+          if (publicClient) {
+            await withTimeout(
+              publicClient.waitForTransactionReceipt({ hash }),
+              90000, // 90 second timeout for purchases
+              'Purchase confirmation timed out'
+            );
           }
-        }
-        
-        return hash;
+          
+          // Send email notification if event data provided
+          if (eventData) {
+            try {
+              await sendTicketPurchaseNotification({
+                eventName: eventData.eventName,
+                tierName: eventData.tierName,
+                quantity,
+                totalPrice: eventData.totalPrice,
+                currency: eventData.currency,
+                transactionHash: hash,
+                eventDate: eventData.eventDate,
+                venue: eventData.venue,
+                eventId: eventData.eventId,
+              });
+            } catch (emailError) {
+              // Email notification failure shouldn't block transaction success
+              console.warn('Email notification failed:', emailError);
+            }
+          }
+          
+          return hash;
+        }, 'Ticket Purchase', {
+          maxAttempts: 2, // Lower retry for purchases
+          baseDelay: 3000,
+        });
       } catch (err) {
         console.error("Error purchasing tickets:", err);
-        setError(parseContractError(err));
+        const errorNotification = createErrorNotification(err);
+        setError(errorNotification.description);
         return null;
       } finally {
         setLoading(false);
@@ -546,7 +597,7 @@ export const useSmartContract = () => {
   );
 
   /**
-   * Gets user's ticket NFTs using Transfer events (since ERC721Enumerable is not available)
+   * Gets user's ticket NFTs using Transfer events (more efficient than token scanning)
    * @param userAddress User's wallet address (optional, defaults to connected address)
    * @returns Array of user's ticket NFTs with enhanced metadata
    */
@@ -584,39 +635,73 @@ export const useSmartContract = () => {
           return [];
         }
 
-        // Since we don't have enumeration, we'll need to check recent token IDs
-        // This is a temporary solution - ideally we'd query Transfer events
         const userNFTs: any[] = [];
-        
-        // Check a reasonable range of recent token IDs (based on purchase history)
-        // In production, this should be done via event logs
-        const maxTokensToCheck = 100; // Check last 100 minted tokens
-        
-        for (let tokenId = 1; tokenId <= maxTokensToCheck; tokenId++) {
-          try {
-            // Check if user owns this token
-            const owner = await publicClient.readContract({
-              address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
-              abi: TICKET_NFT_ABI,
-              functionName: "ownerOf",
-              args: [BigInt(tokenId)],
-            }) as string;
 
-            if (owner.toLowerCase() === targetAddress.toLowerCase()) {
-              console.log(`✅ User owns token ${tokenId}`);
-              
-              // Get enhanced ticket metadata
+        try {
+          // Method 1: Try to get Transfer events to user's address (more efficient)
+          const currentBlock = await publicClient.getBlockNumber();
+          const fromBlock = currentBlock - 10000n; // Look back ~10k blocks (adjust as needed)
+
+          console.log("🔍 Querying Transfer events from block:", fromBlock.toString(), "to:", currentBlock.toString());
+
+          const transferEvents = await publicClient.getLogs({
+            address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+            event: {
+              type: 'event',
+              name: 'Transfer',
+              inputs: [
+                { type: 'address', indexed: true, name: 'from' },
+                { type: 'address', indexed: true, name: 'to' },
+                { type: 'uint256', indexed: true, name: 'tokenId' }
+              ]
+            },
+            args: {
+              to: targetAddress as `0x${string}`
+            },
+            fromBlock,
+            toBlock: currentBlock,
+          });
+
+          console.log(`📋 Found ${transferEvents.length} Transfer events to user`);
+
+          // Process events to get unique token IDs owned by user
+          const tokenIds = new Set<bigint>();
+          
+          for (const event of transferEvents) {
+            const tokenId = event.args.tokenId as bigint;
+            
+            // Verify user still owns this token (in case of transfers)
+            try {
+              const currentOwner = await publicClient.readContract({
+                address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+                abi: TICKET_NFT_ABI,
+                functionName: "ownerOf",
+                args: [tokenId],
+              }) as string;
+
+              if (currentOwner.toLowerCase() === targetAddress.toLowerCase()) {
+                tokenIds.add(tokenId);
+                console.log(`✅ User owns token ${tokenId.toString()}`);
+              }
+            } catch (ownerError) {
+              // Token might have been burned or doesn't exist
+              console.log(`Token ${tokenId.toString()} no longer exists or not owned by user`);
+            }
+          }
+
+          // Get metadata for all owned tokens
+          for (const tokenId of tokenIds) {
+            try {
               const metadata = await publicClient.readContract({
                 address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
                 abi: TICKET_NFT_ABI,
                 functionName: "getTicketMetadata",
-                args: [BigInt(tokenId)],
+                args: [tokenId],
               }) as any;
 
-              // Convert to our expected format
               const ticketData = {
-                tokenId: BigInt(tokenId),
-                owner: owner,
+                tokenId: tokenId,
+                owner: targetAddress,
                 eventId: metadata.eventId,
                 tierId: metadata.tierId,
                 originalPrice: metadata.originalPrice,
@@ -633,18 +718,72 @@ export const useSmartContract = () => {
               };
 
               userNFTs.push(ticketData);
-              console.log(`✅ Loaded metadata for token ${tokenId}:`, ticketData);
+              console.log(`✅ Loaded metadata for token ${tokenId.toString()}:`, ticketData);
+            } catch (metadataError) {
+              console.error(`Failed to load metadata for token ${tokenId.toString()}:`, metadataError);
             }
-          } catch (tokenError) {
-            // Token doesn't exist or we don't own it, continue
-            const errorMessage = tokenError instanceof Error ? tokenError.message : String(tokenError);
-            if (!errorMessage.includes("ERC721: invalid token ID")) {
-              console.log(`Token ${tokenId} not owned by user or doesn't exist`);
+          }
+
+        } catch (eventError) {
+          console.warn("Event filtering failed, falling back to token scanning:", eventError);
+          
+          // Fallback Method 2: Token scanning (less efficient but more reliable)
+          // Only scan a reasonable range based on balance
+          const maxTokensToCheck = Math.min(Number(balance) * 5, 1000); // Limit to reasonable range
+          
+          console.log(`🔄 Scanning ${maxTokensToCheck} recent tokens as fallback`);
+          
+          for (let tokenId = 1; tokenId <= maxTokensToCheck; tokenId++) {
+            try {
+              const owner = await publicClient.readContract({
+                address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+                abi: TICKET_NFT_ABI,
+                functionName: "ownerOf",
+                args: [BigInt(tokenId)],
+              }) as string;
+
+              if (owner.toLowerCase() === targetAddress.toLowerCase()) {
+                console.log(`✅ User owns token ${tokenId}`);
+                
+                const metadata = await publicClient.readContract({
+                  address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+                  abi: TICKET_NFT_ABI,
+                  functionName: "getTicketMetadata",
+                  args: [BigInt(tokenId)],
+                }) as any;
+
+                const ticketData = {
+                  tokenId: BigInt(tokenId),
+                  owner: owner,
+                  eventId: metadata.eventId,
+                  tierId: metadata.tierId,
+                  originalPrice: metadata.originalPrice,
+                  used: metadata.used,
+                  purchaseDate: metadata.purchaseDate,
+                  eventName: metadata.eventName,
+                  eventVenue: metadata.eventVenue,
+                  eventDate: metadata.eventDate,
+                  tierName: metadata.tierName,
+                  organizerName: metadata.organizerName,
+                  serialNumber: metadata.serialNumber,
+                  status: metadata.status,
+                  transferCount: metadata.transferCount,
+                };
+
+                userNFTs.push(ticketData);
+                console.log(`✅ Loaded metadata for token ${tokenId}:`, ticketData);
+              }
+            } catch (tokenError) {
+              // Token doesn't exist or we don't own it, continue
+              const errorMessage = tokenError instanceof Error ? tokenError.message : String(tokenError);
+              if (!errorMessage.includes("ERC721: invalid token ID") && !errorMessage.includes("ERC721NonexistentToken")) {
+                console.log(`Token ${tokenId} not owned by user or doesn't exist`);
+              }
             }
           }
         }
 
-        console.log("✅ Loaded user NFTs:", userNFTs);
+        console.log(`✅ Loaded ${userNFTs.length} user NFTs:`, userNFTs);
         return userNFTs;
       } catch (err) {
         console.error("Error getting user ticket NFTs:", err);
@@ -751,6 +890,90 @@ export const useSmartContract = () => {
     [publicClient, walletClient, address, getEventInfo, getTicketTiers]
   );
 
+  /**
+   * Validates Diamond contract setup and configuration
+   * @returns Object with validation results and any issues found
+   */
+  const validateContractState = useCallback(async () => {
+    if (!publicClient) {
+      return { isValid: false, issues: ["Provider not available"] };
+    }
+
+    const issues: string[] = [];
+    let isValid = true;
+
+    try {
+      console.log("🔍 Validating Diamond contract state...");
+
+      // Check if event is initialized
+      try {
+        const eventInfo = await publicClient.readContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: EVENT_CORE_FACET_ABI,
+          functionName: "getEventInfo",
+        }) as [string, string, bigint, string, string];
+
+        if (!eventInfo[0] || eventInfo[0] === "") {
+          issues.push("Event not initialized");
+          isValid = false;
+        } else {
+          console.log("✅ Event initialized:", eventInfo[0]);
+        }
+      } catch (eventError) {
+        issues.push("Cannot read event info - contract might not be initialized");
+        isValid = false;
+      }
+
+      // Check TicketNFT setup
+      try {
+        const nftAddress = await publicClient.readContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: EVENT_CORE_FACET_ABI,
+          functionName: "ticketNFT",
+        }) as string;
+
+        if (!nftAddress || nftAddress === "0x0000000000000000000000000000000000000000") {
+          issues.push("TicketNFT contract not set up");
+          isValid = false;
+        } else {
+          console.log("✅ TicketNFT configured:", nftAddress);
+        }
+      } catch (nftError) {
+        issues.push("Cannot check TicketNFT setup");
+        isValid = false;
+      }
+
+      // Check tier count
+      try {
+        const tierCount = await publicClient.readContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: EVENT_CORE_FACET_ABI,
+          functionName: "getTierCount",
+        }) as bigint;
+
+        if (tierCount === 0n) {
+          issues.push("No ticket tiers configured");
+          // This might be intentional, so don't mark as invalid
+        } else {
+          console.log(`✅ ${tierCount.toString()} ticket tiers configured`);
+        }
+      } catch (tierError) {
+        issues.push("Cannot check tier configuration");
+        isValid = false;
+      }
+
+      console.log("🔍 Contract validation complete:", { isValid, issues });
+      return { isValid, issues };
+
+    } catch (err) {
+      console.error("Error validating contract state:", err);
+      return {
+        isValid: false,
+        issues: ["Contract validation failed: " + (err instanceof Error ? err.message : String(err))]
+      };
+    }
+  }, [publicClient]);
+
   return {
     // Event management (Diamond pattern)
     initializeEvent,
@@ -766,6 +989,9 @@ export const useSmartContract = () => {
     getUserTicketNFTs,
     updateUserNFTsMetadata,
     burnTicketForQR,
+    
+    // Contract validation
+    validateContractState,
     
     // State
     loading,

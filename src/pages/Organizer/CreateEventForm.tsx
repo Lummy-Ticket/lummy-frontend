@@ -90,7 +90,7 @@ const CreateEventForm: React.FC = () => {
     }
   };
 
-  const { initializeEvent, addTicketTier, loading, error } = useSmartContract();
+  const { initializeEvent, addTicketTier, setTicketNFT, validateContractState, loading, error } = useSmartContract();
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -133,8 +133,19 @@ const CreateEventForm: React.FC = () => {
 
       console.log("✅ Event initialized successfully:", eventResult);
 
-      // Step 2: Create ticket tiers
-      console.log("🎫 Step 2: Creating ticket tiers...");
+      // Step 2: Setup TicketNFT contract (required for Diamond pattern)
+      console.log("🔗 Step 2: Setting up TicketNFT contract...");
+      const nftSetupResult = await setTicketNFT();
+      
+      if (!nftSetupResult) {
+        console.warn("⚠️ TicketNFT setup failed, but continuing with event creation");
+        // Don't throw error, as this might work in some cases
+      } else {
+        console.log("✅ TicketNFT setup successful:", nftSetupResult);
+      }
+
+      // Step 3: Create ticket tiers
+      console.log("🎫 Step 3: Creating ticket tiers...");
       let successfulTiers = 0;
       
       for (const tier of ticketTiers) {
@@ -159,11 +170,25 @@ const CreateEventForm: React.FC = () => {
         }
       }
 
+      // Step 4: Validate final contract state
+      console.log("🔍 Step 4: Validating contract setup...");
+      const validation = await validateContractState();
+      
+      if (validation.isValid) {
+        console.log("✅ Contract validation passed");
+      } else {
+        console.warn("⚠️ Contract validation issues:", validation.issues);
+      }
+
       if (successfulTiers > 0) {
+        const statusMessage = validation.isValid 
+          ? `Event initialized with ${successfulTiers}/${ticketTiers.length} ticket tiers created`
+          : `Event created with ${successfulTiers}/${ticketTiers.length} tiers, but some setup issues detected`;
+
         toast({
           title: "Event created successfully!",
-          description: `Event initialized with ${successfulTiers}/${ticketTiers.length} ticket tiers created`,
-          status: "success",
+          description: statusMessage,
+          status: validation.isValid ? "success" : "warning",
           duration: 5000,
           isClosable: true,
         });

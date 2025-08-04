@@ -94,6 +94,7 @@ export interface Event {
   status: EventStatus;
   organizer: Organizer;
   ticketsAvailable: number;
+  totalTickets?: number; // Add totalTickets property
   ticketTiers?: TicketTier[];
   tags?: string[];
   // Contract fields (converted)
