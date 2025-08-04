@@ -8,9 +8,7 @@ interface TokenBalanceProps {
   tokenType?: string; // Make this prop optional
 }
 
-export const TokenBalance: React.FC<TokenBalanceProps> = ({
-  tokenType = "IDRX",
-}) => {
+export const TokenBalance: React.FC<TokenBalanceProps> = () => {
   const { address } = useAccount();
   const { data: balance, isLoading } = useBalance({
     address,

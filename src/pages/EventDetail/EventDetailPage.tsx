@@ -201,11 +201,11 @@ export const EventDetailPage: React.FC = () => {
               // Convert blockchain ticket tiers to frontend format
               const formattedTiers: TicketTier[] = tiers.map((tier, index) => {
                 // Handle different tier data structures
-                const price = tier.price || tier[1] || 0;
-                const available = tier.available || tier[2] || 0;
-                const sold = tier.sold || tier[3] || 0;
-                const maxPerPurchase = tier.maxPerPurchase || tier[4] || 0;
-                const name = tier.name || tier[0] || `Tier ${index + 1}`;
+                const price = (tier as any).price || 0;
+                const available = (tier as any).available || 0;
+                const sold = (tier as any).sold || 0;
+                const maxPerPurchase = (tier as any).maxPerPurchase || 0;
+                const name = (tier as any).name || `Tier ${index + 1}`;
                 
                 console.log(`🎫 Processing tier ${index}:`, {
                   name,

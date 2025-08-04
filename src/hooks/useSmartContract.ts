@@ -214,12 +214,12 @@ export const useSmartContract = () => {
         console.log(`🔍 Raw tier ${i}:`, tier);
 
         const tierData = {
-          name: tier.name || tier[0],
-          price: tier.price || tier[1],
-          available: tier.available || tier[2],
-          sold: tier.sold || tier[3],
-          maxPerPurchase: tier.maxPerPurchase || tier[4],
-          active: tier.active || tier[5],
+          name: (tier as any).name || tier[0],
+          price: (tier as any).price || tier[1],
+          available: (tier as any).available || tier[2],
+          sold: (tier as any).sold || tier[3],
+          maxPerPurchase: (tier as any).maxPerPurchase || tier[4],
+          active: (tier as any).active || tier[5],
         };
 
         console.log(`🔍 Formatted tier ${i}:`, tierData);
@@ -635,9 +635,9 @@ export const useSmartContract = () => {
               userNFTs.push(ticketData);
               console.log(`✅ Loaded metadata for token ${tokenId}:`, ticketData);
             }
-          } catch (tokenError) {
+          } catch (tokenError: unknown) {
             // Token doesn't exist or we don't own it, continue
-            if (!tokenError.toString().includes("ERC721: invalid token ID")) {
+            if (!(tokenError as Error).toString().includes("ERC721: invalid token ID")) {
               console.log(`Token ${tokenId} not owned by user or doesn't exist`);
             }
           }

@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   Box,
   VStack,
-  HStack,
   Text,
   Switch,
   FormControl,
@@ -18,8 +17,6 @@ import {
   NumberDecrementStepper,
   Flex,
   Divider,
-  Button,
-  useToast,
   Alert,
   AlertIcon,
   AlertTitle,
@@ -53,45 +50,33 @@ export const convertFromContractFormat = (contractData: any): ResellSettingsData
 
 interface ResellSettingsProps {
   settings: ResellSettingsData;
-  onSave: (settings: ResellSettingsData) => void;
+  onChange: (settings: ResellSettingsData) => void; // Changed from onSave to onChange
 }
 
 const ResellSettings: React.FC<ResellSettingsProps> = ({
   settings,
-  onSave,
+  onChange,
 }) => {
   const [currentSettings, setCurrentSettings] =
     useState<ResellSettingsData>(settings);
-  const [isChanged, setIsChanged] = useState(false);
-  const toast = useToast();
 
   const cardBg = "white";
 
   const handleChange = (field: keyof ResellSettingsData, value: any) => {
-    setCurrentSettings((prev) => ({
-      ...prev,
+    const newSettings = {
+      ...currentSettings,
       [field]: value,
-    }));
-    setIsChanged(true);
-  };
-
-  const handleSave = () => {
-    // Validate settings before saving
-    const contractFormat = convertToContractFormat(currentSettings);
+    };
+    
+    setCurrentSettings(newSettings);
+    
+    // Immediately notify parent of changes (auto-save)
+    onChange(newSettings);
     
     // Show contract values in console for debugging
-    console.log("Frontend settings:", currentSettings);
+    const contractFormat = convertToContractFormat(newSettings);
+    console.log("Frontend settings updated:", newSettings);
     console.log("Contract format:", contractFormat);
-    
-    onSave(currentSettings);
-    toast({
-      title: "Settings updated",
-      description: `Resale settings saved. Max markup: ${currentSettings.maxMarkupPercentage}% (${contractFormat.maxMarkupPercentage} basis points), Organizer fee: ${currentSettings.organizerFeePercentage}% (${contractFormat.organizerFeePercentage} basis points)`,
-      status: "success",
-      duration: 5000,
-      isClosable: true,
-    });
-    setIsChanged(false);
   };
 
   return (
@@ -110,6 +95,9 @@ const ResellSettings: React.FC<ResellSettingsProps> = ({
           </Text>
           <Text fontSize="sm" color="gray.600">
             Configure resale rules for your event tickets. These settings are enforced by smart contract.
+          </Text>
+          <Text fontSize="xs" color="purple.600" fontWeight="medium">
+            ✨ Settings are automatically saved when you create the event
           </Text>
         </VStack>
 
@@ -287,16 +275,6 @@ const ResellSettings: React.FC<ResellSettingsProps> = ({
             </Box>
           </Alert>
         )}
-
-        <HStack justify="flex-end">
-          <Button
-            colorScheme="purple"
-            isDisabled={!isChanged}
-            onClick={handleSave}
-          >
-            Save Settings
-          </Button>
-        </HStack>
       </VStack>
     </Box>
   );

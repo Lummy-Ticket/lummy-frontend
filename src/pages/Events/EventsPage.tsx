@@ -69,15 +69,23 @@ const EventsPage: React.FC = () => {
               title: eventInfo.name,
               description: eventInfo.description,
               date: new Date(Number(eventInfo.date) * 1000).toISOString(),
+              time: new Date(Number(eventInfo.date) * 1000).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit"
+              }),
               location: eventInfo.venue,
               price: 0, // Will be updated when tiers are loaded
               currency: "IDRX", // Add currency for price display
-              image: "/api/placeholder/300/200", // Placeholder image
+              imageUrl: "/api/placeholder/300/200", // Placeholder image
               category: "blockchain",
-              status: eventInfo.cancelled ? "cancelled" : "available",
-              organizer: eventInfo.organizer,
-              ticketsAvailable: 0, // Will be updated
-              totalTickets: 0 // Will be updated
+              status: eventInfo.cancelled ? "soldout" : "available",
+              organizer: {
+                id: eventInfo.organizer,
+                name: "Event Organizer",
+                verified: true,
+                address: eventInfo.organizer,
+              },
+              ticketsAvailable: 0 // Will be updated
             };
 
             // Try to get ticket tiers for pricing
@@ -103,11 +111,6 @@ const EventsPage: React.FC = () => {
                   return sum + available;
                 }, 0);
                 
-                blockchainEvent.totalTickets = tiers.reduce((sum, tier) => {
-                  const available = typeof tier.available === 'bigint' ? Number(tier.available) : Number(tier.available || 0);
-                  const sold = typeof tier.sold === 'bigint' ? Number(tier.sold) : Number(tier.sold || 0);
-                  return sum + available + sold;
-                }, 0);
                 
                 console.log("✅ Final event price:", blockchainEvent.price, "IDRX");
                 console.log("✅ Available tickets:", blockchainEvent.ticketsAvailable);
