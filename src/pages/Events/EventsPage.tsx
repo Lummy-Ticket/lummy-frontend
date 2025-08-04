@@ -69,19 +69,12 @@ const EventsPage: React.FC = () => {
               title: eventInfo.name,
               description: eventInfo.description,
               date: new Date(Number(eventInfo.date) * 1000).toISOString(),
-              time: "00:00", // Default time, could be extracted from date
               location: eventInfo.venue,
               price: 0, // Will be updated when tiers are loaded
-              imageUrl: "/api/placeholder/300/200", // Placeholder image
-              currency: "IDRX",
-              category: "music", // TODO: Get from contract or use default
+              image: "/api/placeholder/300/200", // Placeholder image
+              category: "blockchain",
               status: eventInfo.cancelled ? "cancelled" : "available",
-              organizer: {
-                id: eventInfo.organizer,
-                name: "Event Organizer", // Default name, could be enhanced later
-                verified: false,
-                address: eventInfo.organizer
-              },
+              organizer: eventInfo.organizer,
               ticketsAvailable: 0, // Will be updated
               totalTickets: 0 // Will be updated
             };

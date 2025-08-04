@@ -98,6 +98,9 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
             <Text fontWeight="bold" color="lummy.purple.600" fontSize="md">
               {currency} {price.toLocaleString()}
             </Text>
+            <Badge colorScheme="green" size="xs" variant="subtle">
+              No hidden fees
+            </Badge>
           </VStack>
         </Flex>
       </VStack>

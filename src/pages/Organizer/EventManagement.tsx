@@ -64,7 +64,7 @@ import AttendeeList, {
 } from "../../components/organizer/AttendeeList";
 import { motion } from "framer-motion";
 
-const MotionBox = motion.create(Box);
+const MotionBox = motion(Box);
 
 // Mock event data - would be fetched from API in real application
 const mockEvent: EventStatsData = {

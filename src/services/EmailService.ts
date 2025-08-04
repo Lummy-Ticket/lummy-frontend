@@ -199,8 +199,8 @@ export const EMAIL_TEMPLATES = {
 // Development mode check
 const isDevelopment = import.meta.env.DEV;
 
-// Debug: log environment mode on service load (only once)
-// console.log('📧 EmailService loaded - Development mode:', isDevelopment);
+// Debug: log environment mode on service load
+console.log('📧 EmailService loaded - Development mode:', isDevelopment);
 
 // Email service functions
 export class EmailService {

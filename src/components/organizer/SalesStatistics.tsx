@@ -22,8 +22,8 @@ import {
 } from "recharts";
 import { motion } from "framer-motion";
 
-const MotionBox = motion.create(Box);
-const MotionText = motion.create(Text);
+const MotionBox = motion(Box);
+const MotionText = motion(Text);
 
 // Modified to group by event name
 export interface SalesData {

@@ -28,12 +28,11 @@ export const DEVELOPMENT_CONFIG = {
   ENABLE_CONTRACT_DEPLOYMENT: false, // Toggle untuk contract calls
   
   // Mock behavior configurations
-  MOCK_TRANSACTION_DELAY: 1000, // Simulate blockchain delay (reduced for better UX)
-  MOCK_SUCCESS_RATE: 0.98, // 98% success rate untuk mock transactions (increased)
+  MOCK_TRANSACTION_DELAY: 2000, // Simulate blockchain delay
+  MOCK_SUCCESS_RATE: 0.95, // 95% success rate untuk mock transactions
   
   // Development helpers
-  LOG_CONTRACT_CALLS: false, // Log semua contract calls ke console (disabled for cleaner output)
-  LOG_VERBOSE: false,       // Verbose logging (email, wallet, etc.)
+  LOG_CONTRACT_CALLS: true, // Log semua contract calls ke console
   SHOW_DEV_NOTICES: true,   // Show development notices
 };
 

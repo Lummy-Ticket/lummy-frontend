@@ -33,8 +33,7 @@ import {
 import { FaTicketAlt, FaSearch, FaCalendarAlt } from "react-icons/fa";
 import { TicketCard, Ticket } from "../../components/tickets/TicketCard";
 import { TicketDetails } from "../../components/tickets/TicketDetails";
-import { useUserNFTsQuery } from "../../hooks/useContractQueries";
-import { useSmartContract } from "../../hooks/useSmartContract";
+import { useSmartContract, TicketNFTMetadata } from "../../hooks/useSmartContract";
 import { useAccount } from "wagmi";
 import { DEVELOPMENT_CONFIG } from "../../constants";
 
@@ -122,81 +121,92 @@ export const MyTicketsPage: React.FC = () => {
   const { address, isConnected } = useAccount();
   const toast = useToast();
   
-  // React Query hook for user NFTs with caching
-  const userNFTsQuery = useUserNFTsQuery(address);
-  
-  // Smart contract hook for updateUserNFTsMetadata function
-  const { updateUserNFTsMetadata } = useSmartContract();
+  // Smart contract hooks
+  const { 
+    getUserTicketNFTs,
+    updateUserNFTsMetadata, 
+    loading, 
+    error 
+  } = useSmartContract();
 
   // State
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [filteredTickets, setFilteredTickets] = useState<Ticket[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [isLoadingTickets, setIsLoadingTickets] = useState(false);
   const [usingMockData, setUsingMockData] = useState(false);
-  const [updateLoading, setUpdateLoading] = useState(false);
   const { isOpen, onOpen, onClose } = useDisclosure();
 
-  // Derive loading state from query
-  const isLoadingTickets = userNFTsQuery.isLoading;
-
-  // Process user NFTs data when query completes
+  // Load user's ticket NFTs on component mount
   useEffect(() => {
-    if (!isConnected || !address) {
-      console.log("Wallet not connected, using mock data");
-      setTickets(mockTickets);
-      setFilteredTickets(mockTickets);
-      setUsingMockData(true);
-      return;
-    }
-
-    if (!DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN) {
-      console.log("Blockchain disabled, using mock data");
-      setTickets(mockTickets);
-      setFilteredTickets(mockTickets);
-      setUsingMockData(true);
-      return;
-    }
-
-    if (userNFTsQuery.data) {
-      const userNFTs = userNFTsQuery.data;
-      
-      if (userNFTs.length === 0) {
-        console.log("No NFT tickets found");
-        setTickets([]);
-        setFilteredTickets([]);
-        setUsingMockData(false);
+    const loadUserTickets = async () => {
+      if (!isConnected || !address) {
+        console.log("Wallet not connected, using mock data");
+        setTickets(mockTickets);
+        setFilteredTickets(mockTickets);
+        setUsingMockData(true);
         return;
       }
 
-      // Convert NFT metadata to Ticket format (enhanced metadata has all info)
-      const convertedTickets: Ticket[] = userNFTs.map(nft => {
-        const ticket = convertNFTToTicket(nft);
-        console.log("✅ Converted NFT to ticket:", ticket);
-        return ticket;
-      });
+      if (!DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN) {
+        console.log("Blockchain disabled, using mock data");
+        setTickets(mockTickets);
+        setFilteredTickets(mockTickets);
+        setUsingMockData(true);
+        return;
+      }
 
-      setTickets(convertedTickets);
-      setFilteredTickets(convertedTickets);
-      setUsingMockData(false);
+      setIsLoadingTickets(true);
       
-      console.log("✅ Loaded", convertedTickets.length, "ticket(s)");
-    } else if (userNFTsQuery.isError) {
-      console.error("Error loading user tickets:", userNFTsQuery.error);
-      toast({
-        title: "Error loading tickets",
-        description: "Using demo data instead",
-        status: "warning",
-        duration: 5000,
-        isClosable: true,
-      });
-      
-      // Fallback to mock data
-      setTickets(mockTickets);
-      setFilteredTickets(mockTickets);
-      setUsingMockData(true);
-    }
-  }, [isConnected, address, userNFTsQuery.data, userNFTsQuery.isError, userNFTsQuery.error, toast]);
+      try {
+        console.log("🎫 Loading user's ticket NFTs...");
+        
+        // Get user's NFT tickets
+        const userNFTs = await getUserTicketNFTs();
+        
+        if (userNFTs.length === 0) {
+          console.log("No NFT tickets found");
+          setTickets([]);
+          setFilteredTickets([]);
+          setUsingMockData(false);
+          return;
+        }
+
+        // Convert NFT metadata to Ticket format (enhanced metadata has all info)
+        const convertedTickets: Ticket[] = userNFTs.map(nft => {
+          const ticket = convertNFTToTicket(nft);
+          console.log("✅ Converted NFT to ticket:", ticket);
+          return ticket;
+        });
+
+        setTickets(convertedTickets);
+        setFilteredTickets(convertedTickets);
+        setUsingMockData(false);
+        
+        console.log("✅ Loaded", convertedTickets.length, "ticket(s)");
+        
+      } catch (err) {
+        console.error("Error loading user tickets:", err);
+        toast({
+          title: "Error loading tickets",
+          description: "Using demo data instead",
+          status: "warning",
+          duration: 5000,
+          isClosable: true,
+        });
+        
+        // Fallback to mock data
+        setTickets(mockTickets);
+        setFilteredTickets(mockTickets);
+        setUsingMockData(true);
+      } finally {
+        setIsLoadingTickets(false);
+      }
+    };
+
+    loadUserTickets();
+  }, [isConnected, address, getUserTicketNFTs, toast]);
 
   const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
     const query = event.target.value.toLowerCase();
@@ -245,8 +255,6 @@ export const MyTicketsPage: React.FC = () => {
       return;
     }
 
-    setUpdateLoading(true);
-    
     try {
       toast({
         title: "Updating NFT metadata...",
@@ -287,8 +295,6 @@ export const MyTicketsPage: React.FC = () => {
         duration: 3000,
         isClosable: true,
       });
-    } finally {
-      setUpdateLoading(false);
     }
   };
 
@@ -309,7 +315,7 @@ export const MyTicketsPage: React.FC = () => {
               variant="outline"
               size="sm"
               onClick={handleUpdateMetadata}
-              isLoading={updateLoading}
+              isLoading={loading}
               isDisabled={!isConnected || usingMockData}
             >
               Update NFT Metadata

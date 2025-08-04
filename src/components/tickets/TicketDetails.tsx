@@ -222,13 +222,8 @@ export const TicketDetails: React.FC<TicketDetailsProps> = ({ ticket }) => {
                     </Text>
                     <Flex justify="center">
                       <QRCode
-                        ticketId={ticket.tokenId || ticket.id}
+                        ticketId={ticket.id}
                         eventId={ticket.eventId}
-                        eventName={ticket.eventName}
-                        eventDate={ticket.eventDate}
-                        venue={ticket.eventLocation}
-                        tierName={ticket.ticketType}
-                        ownerAddress={ticket.ownerAddress}
                         size={200}
                       />
                     </Flex>
