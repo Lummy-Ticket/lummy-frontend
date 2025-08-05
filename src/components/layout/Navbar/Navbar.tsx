@@ -28,7 +28,7 @@ import { FaWallet, FaCoins } from "react-icons/fa";
 import { ConnectButton } from "@xellar/kit";
 import { useAccount, useBalance } from "wagmi";
 import { formatUnits } from "viem";
-import { IDRX_SEPOLIA } from "../../../constants";
+import { IDRX_SEPOLIA, IDRX_DECIMALS } from "../../../constants";
 import { truncateAddress } from "../../../utils/string";
 import { useRole } from "../../../context/RoleContext";
 import RoleSwitcher from "../../common/RoleSwitcher";
@@ -192,7 +192,7 @@ export const Navbar: React.FC = () => {
     query: { enabled: !!address },
   });
 
-  const formatted = data ? formatUnits(data.value, 2) : "0";
+  const formatted = data ? formatUnits(data.value, IDRX_DECIMALS) : "0";
 
   // Individual navigation item with improved active indicator
   const NavLink = ({

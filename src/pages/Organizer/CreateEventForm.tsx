@@ -30,6 +30,7 @@ import ResellSettings, {
   ResellSettingsData,
 } from "../../components/organizer/ResellSettings";
 import { useSmartContract } from "../../hooks/useSmartContract";
+import { uploadToIPFS, getIPFSUrl } from "../../services/IPFSService";
 
 const CreateEventForm: React.FC = () => {
   const navigate = useNavigate();
@@ -48,6 +49,14 @@ const CreateEventForm: React.FC = () => {
     endTime: "",
     category: "",
     eventImage: null as File | null,
+    eventImageHash: "", // IPFS hash untuk event image
+  });
+
+  // Upload state
+  const [uploadStatus, setUploadStatus] = useState({
+    uploading: false,
+    uploaded: false,
+    error: null as string | null,
   });
 
   // Ticket tiers state
@@ -90,7 +99,63 @@ const CreateEventForm: React.FC = () => {
     }
   };
 
-  const { initializeEvent, addTicketTier, setResaleRules, loading, error } = useSmartContract();
+  // Handle event image upload ke IPFS
+  const handleEventImageUpload = async (file: File) => {
+    setUploadStatus({
+      uploading: true,
+      uploaded: false,
+      error: null,
+    });
+
+    try {
+      console.log("📤 Uploading event image to IPFS...");
+      const result = await uploadToIPFS(file, `event-${Date.now()}.${file.name.split('.').pop()}`);
+      
+      if (result.success && result.hash) {
+        setEventData(prev => ({
+          ...prev,
+          eventImage: file,
+          eventImageHash: result.hash!
+        }));
+        
+        setUploadStatus({
+          uploading: false,
+          uploaded: true,
+          error: null,
+        });
+
+        toast({
+          title: "Image uploaded successfully!",
+          description: `Event image uploaded to IPFS: ${result.hash}`,
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+
+        console.log("✅ Event image uploaded:", result.hash);
+      } else {
+        throw new Error(result.error || "Upload failed");
+      }
+    } catch (error) {
+      console.error("❌ Image upload failed:", error);
+      
+      setUploadStatus({
+        uploading: false,
+        uploaded: false,
+        error: error instanceof Error ? error.message : "Upload failed",
+      });
+
+      toast({
+        title: "Image upload failed",
+        description: error instanceof Error ? error.message : "Failed to upload image",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const { initializeEvent, addTicketTier, setResaleRules, clearTiers, loading, error } = useSmartContract();
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -117,6 +182,17 @@ const CreateEventForm: React.FC = () => {
 
     // Call createEvent function from hook
     try {
+      // Step 0: Clear existing tiers terlebih dahulu (fix untuk tier reset issue)
+      console.log("🧹 Step 0: Clearing existing tiers...");
+      const clearResult = await clearTiers();
+      
+      if (!clearResult) {
+        console.warn("⚠️ Clear tiers failed, but continuing with event creation");
+        // Tetap lanjut karena mungkin ini event pertama dan ga ada tier existing
+      } else {
+        console.log("✅ Tiers cleared successfully:", clearResult);
+      }
+
       // Step 1: Initialize the event
       console.log("🚀 Step 1: Initializing event...");
       const eventResult = await initializeEvent(
@@ -124,7 +200,8 @@ const CreateEventForm: React.FC = () => {
         eventData.description,
         eventDate,
         eventData.venue || eventData.address,
-        "" // ipfsMetadata (empty for now)
+        eventData.eventImageHash, // Pass IPFS hash ke contract
+        eventData.category // Pass category ke contract
       );
 
       if (!eventResult) {
@@ -140,11 +217,17 @@ const CreateEventForm: React.FC = () => {
       for (const tier of ticketTiers) {
         try {
           console.log(`Creating tier: ${tier.name} - ${tier.price} IDRX`);
+          
+          // Convert benefits array ke JSON string untuk contract
+          const benefitsJson = JSON.stringify(tier.benefits || []);
+          
           const tierResult = await addTicketTier(
             tier.name,
             tier.price,
             tier.quantity,
-            tier.maxPerPurchase
+            tier.maxPerPurchase,
+            tier.description || "", // Pass description
+            benefitsJson            // Pass benefits sebagai JSON string
           );
           
           if (tierResult) {
@@ -277,6 +360,72 @@ const CreateEventForm: React.FC = () => {
                 <option value="education">Education</option>
                 <option value="other">Other</option>
               </Select>
+            </FormControl>
+
+            {/* Event Image Upload */}
+            <FormControl>
+              <FormLabel>Event Poster Image</FormLabel>
+              <VStack spacing={3} align="stretch">
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={async (e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      await handleEventImageUpload(e.target.files[0]);
+                    }
+                  }}
+                  disabled={uploadStatus.uploading}
+                />
+                <FormHelperText>
+                  Upload event poster image (PNG, JPG, etc.). Max 10MB.
+                </FormHelperText>
+                
+                {uploadStatus.uploading && (
+                  <Alert status="info">
+                    <AlertIcon />
+                    Uploading to IPFS...
+                  </Alert>
+                )}
+                
+                {uploadStatus.uploaded && eventData.eventImageHash && (
+                  <Alert status="success">
+                    <AlertIcon />
+                    <VStack align="start" spacing={1}>
+                      <Text>Image uploaded successfully!</Text>
+                      <Text fontSize="sm" color="gray.600">
+                        IPFS Hash: {eventData.eventImageHash}
+                      </Text>
+                      <Text fontSize="sm" color="blue.600">
+                        URL: {getIPFSUrl(eventData.eventImageHash)}
+                      </Text>
+                    </VStack>
+                  </Alert>
+                )}
+                
+                {uploadStatus.error && (
+                  <Alert status="error">
+                    <AlertIcon />
+                    Upload failed: {uploadStatus.error}
+                  </Alert>
+                )}
+                
+                {/* Image preview */}
+                {eventData.eventImage && (
+                  <Box>
+                    <Text fontSize="sm" mb={2}>Preview:</Text>
+                    <img
+                      src={URL.createObjectURL(eventData.eventImage)}
+                      alt="Event preview"
+                      style={{
+                        maxWidth: "200px",
+                        maxHeight: "150px",
+                        borderRadius: "8px",
+                        border: "1px solid #e2e8f0"
+                      }}
+                    />
+                  </Box>
+                )}
+              </VStack>
             </FormControl>
           </VStack>
         </Box>

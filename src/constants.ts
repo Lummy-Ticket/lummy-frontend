@@ -1,14 +1,20 @@
-// IDRX Token on Lisk Sepolia
-export const IDRX_LISK_SEPOLIA = "0xD63029C1a3dA68b51c67c6D1DeC3DEe50D681661";
+// IDRX Token on Lisk Sepolia (FINAL DEPLOYMENT)
+export const IDRX_LISK_SEPOLIA = "0x1B541Aa4fb31A4d7fd09eAb0eE1D10Bb659737f5";
 // Legacy naming for compatibility
 export const IDRX_SEPOLIA = IDRX_LISK_SEPOLIA;
 
-// Contract addresses - DEPLOYED ON LISK SEPOLIA (UPDATED)
+// Contract addresses - DEPLOYED ON LISK SEPOLIA (FINAL DEPLOYMENT WITH ALL NEW FEATURES)
 export const CONTRACT_ADDRESSES = {
-  DiamondLummy: "0x954d6EFb8d83ef0b5219e3d53546f449906ee7c4", // Main Diamond contract (NEW)
-  MockIDRX: "0x1268A3cAe5f29131DFe3fC27Bc242702B62e3376",    // IDRX token on Lisk Sepolia (NEW)
-  TrustedForwarder: "0xC6dB67E900c9966F6F68a0c2fB8d6CE0A5b1C346", // SimpleForwarder for gasless txs (NEW)
-  TicketNFT: "0x7f504E678fB01F42015a6EbD3d30DAF5f69cAc59",    // TicketNFT contract (NEW)
+  DiamondLummy: "0xE85dAB17A6BD23CFb75B9C3fB485F5907DFB0239",     // Main Diamond contract (FINAL)
+  MockIDRX: "0x1B541Aa4fb31A4d7fd09eAb0eE1D10Bb659737f5",        // IDRX token on Lisk Sepolia (FINAL)
+  TrustedForwarder: "0x6506b282Bd4e20683d93DAeaBD0Cbd877903e43b", // SimpleForwarder for gasless txs (FINAL)
+  TicketNFT: "0x7076657b501EDA89f43682df965bE50eD209F5A5",        // TicketNFT contract (FINAL)
+  
+  // Diamond Facets (for reference - all integrated into DiamondLummy)
+  EventCoreFacet: "0x51651A4D3Fa7C674f254F528941d9AbB171717b9",     // Contains clearAllTiers() & getIPFSMetadata()
+  TicketPurchaseFacet: "0x51651A4D3Fa7C674f254F528941d9AbB171717b9",  // Ticket purchasing logic
+  MarketplaceFacet: "0xC35d98ABc842Cff1a0EC2809d3F5c050C5746b6a",    // Marketplace & resale logic
+  StaffManagementFacet: "0x62BC6B9A5ff552d259d9d5130d9855Edd0cb9FB4", // Staff management
 } as const;
 
 // Contract constants (from smart contract - UPDATED FOR 7%/3% FEE STRUCTURE)
@@ -54,3 +60,11 @@ export const UI_CONFIG = {
     MAX: { width: 1024, height: 1024 },
   },
 };
+
+// Chain Configuration
+export const CHAIN_CONFIG = {
+  chainId: 4202,
+  name: "Lisk Sepolia",
+  rpcUrl: "https://rpc.sepolia-api.lisk.com",
+  blockExplorer: "https://sepolia-blockscout.lisk.com",
+} as const;

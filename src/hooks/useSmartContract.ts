@@ -14,7 +14,7 @@ import {
 } from "../utils/contractUtils";
 
 /**
- * Interface for Event data returned from Diamond contracts
+ * Interface for Event data returned from Diamond contracts (updated dengan category)
  */
 export interface EventData {
   eventId: bigint;
@@ -23,13 +23,14 @@ export interface EventData {
   date: bigint;  // Unix timestamp
   venue: string;
   ipfsMetadata: string;
+  category: string;       // Field baru untuk event category
   organizer: string;
   cancelled: boolean;
   completed: boolean;
 }
 
 /**
- * Interface for Ticket Tier data from contracts (legacy - use ContractTicketTier)
+ * Interface for Ticket Tier data from contracts (updated with description & benefits)
  */
 export interface TicketTierData {
   name: string;
@@ -38,6 +39,8 @@ export interface TicketTierData {
   sold: bigint;
   maxPerPurchase: bigint;
   active: boolean;
+  description: string;
+  benefits: string;  // JSON string
 }
 
 /**
@@ -81,12 +84,13 @@ export const useSmartContract = () => {
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * Initializes a new event using Diamond pattern (replaces createEvent)
+   * Initializes a new event using Diamond pattern (updated dengan category)
    * @param name Event name
    * @param description Event description
    * @param date Event date
    * @param venue Event venue
    * @param ipfsMetadata Additional metadata in IPFS
+   * @param category Event category
    * @returns Transaction hash if successful, null otherwise
    */
   const initializeEvent = useCallback(
@@ -95,7 +99,8 @@ export const useSmartContract = () => {
       description: string,
       date: Date,
       venue: string,
-      ipfsMetadata: string = ""
+      ipfsMetadata: string = "",
+      category: string = ""
     ) => {
       if (!walletClient || !address || !publicClient) {
         setError("Wallet not connected or provider not available");
@@ -109,12 +114,12 @@ export const useSmartContract = () => {
         // Convert date to unix timestamp in seconds
         const dateTimestamp = parseContractDate(date.toISOString());
 
-        // Call initialize function on Diamond contract (EventCoreFacet)
+        // Call initialize function on Diamond contract (EventCoreFacet) dengan category
         const hash = await walletClient.writeContract({
           address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
           abi: EVENT_CORE_FACET_ABI,
           functionName: "initialize",
-          args: [address, name, description, dateTimestamp, venue, ipfsMetadata],
+          args: [address, name, description, dateTimestamp, venue, ipfsMetadata, category],
         });
 
         // Wait for receipt
@@ -149,7 +154,7 @@ export const useSmartContract = () => {
         address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
         abi: EVENT_CORE_FACET_ABI,
         functionName: "getEventInfo",
-      }) as [string, string, bigint, string, string];
+      }) as [string, string, bigint, string, string, string]; // Updated: tambah category field
 
       const [cancelled, completed] = await publicClient.readContract({
         address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
@@ -163,7 +168,8 @@ export const useSmartContract = () => {
         description: eventInfo[1],
         date: eventInfo[2],
         venue: eventInfo[3],
-        organizer: eventInfo[4],
+        category: eventInfo[4],  // Field baru
+        organizer: eventInfo[5], // Index berubah karena ada category
         cancelled,
         completed,
         ipfsMetadata: "", // Need to get from storage
@@ -209,7 +215,7 @@ export const useSmartContract = () => {
           abi: EVENT_CORE_FACET_ABI,
           functionName: "getTicketTier",
           args: [BigInt(i)],
-        })) as [string, bigint, bigint, bigint, bigint, boolean];
+        })) as [string, bigint, bigint, bigint, bigint, boolean, string, string];
 
         console.log(`🔍 Raw tier ${i}:`, tier);
 
@@ -220,6 +226,8 @@ export const useSmartContract = () => {
           sold: (tier as any).sold || tier[3],
           maxPerPurchase: (tier as any).maxPerPurchase || tier[4],
           active: (tier as any).active || tier[5],
+          description: (tier as any).description || tier[6],
+          benefits: (tier as any).benefits || tier[7],
         };
 
         console.log(`🔍 Formatted tier ${i}:`, tierData);
@@ -279,11 +287,13 @@ export const useSmartContract = () => {
   );
 
   /**
-   * Adds a new ticket tier to the Diamond contract
+   * Adds a new ticket tier to the Diamond contract (updated dengan description & benefits)
    * @param name Tier name
    * @param price Price in IDRX tokens (will be converted to Wei)
    * @param available Number of tickets available
    * @param maxPerPurchase Maximum tickets per purchase
+   * @param description Tier description
+   * @param benefits Benefits JSON string
    * @returns Transaction hash if successful
    */
   const addTicketTier = useCallback(
@@ -291,7 +301,9 @@ export const useSmartContract = () => {
       name: string,
       price: number,
       available: number,
-      maxPerPurchase: number
+      maxPerPurchase: number,
+      description: string = "",
+      benefits: string = "[]"
     ) => {
       if (!walletClient || !address) {
         setError("Wallet not connected");
@@ -317,7 +329,7 @@ export const useSmartContract = () => {
           address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
           abi: EVENT_CORE_FACET_ABI,
           functionName: "addTicketTier",
-          args: [name, priceInWei, BigInt(available), BigInt(maxPerPurchase)],
+          args: [name, priceInWei, BigInt(available), BigInt(maxPerPurchase), description, benefits],
         });
 
         console.log("✅ Transaction sent:", hash);
@@ -751,6 +763,45 @@ export const useSmartContract = () => {
   );
 
   /**
+   * Clears all ticket tiers (untuk fix tier reset issue)
+   * @dev Fungsi ini harus dipanggil sebelum initializeEvent untuk event baru
+   * @returns Transaction hash if successful
+   */
+  const clearTiers = useCallback(
+    async () => {
+      if (!walletClient || !address) {
+        setError("Wallet not connected");
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        console.log("🧹 Clearing all tiers before creating new event...");
+        
+        const hash = await walletClient.writeContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: EVENT_CORE_FACET_ABI,
+          functionName: "clearAllTiers",
+          args: [],
+        });
+
+        await publicClient?.waitForTransactionReceipt({ hash });
+        console.log("✅ Tiers cleared successfully:", hash);
+        return hash;
+      } catch (err) {
+        console.error("Error clearing tiers:", err);
+        setError(parseContractError(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [walletClient, address, publicClient]
+  );
+
+  /**
    * Sets resale rules for the event
    * @param maxMarkupPercentage Maximum markup percentage (e.g., 20 for 20%)
    * @param organizerFeePercentage Organizer fee percentage (e.g., 2.5 for 2.5%)
@@ -820,6 +871,7 @@ export const useSmartContract = () => {
     getTicketTiers,
     setTicketNFT,
     addTicketTier,
+    clearTiers, // Fungsi baru untuk reset tiers
     setResaleRules,
     
     // Ticket operations

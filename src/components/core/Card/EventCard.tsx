@@ -2,6 +2,7 @@ import React from "react";
 import { Box, Image, Text, Flex, Badge, VStack } from "@chakra-ui/react";
 import { Event } from "../../../types/Event";
 import { Card } from "./Card";
+import { getIPFSUrl, isValidIPFSHash } from "../../../services/IPFSService";
 
 // Simple formatter for dates
 const formatDate = (dateString: string): string => {
@@ -21,6 +22,22 @@ interface EventCardProps {
 export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
   const { title, date, location, imageUrl, price, category, status, currency } =
     event;
+
+  // Handle IPFS image URLs
+  const getImageUrl = () => {
+    if (!imageUrl) {
+      // Default placeholder image jika tidak ada image
+      return "/api/placeholder/400/200";
+    }
+    
+    // Jika imageUrl adalah IPFS hash, convert ke full URL
+    if (isValidIPFSHash(imageUrl)) {
+      return getIPFSUrl(imageUrl);
+    }
+    
+    // Jika sudah full URL, return as is
+    return imageUrl;
+  };
 
   return (
     <Card
@@ -43,11 +60,12 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
     >
       <Box position="relative">
         <Image
-          src={imageUrl}
+          src={getImageUrl()}
           alt={title}
           height="200px"
           width="100%"
           objectFit="cover"
+          fallbackSrc="/api/placeholder/400/200" // Fallback jika IPFS image gagal load
         />
         
         {/* Top right badges */}

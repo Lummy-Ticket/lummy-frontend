@@ -77,7 +77,7 @@ const EventsPage: React.FC = () => {
               price: 0, // Will be updated when tiers are loaded
               currency: "IDRX", // Add currency for price display
               imageUrl: "/api/placeholder/300/200", // Placeholder image
-              category: "blockchain",
+              category: eventInfo.category || "Event",
               status: eventInfo.cancelled ? "soldout" : "available",
               organizer: {
                 id: eventInfo.organizer,
