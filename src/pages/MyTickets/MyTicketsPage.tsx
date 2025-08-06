@@ -124,7 +124,8 @@ export const MyTicketsPage: React.FC = () => {
   // Smart contract hooks
   const { 
     getUserTicketNFTs,
-    updateUserNFTsMetadata, 
+    getEventInfo,
+    getTicketTiers,
     loading 
   } = useSmartContract();
 
@@ -161,21 +162,42 @@ export const MyTicketsPage: React.FC = () => {
       try {
         console.log("🎫 Loading user's ticket NFTs...");
         
-        // Get user's NFT tickets
+        // Get user's NFT tickets and current event info
+        console.log("📞 Calling getUserTicketNFTs...");
         const userNFTs = await getUserTicketNFTs();
+        console.log("📦 getUserTicketNFTs returned:", userNFTs.length, "NFTs");
+        
+        // Get current event info and tiers from Diamond contract to fill missing metadata
+        console.log("📞 Getting event info from Diamond contract...");
+        const eventInfo = await getEventInfo();
+        const tiers = await getTicketTiers();
+        console.log("📦 Event info:", eventInfo);
+        console.log("📦 Tiers:", tiers);
         
         if (userNFTs.length === 0) {
           console.log("No NFT tickets found");
           setTickets([]);
           setFilteredTickets([]);
           setUsingMockData(false);
+          setIsLoadingTickets(false); // Explicitly set loading to false
           return;
         }
 
-        // Convert NFT metadata to Ticket format (enhanced metadata has all info)
+        // Convert NFT metadata to Ticket format with event info from Diamond contract
         const convertedTickets: Ticket[] = userNFTs.map(nft => {
-          const ticket = convertNFTToTicket(nft);
-          console.log("✅ Converted NFT to ticket:", ticket);
+          // Enhanced conversion with actual event data
+          const tierData = tiers?.[nft.tierId] || null;
+          const enhancedNFT = {
+            ...nft,
+            eventName: eventInfo?.name || "Unknown Event",
+            eventVenue: eventInfo?.venue || "Unknown Venue", 
+            eventDate: eventInfo?.date || 0,
+            tierName: tierData?.name || `Tier ${nft.tierId}`,
+            organizerName: eventInfo?.organizer || "Unknown Organizer"
+          };
+          
+          const ticket = convertNFTToTicket(enhancedNFT);
+          console.log("✅ Enhanced NFT to ticket:", ticket);
           return ticket;
         });
 
@@ -184,6 +206,7 @@ export const MyTicketsPage: React.FC = () => {
         setUsingMockData(false);
         
         console.log("✅ Loaded", convertedTickets.length, "ticket(s)");
+        console.log("🏁 Setting isLoadingTickets to false in success case");
         
       } catch (err) {
         console.error("Error loading user tickets:", err);
@@ -205,7 +228,7 @@ export const MyTicketsPage: React.FC = () => {
     };
 
     loadUserTickets();
-  }, [isConnected, address, getUserTicketNFTs, toast]);
+  }, [isConnected, address, toast]); // Remove getUserTicketNFTs from dependency to prevent infinite loops
 
   const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
     const query = event.target.value.toLowerCase();
@@ -241,61 +264,6 @@ export const MyTicketsPage: React.FC = () => {
     }
   };
 
-  // Handle updating NFT metadata
-  const handleUpdateMetadata = async () => {
-    if (!isConnected) {
-      toast({
-        title: "Wallet not connected",
-        description: "Connect your wallet to update NFT metadata",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    try {
-      toast({
-        title: "Updating NFT metadata...",
-        description: "This may take a few moments",
-        status: "info",
-        duration: 3000,
-        isClosable: true,
-      });
-
-      const updatedCount = await updateUserNFTsMetadata();
-
-      if (updatedCount > 0) {
-        toast({
-          title: "NFT metadata updated!",
-          description: `Updated ${updatedCount} NFT(s) with enhanced metadata`,
-          status: "success",
-          duration: 5000,
-          isClosable: true,
-        });
-
-        // Reload tickets to show updated data
-        window.location.reload();
-      } else {
-        toast({
-          title: "No NFTs updated",
-          description: "No NFTs found to update or metadata already current",
-          status: "warning",
-          duration: 3000,
-          isClosable: true,
-        });
-      }
-    } catch (err) {
-      console.error("Error updating metadata:", err);
-      toast({
-        title: "Update failed",
-        description: "Could not update NFT metadata",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-    }
-  };
 
   return (
     <Container maxW="container.xl" py={8}>
@@ -309,17 +277,6 @@ export const MyTicketsPage: React.FC = () => {
           </Box>
 
           <HStack spacing={4}>
-            <Button
-              colorScheme="purple"
-              variant="outline"
-              size="sm"
-              onClick={handleUpdateMetadata}
-              isLoading={loading}
-              isDisabled={!isConnected || usingMockData}
-            >
-              Update NFT Metadata
-            </Button>
-            
             <InputGroup maxW="300px">
               <InputLeftElement pointerEvents="none">
                 <Icon as={FaSearch} color="gray.400" />
@@ -334,7 +291,7 @@ export const MyTicketsPage: React.FC = () => {
         </HStack>
 
         {/* Loading State */}
-        {isLoadingTickets && (
+        {(isLoadingTickets || loading) && (
           <Box textAlign="center" py={10}>
             <Spinner size="xl" color="purple.500" />
             <Text mt={4} color="gray.600">Loading your NFT tickets...</Text>
@@ -342,7 +299,7 @@ export const MyTicketsPage: React.FC = () => {
         )}
 
         {/* Status Messages */}
-        {!isLoadingTickets && usingMockData && (
+        {!isLoadingTickets && !loading && usingMockData && (
           <Alert status="info" borderRadius="md">
             <AlertIcon />
             <VStack align="start" spacing={1}>
@@ -356,7 +313,7 @@ export const MyTicketsPage: React.FC = () => {
           </Alert>
         )}
 
-        {!isLoadingTickets && !usingMockData && tickets.length === 0 && isConnected && (
+        {!isLoadingTickets && !loading && !usingMockData && tickets.length === 0 && isConnected && (
           <Alert status="info" borderRadius="md">
             <AlertIcon />
             <VStack align="start" spacing={1}>
@@ -370,7 +327,7 @@ export const MyTicketsPage: React.FC = () => {
           </Alert>
         )}
 
-        {!isLoadingTickets && (
+        {!isLoadingTickets && !loading && (
           <Tabs colorScheme="purple" variant="enclosed">
           <TabList>
             <Tab onClick={() => filterByStatus("all")}>All Tickets</Tab>

@@ -356,7 +356,7 @@ const CreateEventForm: React.FC = () => {
                 <option value="music">Music</option>
                 <option value="technology">Technology</option>
                 <option value="sport">Sport</option>
-                <option value="arts">Arts & Theater</option>
+                <option value="arts">Arts</option>
                 <option value="education">Education</option>
                 <option value="other">Other</option>
               </Select>

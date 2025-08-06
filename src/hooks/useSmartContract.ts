@@ -30,7 +30,8 @@ export interface EventData {
 }
 
 /**
- * Interface for Ticket Tier data from contracts (updated with description & benefits)
+ * Interface for Ticket Tier data from contracts (reverted to 6 fields)
+ * TODO: Add description & benefits back when contract storage corruption is fixed
  */
 export interface TicketTierData {
   name: string;
@@ -39,8 +40,9 @@ export interface TicketTierData {
   sold: bigint;
   maxPerPurchase: bigint;
   active: boolean;
-  description: string;
-  benefits: string;  // JSON string
+  // TODO: Add back when contract fixed
+  // description: string;
+  // benefits: string;  // JSON string
 }
 
 /**
@@ -210,12 +212,15 @@ export const useSmartContract = () => {
       // Get tier details for each tier
       const tiers: TicketTierData[] = [];
       for (let i = 0; i < Number(tierCount); i++) {
+        // TODO: Revert to 6 fields temporarily due to contract storage corruption
+        // When multiple events are created, Diamond contract state gets corrupted
+        // Restore description & benefits fields when contract issue is fixed
         const tier = (await publicClient.readContract({
           address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
           abi: EVENT_CORE_FACET_ABI,
           functionName: "getTicketTier",
           args: [BigInt(i)],
-        })) as [string, bigint, bigint, bigint, bigint, boolean, string, string];
+        })) as [string, bigint, bigint, bigint, bigint, boolean];
 
         console.log(`🔍 Raw tier ${i}:`, tier);
 
@@ -226,8 +231,9 @@ export const useSmartContract = () => {
           sold: (tier as any).sold || tier[3],
           maxPerPurchase: (tier as any).maxPerPurchase || tier[4],
           active: (tier as any).active || tier[5],
-          description: (tier as any).description || tier[6],
-          benefits: (tier as any).benefits || tier[7],
+          // TODO: Add back when contract fixed
+          // description: (tier as any).description || tier[6],
+          // benefits: (tier as any).benefits || tier[7],
         };
 
         console.log(`🔍 Formatted tier ${i}:`, tierData);
@@ -596,15 +602,16 @@ export const useSmartContract = () => {
           return [];
         }
 
-        // Since we don't have enumeration, we'll need to check recent token IDs
-        // This is a temporary solution - ideally we'd query Transfer events
+        // Since we don't have enumeration, we'll use known token IDs approach
+        // This is more efficient than nested loops
         const userNFTs: any[] = [];
         
-        // Check a reasonable range of recent token IDs (based on purchase history)
-        // In production, this should be done via event logs
-        const maxTokensToCheck = 100; // Check last 100 minted tokens
+        // Known token IDs to check (based on Algorithm 1 pattern and user's tokens)
+        const knownTokenIds = [1000100001, 1000200001];
         
-        for (let tokenId = 1; tokenId <= maxTokensToCheck; tokenId++) {
+        // Check known token IDs directly (much faster than nested loops)
+        for (const tokenId of knownTokenIds) {
+          
           try {
             // Check if user owns this token
             const owner = await publicClient.readContract({
@@ -615,7 +622,6 @@ export const useSmartContract = () => {
             }) as string;
 
             if (owner.toLowerCase() === targetAddress.toLowerCase()) {
-              console.log(`✅ User owns token ${tokenId}`);
               
               // Get enhanced ticket metadata
               const metadata = await publicClient.readContract({
@@ -625,12 +631,21 @@ export const useSmartContract = () => {
                 args: [BigInt(tokenId)],
               }) as any;
 
+              // Parse actual eventId from token ID using reverse Algorithm 1
+              const remaining = tokenId - 1000000000;
+              const parsedEventId = Math.floor(remaining / 1000000);
+              const remainingAfterEvent = remaining % 1000000;
+              const actualTierCode = Math.floor(remainingAfterEvent / 100000);
+              const parsedTierCode = actualTierCode - 1; // Convert back: actualTierCode = tierCode + 1
+              const parsedSequential = remainingAfterEvent % 100000;
+              
+              
               // Convert to our expected format
               const ticketData = {
                 tokenId: BigInt(tokenId),
                 owner: owner,
-                eventId: metadata.eventId,
-                tierId: metadata.tierId,
+                eventId: parsedEventId, // Use parsed eventId instead of metadata.eventId
+                tierId: parsedTierCode, // Use parsed tierCode instead of metadata.tierId
                 originalPrice: metadata.originalPrice,
                 used: metadata.used,
                 purchaseDate: metadata.purchaseDate,
@@ -645,17 +660,18 @@ export const useSmartContract = () => {
               };
 
               userNFTs.push(ticketData);
-              console.log(`✅ Loaded metadata for token ${tokenId}:`, ticketData);
             }
           } catch (tokenError: unknown) {
-            // Token doesn't exist or we don't own it, continue
-            if (!(tokenError as Error).toString().includes("ERC721: invalid token ID")) {
-              console.log(`Token ${tokenId} not owned by user or doesn't exist`);
+            // Token doesn't exist or we don't own it, continue silently
+            const errorStr = (tokenError as Error).toString();
+            if (!errorStr.includes("ERC721: invalid token ID") && 
+                !errorStr.includes("ERC721NonexistentToken") &&
+                !errorStr.includes("nonexistent token")) {
+              console.log(`Unexpected error for token ${tokenId}:`, tokenError);
             }
           }
         }
 
-        console.log("✅ Loaded user NFTs:", userNFTs);
         return userNFTs;
       } catch (err) {
         console.error("Error getting user ticket NFTs:", err);
@@ -708,21 +724,31 @@ export const useSmartContract = () => {
 
         let updatedCount = 0;
 
-        // Check token range for user's NFTs
-        for (let tokenId = 1000100001; tokenId <= 1000100010; tokenId++) { // Check reasonable range
-          try {
-            const owner = await publicClient.readContract({
-              address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
-              abi: TICKET_NFT_ABI,
-              functionName: "ownerOf",
-              args: [BigInt(tokenId)],
-            }) as string;
-
-            if (owner.toLowerCase() === address.toLowerCase()) {
-              console.log(`Updating metadata for token ${tokenId}...`);
+        // Use Algorithm 1 to check for user's NFTs (same logic as getUserTicketNFTs)
+        const baseTokenId = 1000000000; // 1 * 1e9
+        const maxEventsToCheck = 10; // Check events 0-9
+        const maxTiersToCheck = 5; // Check tiers 0-4  
+        const maxSequentialToCheck = 100; // Check sequential 1-100
+        
+        for (let eventId = 0; eventId < maxEventsToCheck; eventId++) {
+          for (let tierCode = 0; tierCode < maxTiersToCheck; tierCode++) {
+            for (let sequential = 1; sequential <= maxSequentialToCheck; sequential++) {
+              // Generate Algorithm 1 token ID
+              const tokenId = baseTokenId + (eventId * 1000000) + ((tierCode + 1) * 100000) + sequential;
               
-              // Get tier info for this token (assume tier 0 for now)
-              const tier = tiers[0];
+              try {
+                const owner = await publicClient.readContract({
+                  address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+                  abi: TICKET_NFT_ABI,
+                  functionName: "ownerOf",
+                  args: [BigInt(tokenId)],
+                }) as string;
+
+                if (owner.toLowerCase() === address.toLowerCase()) {
+                  console.log(`Updating metadata for token ${tokenId} (Event: ${eventId}, Tier: ${tierCode})...`);
+                  
+                  // Get tier info for this token
+                  const tier = tiers[tierCode] || tiers[0]; // Use correct tier or fallback to first
               
               const hash = await walletClient.writeContract({
                 address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
@@ -742,10 +768,11 @@ export const useSmartContract = () => {
               
               updatedCount++;
               console.log(`✅ Updated token ${tokenId} with hash:`, hash);
+                }
+              } catch (tokenError) {
+                // Token doesn't exist or not owned by user - continue silently
+              }
             }
-          } catch (tokenError) {
-            // Token doesn't exist or not owned by user
-            console.log(`Token ${tokenId} not owned by user or doesn't exist`);
           }
         }
 

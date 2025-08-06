@@ -206,8 +206,9 @@ export const EventDetailPage: React.FC = () => {
                 const sold = (tier as any).sold || 0;
                 const maxPerPurchase = (tier as any).maxPerPurchase || 0;
                 const name = (tier as any).name || `Tier ${index + 1}`;
-                const description = (tier as any).description || name;
-                const benefits = (tier as any).benefits || "[]";
+                
+                // TODO: Temporarily removed description & benefits due to contract storage corruption
+                // Restore when contract issue is fixed
                 
                 console.log(`🎫 Processing tier ${index}:`, {
                   name,
@@ -215,31 +216,18 @@ export const EventDetailPage: React.FC = () => {
                   priceIDRX: Number(price) / 1e18,
                   available,
                   sold,
-                  maxPerPurchase,
-                  description,
-                  benefits
+                  maxPerPurchase
                 });
-                
-                // Parse benefits JSON if it's a string
-                let parsedBenefits: string[] = [];
-                try {
-                  if (typeof benefits === 'string' && benefits.trim() !== '' && benefits !== '[]') {
-                    parsedBenefits = JSON.parse(benefits);
-                  }
-                } catch (e) {
-                  console.warn(`Failed to parse benefits for tier ${index}:`, benefits);
-                  parsedBenefits = [];
-                }
                 
                 return {
                   id: index.toString(),
                   name,
                   price: Number(price) / 1e18, // Convert Wei to IDRX
                   currency: "IDRX",
-                  description,
+                  description: name, // TODO: Use tier.description when contract fixed
                   available: Number(available) - Number(sold),
                   maxPerPurchase: Number(maxPerPurchase),
-                  benefits: parsedBenefits,
+                  benefits: [], // TODO: Parse tier.benefits when contract fixed
                 };
               });
 
