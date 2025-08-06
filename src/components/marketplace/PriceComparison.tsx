@@ -70,24 +70,6 @@ export const PriceComparison: React.FC<PriceComparisonProps> = ({
               {currency} {originalPrice.toLocaleString()}
             </Text>
           </HStack>
-          
-          <Divider />
-          
-          {/* Resale Fee Display */}
-          <Box
-            p={2}
-            borderRadius="md"
-            bg="purple.50"
-            borderWidth="1px"
-            borderColor="purple.200"
-          >
-            <FeeDisplay
-              price={resalePrice}
-              isResale={true}
-              showBreakdown={true}
-              size="sm"
-            />
-          </Box>
         </VStack>
       )}
     </Box>

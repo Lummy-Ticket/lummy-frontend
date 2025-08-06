@@ -18,7 +18,7 @@ Highlights include:
 - Free water stations throughout the venue
 
 Don't miss out on the biggest music event of the summer!`,
-    date: "2025-06-15T12:00:00",
+    date: "2025-08-15T12:00:00",
     time: "12:00 PM",
     endTime: "11:00 PM",
     location: "Jakarta Convention Center",

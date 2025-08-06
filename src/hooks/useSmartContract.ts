@@ -864,6 +864,50 @@ export const useSmartContract = () => {
     [walletClient, address, publicClient]
   );
 
+  /**
+   * Gets resale rules from Diamond contract
+   * @returns Resale rules for the current event
+   */
+  const getResaleRules = useCallback(async () => {
+    if (!publicClient) {
+      setError("Provider not available");
+      return null;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const resaleRules = await publicClient.readContract({
+        address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+        abi: EVENT_CORE_FACET_ABI,
+        functionName: "getResaleRules",
+      }) as {
+        allowResell: boolean;
+        maxMarkupPercentage: bigint;
+        organizerFeePercentage: bigint;
+        restrictResellTiming: boolean;
+        minDaysBeforeEvent: bigint;
+        requireVerification: boolean;
+      };
+
+      return {
+        allowResell: resaleRules.allowResell,
+        maxMarkupPercentage: Number(resaleRules.maxMarkupPercentage) / 100, // Convert basis points to percentage
+        organizerFeePercentage: Number(resaleRules.organizerFeePercentage) / 100, // Convert basis points to percentage
+        restrictResellTiming: resaleRules.restrictResellTiming,
+        minDaysBeforeEvent: Number(resaleRules.minDaysBeforeEvent),
+        requireVerification: resaleRules.requireVerification,
+      };
+    } catch (err) {
+      console.error("Error getting resale rules:", err);
+      setError(parseContractError(err));
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [publicClient]);
+
   return {
     // Event management (Diamond pattern)
     initializeEvent,
@@ -873,6 +917,7 @@ export const useSmartContract = () => {
     addTicketTier,
     clearTiers, // Fungsi baru untuk reset tiers
     setResaleRules,
+    getResaleRules, // Fungsi baru untuk get resale rules
     
     // Ticket operations
     approveIDRX,

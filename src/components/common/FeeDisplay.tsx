@@ -97,7 +97,7 @@ const FeeDisplay: React.FC<FeeDisplayProps> = ({
   }
 
   if (isResale && resaleBreakdown) {
-    // Resale transaction view
+    // Resale transaction view - simplified without fee breakdown
     return (
       <Box>
         <VStack spacing={2} align="stretch">
@@ -110,43 +110,8 @@ const FeeDisplay: React.FC<FeeDisplayProps> = ({
             </Text>
           </HStack>
           
-          {showBreakdown && (
-            <>
-              <HStack justify="space-between">
-                <Text fontSize={currentSizes.fee} color="red.500">
-                  Platform Fee (3%):
-                </Text>
-                <Text fontSize={currentSizes.fee} color="red.500">
-                  -{resaleBreakdown.platformFee.toFixed(2)} IDRX
-                </Text>
-              </HStack>
-              
-              {resaleBreakdown.organizerFee > 0 && (
-                <HStack justify="space-between">
-                  <Text fontSize={currentSizes.fee} color="orange.500">
-                    Organizer Fee:
-                  </Text>
-                  <Text fontSize={currentSizes.fee} color="orange.500">
-                    -{resaleBreakdown.organizerFee.toFixed(2)} IDRX
-                  </Text>
-                </HStack>
-              )}
-              
-              <Divider />
-              
-              <HStack justify="space-between">
-                <Text fontSize={currentSizes.base} fontWeight="bold" color="green.600">
-                  Seller Receives:
-                </Text>
-                <Text fontSize={currentSizes.price} fontWeight="bold" color="green.600">
-                  {resaleBreakdown.sellerAmount.toFixed(2)} IDRX
-                </Text>
-              </HStack>
-            </>
-          )}
-          
           <Badge colorScheme="purple" size="sm" textAlign="center">
-            🔄 {feeDisplay.transparencyMessage}
+            ✅ Secure blockchain transaction
           </Badge>
         </VStack>
       </Box>

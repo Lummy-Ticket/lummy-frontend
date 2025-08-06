@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Modal,
   ModalOverlay,
@@ -26,6 +26,7 @@ import {
   useToast,
 } from "@chakra-ui/react";
 import { Ticket } from "./TicketCard";
+import { useSmartContract } from "../../hooks/useSmartContract";
 
 interface ResellTicketProps {
   isOpen: boolean;
@@ -38,14 +39,60 @@ export const ResellTicket: React.FC<ResellTicketProps> = ({
   onClose,
   ticket,
 }) => {
-  // Max resell price is 120% of original price (to prevent scalping)
-  const maxResellPercentage = 120;
-  const maxPrice = (ticket.price * maxResellPercentage) / 100;
-
   const [resellPrice, setResellPrice] = useState(ticket.price);
   const [resellPercentage, setResellPercentage] = useState(100);
   const [isLoading, setIsLoading] = useState(false);
+  const [resaleRules, setResaleRules] = useState<{
+    allowResell: boolean;
+    maxMarkupPercentage: number;
+    organizerFeePercentage: number;
+    restrictResellTiming: boolean;
+    minDaysBeforeEvent: number;
+  }>({
+    allowResell: true,
+    maxMarkupPercentage: 20, // 20% default
+    organizerFeePercentage: 2.5, // 2.5% default
+    restrictResellTiming: false,
+    minDaysBeforeEvent: 0,
+  });
+  
   const toast = useToast();
+  const { getResaleRules } = useSmartContract();
+
+  // Dynamic max resell percentage based on organizer settings
+  const maxResellPercentage = 100 + resaleRules.maxMarkupPercentage;
+  const maxPrice = (ticket.price * maxResellPercentage) / 100;
+
+  // Fetch resale rules when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      const fetchResaleRules = async () => {
+        try {
+          const rules = await getResaleRules();
+          if (rules) {
+            setResaleRules(rules);
+            
+            // Check if resale is allowed
+            if (!rules.allowResell) {
+              toast({
+                title: "Resale Not Allowed",
+                description: "The event organizer has disabled ticket resale for this event.",
+                status: "error",
+                duration: 5000,
+                isClosable: true,
+              });
+              onClose();
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching resale rules:", error);
+          // Keep default rules - no error message to user
+        }
+      };
+      
+      fetchResaleRules();
+    }
+  }, [isOpen, getResaleRules, toast, onClose]);
 
   const handlePercentageChange = (val: number) => {
     setResellPercentage(val);
@@ -156,18 +203,30 @@ export const ResellTicket: React.FC<ResellTicketProps> = ({
               </VStack>
             </Box>
 
+            <Alert status="info" borderRadius="md">
+              <AlertIcon />
+              <Box>
+                <Text fontSize="sm" fontWeight="medium">
+                  Resale Settings (Set by Event Organizer)
+                </Text>
+                <Text fontSize="xs" color="gray.600" mt={1}>
+                  Maximum markup: {resaleRules.maxMarkupPercentage}% above original price
+                </Text>
+              </Box>
+            </Alert>
+
             <Box>
               <Text fontSize="sm" color="gray.600">
-                Event organizer fee: 2.5% ({ticket.currency}{" "}
-                {(resellPrice * 0.025).toFixed(2)})
+                Event organizer fee: {resaleRules.organizerFeePercentage}% ({ticket.currency}{" "}
+                {(resellPrice * (resaleRules.organizerFeePercentage / 100)).toFixed(2)})
               </Text>
               <Text fontSize="sm" color="gray.600">
-                Platform fee: 1% ({ticket.currency}{" "}
-                {(resellPrice * 0.01).toFixed(2)})
+                Platform fee: 3% ({ticket.currency}{" "}
+                {(resellPrice * 0.03).toFixed(2)})
               </Text>
               <Text fontWeight="medium" mt={2}>
                 You'll receive: {ticket.currency}{" "}
-                {(resellPrice * 0.965).toFixed(2)}
+                {(resellPrice * (1 - (resaleRules.organizerFeePercentage / 100) - 0.03)).toFixed(2)}
               </Text>
             </Box>
           </VStack>

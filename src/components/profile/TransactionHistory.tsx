@@ -193,7 +193,7 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({
                           {tx.txHash.slice(0, 8)}...{tx.txHash.slice(-6)}
                         </Text>
                         <Link
-                          href={`https://explorer.lisk.com/tx/${tx.txHash}`}
+                          href={`hhttps://sepolia-blockscout.lisk.com/tx/${tx.txHash}`}
                           isExternal
                         >
                           <ExternalLinkIcon mx="2px" />

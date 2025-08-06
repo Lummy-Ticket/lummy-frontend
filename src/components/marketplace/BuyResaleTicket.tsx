@@ -153,31 +153,14 @@ export const BuyResaleTicket: React.FC<BuyResaleTicketProps> = ({
 
                 <Box>
                   <Text fontWeight="medium" mb={2}>
-                    Price Breakdown
+                    Total Price
                   </Text>
-                  <VStack spacing={2} align="stretch">
-                    <Flex justify="space-between">
-                      <Text fontSize="sm">Resale Price</Text>
-                      <Text fontSize="sm">
-                        {ticket.currency} {ticket.resalePrice.toLocaleString()}
-                      </Text>
-                    </Flex>
-                    <Flex justify="space-between">
-                      <Text fontSize="sm">Platform Fee (1%)</Text>
-                      <Text fontSize="sm">
-                        {ticket.currency}{" "}
-                        {(ticket.resalePrice * 0.01).toLocaleString()}
-                      </Text>
-                    </Flex>
-                    <Divider />
-                    <Flex justify="space-between" fontWeight="bold">
-                      <Text>Total</Text>
-                      <Text>
-                        {ticket.currency}{" "}
-                        {(ticket.resalePrice * 1.01).toLocaleString()}
-                      </Text>
-                    </Flex>
-                  </VStack>
+                  <Text fontSize="2xl" fontWeight="bold" color="purple.600">
+                    {ticket.currency} {ticket.resalePrice.toLocaleString()}
+                  </Text>
+                  <Text fontSize="sm" color="gray.500">
+                    What you see is what you pay - no hidden fees
+                  </Text>
                 </Box>
               </VStack>
             </ModalBody>

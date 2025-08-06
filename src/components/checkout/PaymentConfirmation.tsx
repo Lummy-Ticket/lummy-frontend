@@ -130,7 +130,7 @@ export const PaymentConfirmation: React.FC<PaymentConfirmationProps> = ({
               </Box>
               <Button
                 as="a"
-                href={`https://explorer.lisk.com/tx/${transactionHash}`}
+                href={`https://sepolia-blockscout.lisk.com/tx/${transactionHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 size="xs"
