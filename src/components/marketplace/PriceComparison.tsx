@@ -7,10 +7,8 @@ import {
   Icon,
   Tooltip,
   VStack,
-  Divider,
 } from "@chakra-ui/react";
 import { FaArrowUp, FaArrowDown, FaEquals } from "react-icons/fa";
-import { FeeDisplay } from "../common";
 
 interface PriceComparisonProps {
   originalPrice: number;

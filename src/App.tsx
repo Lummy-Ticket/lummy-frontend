@@ -21,6 +21,7 @@ import OrganizerRequestPage from "./pages/OrganizerRequest/OrganizerRequestPage"
 import OrganizerRequestsAdmin from "./pages/OrganizerRequest/OrganizerRequestsAdmin";
 import { AdminDashboard, AdminOrganizerRequests, AdminEventManagement, AdminAnalytics, AdminRevenue } from "./pages/Admin";
 import { StaffEventSelection } from "./pages/Staff";
+import { PublicNFTPage } from "./pages/PublicNFT/PublicNFTPage";
 import { Web3Provider } from "./services/Web3Provider";
 import { RoleProvider } from "./context/RoleContext";
 
@@ -45,6 +46,7 @@ function App() {
               <Route path="/marketplace" element={<MarketplacePage />} />
               <Route path="/tickets" element={<MyTicketsPage />} />
               <Route path="/tickets/:id" element={<MyTicketsPage />} />
+              <Route path="/ticket/:tokenId" element={<PublicNFTPage />} />
               <Route path="/profile" element={<ProfilePage />} />
 
               {/* Organizer routes */}

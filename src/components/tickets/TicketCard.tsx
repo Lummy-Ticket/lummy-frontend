@@ -8,6 +8,7 @@ import {
   Badge,
   Button,
   Icon,
+  Image,
   useDisclosure,
 } from "@chakra-ui/react";
 import {
@@ -19,7 +20,6 @@ import {
   FaInfoCircle,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
-import { QRCode } from "./QRCode";
 import { TransferTicket } from "./TransferTicket";
 import { ResellTicket } from "./ResellTicket";
 
@@ -103,22 +103,6 @@ export const TicketCard: React.FC<TicketCardProps> = ({
     }
   };
 
-  const getStatusMessage = (status: Ticket["status"]) => {
-    switch (status) {
-      case "valid":
-        return "This ticket is active and ready for use.";
-      case "used":
-        return "This ticket has been scanned and used for event entry.";
-      case "refunded":
-        return "This ticket has been refunded due to event cancellation.";
-      case "expired":
-        return "This ticket has expired and is no longer valid.";
-      case "transferred":
-        return "This ticket has been transferred to another wallet.";
-      default:
-        return `This ticket is ${status}.`;
-    }
-  };
 
   const isActive = ticket.status === "valid";
 
@@ -189,7 +173,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({
             </HStack>
           </VStack>
 
-          {/* Fixed height container for QR code or status message */}
+          {/* NFT Image container */}
           <Flex
             justify="center"
             my={4}
@@ -197,57 +181,72 @@ export const TicketCard: React.FC<TicketCardProps> = ({
             minHeight="150px"
             alignItems="center"
           >
-            {isActive ? (
-              <QRCode
-                ticketId={ticket.id}
-                eventId={ticket.eventId}
-                size={150}
-              />
-            ) : (
-              <Box
-                p={4}
-                bg="gray.100"
-                borderRadius="md"
-                textAlign="center"
+            <Box
+              position="relative"
+              borderRadius="md"
+              overflow="hidden"
+              width="150px"
+              height="150px"
+            >
+              <Image
+                src="/assets/images/nft-preview.png"
+                alt={`NFT for ${ticket.eventName}`}
                 width="100%"
-                display="flex"
-                flexDirection="column"
-                justifyContent="center"
-                alignItems="center"
                 height="100%"
-              >
-                <Icon
-                  as={FaInfoCircle}
-                  color={`${getStatusColor(ticket.status)}.500`}
-                  boxSize="24px"
-                  mb={2}
-                />
-                <Text fontSize="sm" color="gray.600">
-                  {getStatusMessage(ticket.status)}
-                </Text>
-              </Box>
-            )}
+                objectFit="cover"
+                borderRadius="md"
+              />
+              {!isActive && (
+                <Box
+                  position="absolute"
+                  top="0"
+                  left="0"
+                  right="0"
+                  bottom="0"
+                  bg="blackAlpha.600"
+                  display="flex"
+                  flexDirection="column"
+                  justifyContent="center"
+                  alignItems="center"
+                  borderRadius="md"
+                >
+                  <Icon
+                    as={FaInfoCircle}
+                    color="white"
+                    boxSize="24px"
+                    mb={2}
+                  />
+                  <Text fontSize="xs" color="white" textAlign="center" px={2}>
+                    {getStatusLabel(ticket.status)}
+                  </Text>
+                </Box>
+              )}
+            </Box>
           </Flex>
 
-          {/* Footer actions with consistent positioning */}
-          <Flex mt="auto" justify="space-between">
+          {/* Footer actions with improved layout */}
+          <VStack mt="auto" spacing={2} width="100%">
+            {/* Ticket Details button - full width */}
             <Button
               size="sm"
               variant="outline"
               leftIcon={<Icon as={FaInfoCircle} />}
               onClick={handleShowDetails}
+              width="100%"
             >
               Ticket Details
             </Button>
 
-            {isActive ? (
-              <HStack>
+            {/* Transfer & Resell buttons - side by side */}
+            {isActive && (
+              <HStack spacing={2} width="100%">
                 <Button
                   size="sm"
                   colorScheme="purple"
                   variant="outline"
                   leftIcon={<Icon as={FaExchangeAlt} />}
                   onClick={onTransferOpen}
+                  flex="1"
                 >
                   Transfer
                 </Button>
@@ -256,22 +255,13 @@ export const TicketCard: React.FC<TicketCardProps> = ({
                   colorScheme="green"
                   leftIcon={<Icon as={FaShoppingCart} />}
                   onClick={onResellOpen}
+                  flex="1"
                 >
                   Resell
                 </Button>
               </HStack>
-            ) : (
-              <Button
-                size="sm"
-                colorScheme="gray"
-                variant="ghost"
-                isDisabled
-                opacity="0"
-                _hover={{ opacity: "0" }}
-                cursor="default"
-              ></Button>
             )}
-          </Flex>
+          </VStack>
         </Box>
       </Box>
 

@@ -299,19 +299,6 @@ export const MyTicketsPage: React.FC = () => {
         )}
 
         {/* Status Messages */}
-        {!isLoadingTickets && !loading && usingMockData && (
-          <Alert status="info" borderRadius="md">
-            <AlertIcon />
-            <VStack align="start" spacing={1}>
-              <Text fontWeight="medium" fontSize="sm">
-                Demo Mode
-              </Text>
-              <Text fontSize="xs">
-                Connect your wallet to view your real NFT tickets from the blockchain.
-              </Text>
-            </VStack>
-          </Alert>
-        )}
 
         {!isLoadingTickets && !loading && !usingMockData && tickets.length === 0 && isConnected && (
           <Alert status="info" borderRadius="md">

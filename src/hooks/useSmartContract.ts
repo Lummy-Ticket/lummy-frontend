@@ -637,7 +637,6 @@ export const useSmartContract = () => {
               const remainingAfterEvent = remaining % 1000000;
               const actualTierCode = Math.floor(remainingAfterEvent / 100000);
               const parsedTierCode = actualTierCode - 1; // Convert back: actualTierCode = tierCode + 1
-              const parsedSequential = remainingAfterEvent % 100000;
               
               
               // Convert to our expected format
@@ -892,6 +891,94 @@ export const useSmartContract = () => {
   );
 
   /**
+   * Updates specific NFT metadata with current event information
+   * @param tokenId Token ID to update
+   * @returns Transaction hash if successful
+   */
+  const updateSingleNFTMetadata = useCallback(
+    async (tokenId: bigint) => {
+      if (!walletClient || !address) {
+        setError("Wallet not connected");
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        console.log(`🔄 Updating metadata for token ${tokenId}...`);
+        
+        // Get current event info and tiers
+        const eventInfo = await getEventInfo();
+        const tiers = await getTicketTiers();
+        
+        if (!eventInfo || !tiers) {
+          throw new Error("Could not get event or tier information");
+        }
+
+        // Parse tierId from token ID
+        const tokenIdNum = Number(tokenId);
+        const remaining = tokenIdNum - 1000000000;
+        const remainingAfterEvent = remaining % 1000000;
+        const actualTierCode = Math.floor(remainingAfterEvent / 100000);
+        const parsedTierCode = actualTierCode - 1;
+        
+        // Get correct tier info
+        const tier = tiers[parsedTierCode] || tiers[0];
+        
+        console.log(`📋 Updating with: Event="${eventInfo.name}", Venue="${eventInfo.venue}", Tier="${tier.name}"`);
+        
+        // Call updateTicketMetadata via Diamond contract (has permission)
+        const hash = await walletClient.writeContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: EVENT_CORE_FACET_ABI,
+          functionName: "updateTicketMetadata",
+          args: [
+            tokenId,
+            eventInfo.name,
+            eventInfo.venue,
+            eventInfo.date,
+            tier.name,
+            eventInfo.organizer
+          ],
+        });
+
+        await publicClient?.waitForTransactionReceipt({ hash });
+        console.log(`✅ Updated token ${tokenId} metadata:`, hash);
+        return hash;
+      } catch (err) {
+        console.error(`Error updating metadata for token ${tokenId}:`, err);
+        setError(parseContractError(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [walletClient, address, publicClient, getEventInfo, getTicketTiers]
+  );
+
+  /**
+   * Updates metadata for all known user NFTs
+   * @returns Number of successfully updated NFTs
+   */
+  const updateAllUserNFTsMetadata = useCallback(
+    async () => {
+      const knownTokenIds = [BigInt(1000100001), BigInt(1000200001)];
+      let updatedCount = 0;
+
+      for (const tokenId of knownTokenIds) {
+        const result = await updateSingleNFTMetadata(tokenId);
+        if (result) {
+          updatedCount++;
+        }
+      }
+
+      return updatedCount;
+    },
+    [updateSingleNFTMetadata]
+  );
+
+  /**
    * Gets resale rules from Diamond contract
    * @returns Resale rules for the current event
    */
@@ -952,6 +1039,7 @@ export const useSmartContract = () => {
     getTicketMetadata,
     getUserTicketNFTs,
     updateUserNFTsMetadata,
+    updateAllUserNFTsMetadata, // New function for updating existing NFTs
     burnTicketForQR,
     
     // State

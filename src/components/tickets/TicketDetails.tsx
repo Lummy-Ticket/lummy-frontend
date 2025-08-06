@@ -7,6 +7,7 @@ import {
   Badge,
   Button,
   Icon,
+  Image,
   Grid,
   GridItem,
   Flex,
@@ -207,6 +208,24 @@ export const TicketDetails: React.FC<TicketDetailsProps> = ({ ticket }) => {
 
           <GridItem>
             <VStack spacing={4} align="center" justify="center" height="100%">
+              {/* NFT Image */}
+              <Box
+                borderWidth="1px"
+                borderRadius="lg"
+                overflow="hidden"
+                width="100%"
+                maxW="300px"
+              >
+                <Image
+                  src="/assets/images/nft-preview.png"
+                  alt={`NFT for ${ticket.eventName}`}
+                  width="100%"
+                  height="200px"
+                  objectFit="cover"
+                />
+              </Box>
+
+              {/* QR Code Section */}
               <Box
                 borderWidth="1px"
                 borderRadius="lg"
@@ -224,9 +243,12 @@ export const TicketDetails: React.FC<TicketDetailsProps> = ({ ticket }) => {
                       <QRCode
                         ticketId={ticket.id}
                         eventId={ticket.eventId}
-                        size={200}
+                        size={180}
                       />
                     </Flex>
+                    <Text fontSize="sm" color="gray.600" mt={2}>
+                      Token ID: {ticket.tokenId}
+                    </Text>
                   </>
                 ) : (
                   <Text color="gray.600" py={8}>
@@ -237,27 +259,41 @@ export const TicketDetails: React.FC<TicketDetailsProps> = ({ ticket }) => {
                 )}
               </Box>
 
-              {isActive && (
-                <HStack spacing={4} width="100%" justify="center">
-                  <Button
-                    leftIcon={<Icon as={FaExchangeAlt} />}
-                    colorScheme="purple"
-                    variant="outline"
-                    onClick={onTransferOpen}
-                    flex={1}
-                  >
-                    Transfer
-                  </Button>
-                  <Button
-                    leftIcon={<Icon as={FaShoppingCart} />}
-                    colorScheme="green"
-                    onClick={onResellOpen}
-                    flex={1}
-                  >
-                    Resell
-                  </Button>
-                </HStack>
-              )}
+              <VStack spacing={3} width="100%">
+                {/* Public NFT View Button - Always visible */}
+                <Button
+                  leftIcon={<Icon as={FaLink} />}
+                  colorScheme="blue"
+                  variant="outline"
+                  onClick={() => window.open(`/ticket/${ticket.tokenId}`, '_blank')}
+                  width="100%"
+                >
+                  View Public NFT Page
+                </Button>
+
+                {/* Transfer & Resell buttons - Only for active tickets */}
+                {isActive && (
+                  <HStack spacing={4} width="100%">
+                    <Button
+                      leftIcon={<Icon as={FaExchangeAlt} />}
+                      colorScheme="purple"
+                      variant="outline"
+                      onClick={onTransferOpen}
+                      flex={1}
+                    >
+                      Transfer
+                    </Button>
+                    <Button
+                      leftIcon={<Icon as={FaShoppingCart} />}
+                      colorScheme="green"
+                      onClick={onResellOpen}
+                      flex={1}
+                    >
+                      Resell
+                    </Button>
+                  </HStack>
+                )}
+              </VStack>
 
               <Box
                 borderWidth="1px"
