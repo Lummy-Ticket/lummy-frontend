@@ -18,6 +18,7 @@ import {
   Icon,
   Alert,
   AlertIcon,
+  Image,
   useToast,
 } from "@chakra-ui/react";
 import {
@@ -26,25 +27,34 @@ import {
   FaTicketAlt,
   FaCheck,
   FaExclamationTriangle,
+  FaExternalLinkAlt,
 } from "react-icons/fa";
 import { ResaleTicket } from "./ResaleTicketCard";
 import { PriceComparison } from "./PriceComparison";
+import { useSmartContract } from "../../hooks/useSmartContract";
+import { DEVELOPMENT_CONFIG, CHAIN_CONFIG } from "../../constants";
+import { useAccount } from "wagmi";
 
 interface BuyResaleTicketProps {
   isOpen: boolean;
   onClose: () => void;
   ticket: ResaleTicket;
+  onPurchaseSuccess?: () => void;
 }
 
 export const BuyResaleTicket: React.FC<BuyResaleTicketProps> = ({
   isOpen,
   onClose,
   ticket,
+  onPurchaseSuccess,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isPurchaseComplete, setIsPurchaseComplete] = useState(false);
   const [transactionHash, setTransactionHash] = useState("");
+  
   const toast = useToast();
+  const { address } = useAccount();
+  const { purchaseResaleTicket } = useSmartContract();
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -55,25 +65,93 @@ export const BuyResaleTicket: React.FC<BuyResaleTicketProps> = ({
     });
   };
 
-  const handleBuyTicket = () => {
-    setIsLoading(true);
-
-    // Simulate blockchain transaction
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsPurchaseComplete(true);
-      setTransactionHash(
-        "0x4a8e7591fb9384e46ce0fc35f37f1379158ed0baa19e22bf9ffdf396dce47db5"
-      );
-
+  const handleBuyTicket = async () => {
+    if (!address) {
       toast({
-        title: "Purchase Successful",
-        description: "The ticket has been transferred to your wallet",
-        status: "success",
+        title: "Wallet Not Connected",
+        description: "Please connect your wallet to purchase tickets",
+        status: "error",
         duration: 5000,
         isClosable: true,
       });
-    }, 3000);
+      return;
+    }
+
+    if (!ticket.tokenId) {
+      toast({
+        title: "Purchase Error",
+        description: "Invalid ticket - token ID not found",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      if (!DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN) {
+        // Mock purchase
+        await new Promise(resolve => 
+          setTimeout(resolve, DEVELOPMENT_CONFIG.MOCK_TRANSACTION_DELAY)
+        );
+        
+        // Simulate occasional failure
+        if (Math.random() > DEVELOPMENT_CONFIG.MOCK_SUCCESS_RATE) {
+          throw new Error("Mock purchase failed");
+        }
+        
+        setTransactionHash("0x4a8e7591fb9384e46ce0fc35f37f1379158ed0baa19e22bf9ffdf396dce47db5");
+      } else {
+        // Real blockchain purchase
+        const result = await purchaseResaleTicket(ticket.tokenId);
+        if (!result) {
+          throw new Error("Purchase transaction failed");
+        }
+        
+        setTransactionHash(result);
+        DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS && 
+          console.log('✅ Purchase successful:', result);
+      }
+
+      setIsPurchaseComplete(true);
+      
+      toast({
+        title: "🎫 Purchase Successful!",
+        description: (
+          <Box>
+            <Text>NFT ticket transferred to your wallet</Text>
+            <Text fontSize="xs" color="green.300" mt={1}>
+              ✓ Ownership transferred successfully
+              <br />
+              ✓ Enhanced metadata preserved
+              <br />
+              ✓ Ready for event entry
+            </Text>
+          </Box>
+        ),
+        status: "success",
+        duration: 8000,
+        isClosable: true,
+      });
+
+      // Call success callback to refresh marketplace
+      onPurchaseSuccess?.();
+      
+    } catch (err: any) {
+      console.error('Purchase failed:', err);
+      
+      toast({
+        title: "Purchase Failed",
+        description: err.message || "Failed to purchase ticket. Please try again.",
+        status: "error",
+        duration: 7000,
+        isClosable: true,
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleViewTickets = () => {
@@ -92,17 +170,49 @@ export const BuyResaleTicket: React.FC<BuyResaleTicketProps> = ({
             <ModalCloseButton />
             <ModalBody>
               <VStack spacing={4} align="stretch">
-                <Box>
-                  <Text fontSize="lg" fontWeight="bold">
-                    {ticket.eventName}
-                  </Text>
-                  <HStack mt={1} color="gray.600">
-                    <Icon as={FaCalendarAlt} />
-                    <Text fontSize="sm">{formatDate(ticket.eventDate)}</Text>
-                  </HStack>
-                  <HStack mt={1} color="gray.600">
-                    <Icon as={FaMapMarkerAlt} />
-                    <Text fontSize="sm">{ticket.eventLocation}</Text>
+                {/* Enhanced Ticket Preview with NFT */}
+                <Box p={4} bg="gray.50" borderRadius="lg" borderWidth="1px">
+                  <HStack spacing={4}>
+                    {/* NFT Preview */}
+                    <Box 
+                      width="80px" 
+                      height="80px" 
+                      borderRadius="md" 
+                      overflow="hidden"
+                      borderWidth="1px"
+                      borderColor="gray.200"
+                    >
+                      <Image
+                        src="/assets/images/nft-preview.png"
+                        alt={`NFT for ${ticket.eventName}`}
+                        width="100%"
+                        height="100%"
+                        objectFit="cover"
+                      />
+                    </Box>
+                    
+                    {/* Ticket Info */}
+                    <VStack align="start" flex="1" spacing={1}>
+                      <Text fontSize="lg" fontWeight="bold">
+                        {ticket.eventName}
+                      </Text>
+                      <HStack>
+                        <Badge colorScheme="purple" variant="subtle">
+                          {ticket.ticketType}
+                        </Badge>
+                        <Badge colorScheme="orange" variant="subtle">
+                          Resale
+                        </Badge>
+                      </HStack>
+                      <HStack color="gray.600" fontSize="sm">
+                        <Icon as={FaCalendarAlt} />
+                        <Text>{formatDate(ticket.eventDate)}</Text>
+                      </HStack>
+                      <HStack color="gray.600" fontSize="sm">
+                        <Icon as={FaMapMarkerAlt} />
+                        <Text>{ticket.eventLocation}</Text>
+                      </HStack>
+                    </VStack>
                   </HStack>
                 </Box>
 
@@ -190,7 +300,7 @@ export const BuyResaleTicket: React.FC<BuyResaleTicketProps> = ({
           </>
         ) : (
           <>
-            <ModalHeader>Purchase Complete</ModalHeader>
+            <ModalHeader>🎫 Purchase Complete!</ModalHeader>
             <ModalCloseButton />
             <ModalBody>
               <VStack spacing={6} align="center" py={4}>
@@ -205,30 +315,47 @@ export const BuyResaleTicket: React.FC<BuyResaleTicketProps> = ({
                   <Icon as={FaCheck} color="green.500" boxSize="40px" />
                 </Flex>
 
-                <Text fontSize="xl" fontWeight="bold" color="green.600">
-                  Ticket Purchased Successfully!
-                </Text>
+                <VStack spacing={2} textAlign="center">
+                    <Text fontSize="xl" fontWeight="bold" color="green.600">
+                      Ticket Purchased Successfully!
+                    </Text>
 
-                <VStack spacing={1} align="center">
-                  <Text>{ticket.eventName}</Text>
-                  <Badge colorScheme="blue">{ticket.ticketType}</Badge>
-                </VStack>
+                    <VStack spacing={1} align="center">
+                      <Text>{ticket.eventName}</Text>
+                      <Badge colorScheme="blue">{ticket.ticketType}</Badge>
+                    </VStack>
+                  </VStack>
 
-                <Box width="100%" bg="gray.50" p={4} borderRadius="md">
-                  <Text fontSize="sm" mb={2}>
-                    Transaction has been confirmed on the blockchain:
-                  </Text>
-                  <Box
-                    p={2}
-                    bg="gray.100"
-                    borderRadius="md"
-                    fontFamily="monospace"
-                    fontSize="xs"
-                    wordBreak="break-all"
-                  >
-                    {transactionHash}
+                {transactionHash && (
+                  <Box width="100%" bg="blue.50" p={4} borderRadius="md" borderWidth="1px" borderColor="blue.200">
+                    <HStack justify="space-between" mb={2}>
+                      <Text fontSize="sm" fontWeight="medium" color="blue.800">
+                        📋 Transaction Details
+                      </Text>
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        colorScheme="blue"
+                        rightIcon={<Icon as={FaExternalLinkAlt} />}
+                        onClick={() => window.open(`${CHAIN_CONFIG.blockExplorer}/tx/${transactionHash}`, '_blank')}
+                      >
+                        View on Explorer
+                      </Button>
+                    </HStack>
+                    <Box
+                      p={2}
+                      bg="white"
+                      borderRadius="md"
+                      fontFamily="monospace"
+                      fontSize="xs"
+                      wordBreak="break-all"
+                      borderWidth="1px"
+                      borderColor="blue.200"
+                    >
+                      {transactionHash}
+                    </Box>
                   </Box>
-                </Box>
+                )}
 
                 <Alert status="success" borderRadius="md">
                   <AlertIcon />

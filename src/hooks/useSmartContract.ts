@@ -5,7 +5,10 @@ import { EVENT_CORE_FACET_ABI } from "../contracts/EventCoreFacet";
 import { TICKET_PURCHASE_FACET_ABI } from "../contracts/TicketPurchaseFacet";
 import { TICKET_NFT_ABI } from "../contracts/TicketNFT";
 import { IDRX_TOKEN_ABI } from "../contracts/MockIDRX";
-import { CONTRACT_ADDRESSES } from "../constants";
+import { MARKETPLACE_FACET_ABI } from "../contracts/MarketplaceFacet";
+import { CONTRACT_ADDRESSES, IDRX_DECIMALS } from "../constants";
+import { parseUnits, formatUnits } from "viem";
+import { ResaleTicket } from "../components/marketplace/ResaleTicketCard";
 import { useEmailService } from "./useEmailService";
 import { 
   parseTokenAmount, 
@@ -1022,6 +1025,399 @@ export const useSmartContract = () => {
     }
   }, [publicClient]);
 
+  /**
+   * Transfer NFT ticket to another address
+   * @param tokenId Token ID to transfer
+   * @param toAddress Recipient address
+   * @returns Transaction hash if successful
+   */
+  const transferNFT = useCallback(
+    async (tokenId: string, toAddress: string) => {
+      if (!walletClient || !address) {
+        setError("Wallet not connected");
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Verify ownership first
+        const owner = await publicClient?.readContract({
+          address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+          abi: TICKET_NFT_ABI,
+          functionName: "ownerOf",
+          args: [BigInt(tokenId)],
+        });
+
+        if (owner?.toString().toLowerCase() !== address.toLowerCase()) {
+          throw new Error("You don't own this NFT ticket");
+        }
+
+        // Perform the transfer using safeTransferFrom
+        const hash = await walletClient.writeContract({
+          address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+          abi: TICKET_NFT_ABI,
+          functionName: "safeTransferFrom",
+          args: [
+            address as `0x${string}`, // from
+            toAddress as `0x${string}`, // to  
+            BigInt(tokenId), // tokenId
+          ],
+        });
+
+        await publicClient?.waitForTransactionReceipt({ hash });
+        
+        console.log("✅ NFT transfer successful:", hash);
+        return hash;
+      } catch (err) {
+        console.error("Error transferring NFT:", err);
+        setError(parseContractError(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [walletClient, address, publicClient]
+  );
+
+  /**
+   * Create resale listing on marketplace
+   * @param tokenId Token ID to list for resale
+   * @param priceInIDRX Price in IDRX (as string to maintain precision)
+   * @returns Transaction hash if successful
+   */
+  const createResaleListing = useCallback(
+    async (tokenId: string, priceInIDRX: string) => {
+      if (!walletClient || !address) {
+        setError("Wallet not connected");
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Convert price to Wei (IDRX has 18 decimals)
+        const priceInWei = parseUnits(priceInIDRX, IDRX_DECIMALS);
+
+        // First, verify ownership
+        const owner = await publicClient?.readContract({
+          address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+          abi: TICKET_NFT_ABI,
+          functionName: "ownerOf",
+          args: [BigInt(tokenId)],
+        });
+
+        if (owner?.toString().toLowerCase() !== address.toLowerCase()) {
+          throw new Error("You don't own this NFT ticket");
+        }
+
+        // Approve marketplace to transfer the NFT (if not already approved)
+        const approvedAddress = await publicClient?.readContract({
+          address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+          abi: TICKET_NFT_ABI,
+          functionName: "getApproved",
+          args: [BigInt(tokenId)],
+        });
+
+        if (approvedAddress?.toString().toLowerCase() !== CONTRACT_ADDRESSES.DiamondLummy.toLowerCase()) {
+          // Need to approve marketplace first
+          const approveHash = await walletClient.writeContract({
+            address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+            abi: TICKET_NFT_ABI,
+            functionName: "approve",
+            args: [
+              CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+              BigInt(tokenId),
+            ],
+          });
+
+          await publicClient?.waitForTransactionReceipt({ hash: approveHash });
+          console.log("✅ NFT approved for marketplace:", approveHash);
+        }
+
+        // Create resale listing
+        const hash = await walletClient.writeContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: MARKETPLACE_FACET_ABI,
+          functionName: "listTicketForResale",
+          args: [
+            BigInt(tokenId),
+            priceInWei,
+          ],
+        });
+
+        await publicClient?.waitForTransactionReceipt({ hash });
+        
+        console.log("✅ Resale listing created:", hash);
+        return hash;
+      } catch (err) {
+        console.error("Error creating resale listing:", err);
+        setError(parseContractError(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [walletClient, address, publicClient]
+  );
+
+  /**
+   * Deduplicate listings: Keep only latest listing per tokenId
+   * @param listings Array of listings that may contain duplicates
+   * @returns Array with only latest listing per tokenId
+   */
+  const deduplicateListingsByTokenId = (listings: (ResaleTicket & { blockNumber?: bigint })[]): ResaleTicket[] => {
+    const tokenIdMap = new Map<string, ResaleTicket & { blockNumber?: bigint }>();
+    
+    // Group by tokenId and keep latest based on blockNumber (more accurate than timestamp)
+    listings.forEach(listing => {
+      const existingListing = tokenIdMap.get(listing.tokenId);
+      
+      if (!existingListing || 
+          (listing.blockNumber && existingListing.blockNumber && listing.blockNumber > existingListing.blockNumber) ||
+          (!existingListing.blockNumber && listing.blockNumber)) {
+        tokenIdMap.set(listing.tokenId, listing);
+      }
+    });
+    
+    const deduplicated = Array.from(tokenIdMap.values()).map(listing => {
+      // Remove blockNumber from final result (clean up)
+      const { blockNumber, ...cleanListing } = listing;
+      return cleanListing as ResaleTicket;
+    });
+    
+    console.log(`🔄 Deduplication: ${listings.length} → ${deduplicated.length} listings`);
+    
+    return deduplicated;
+  };
+
+  /**
+   * Get all active marketplace listings
+   * @returns Array of active resale listings with full metadata
+   */
+  const getActiveMarketplaceListings = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (!publicClient) {
+        throw new Error("Public client not available");
+      }
+
+      console.log("🔍 Fetching marketplace listings via events...");
+
+      // Get TicketListedForResale events from the last 10000 blocks
+      const currentBlock = await publicClient.getBlockNumber();
+      const fromBlock = currentBlock - 10000n > 0n ? currentBlock - 10000n : 0n;
+
+      const listingEvents = await publicClient.getLogs({
+        address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+        event: {
+          type: 'event',
+          name: 'TicketListedForResale',
+          inputs: [
+            { name: 'tokenId', type: 'uint256', indexed: true },
+            { name: 'seller', type: 'address', indexed: true },
+            { name: 'price', type: 'uint256', indexed: false }
+          ]
+        },
+        fromBlock,
+        toBlock: 'latest'
+      });
+
+      console.log("📅 Found listing events:", listingEvents.length);
+
+      // Convert events to active listings
+      const listings: ResaleTicket[] = [];
+
+      for (const event of listingEvents) {
+        try {
+          const tokenId = event.args?.tokenId?.toString();
+          const seller = event.args?.seller;
+          const price = event.args?.price;
+
+          if (!tokenId || !seller || !price) {
+            console.warn("⚠️ Incomplete event data:", event);
+            continue;
+          }
+
+          // Check if listing is still active
+          const listingInfo = await publicClient.readContract({
+            address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+            abi: MARKETPLACE_FACET_ABI,
+            functionName: "getListing",
+            args: [BigInt(tokenId)],
+          }) as any;
+
+          // Skip inactive listings
+          if (!listingInfo?.active) {
+            console.log(`⏭️ Skipping inactive listing for token ${tokenId}`);
+            continue;
+          }
+          
+          // Get NFT metadata
+          const metadata = await publicClient.readContract({
+            address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+            abi: TICKET_NFT_ABI,
+            functionName: "getTicketMetadata",
+            args: [BigInt(tokenId)],
+          });
+
+          // Get event info from Diamond contract
+          const eventInfo = await getEventInfo();
+          
+          if (metadata && eventInfo) {
+            const listing: ResaleTicket & { blockNumber?: bigint } = {
+              id: `resale-${tokenId}`,
+              eventId: eventInfo.eventId ? eventInfo.eventId.toString() : "1",
+              eventName: (metadata as any).eventName || eventInfo.name || "Unknown Event",
+              eventDate: eventInfo.date ? new Date(Number(eventInfo.date) * 1000).toISOString() : new Date().toISOString(),
+              eventLocation: (metadata as any).eventVenue || eventInfo.venue || "Unknown Location",
+              ticketType: (metadata as any).tierName || "General Admission",
+              originalPrice: Number(formatUnits((metadata as any).originalPrice || BigInt(0), IDRX_DECIMALS)),
+              resalePrice: Number(formatUnits(price, IDRX_DECIMALS)),
+              currency: "IDRX",
+              listedDate: new Date().toISOString(), // Could get from block timestamp
+              sellerAddress: seller as string,
+              sellerRating: 4.5, // Default rating - could be enhanced
+              tokenId: tokenId,
+              transferCount: Number((metadata as any).transferCount || 0),
+              blockNumber: event.blockNumber, // For accurate deduplication
+            };
+            
+            listings.push(listing);
+            console.log(`✅ Added active listing for token ${tokenId}`);
+          }
+        } catch (tokenError) {
+          console.error(`Error processing event for token:`, tokenError);
+          // Continue with other events
+        }
+      }
+
+      console.log("📋 Raw listings from events:", listings);
+
+      // Deduplicate listings: Keep only latest listing per tokenId
+      const deduplicatedListings = deduplicateListingsByTokenId(listings);
+      
+      console.log("✅ Deduplicated marketplace listings:", deduplicatedListings);
+      return deduplicatedListings;
+      
+    } catch (err) {
+      console.error("Error fetching marketplace listings:", err);
+      setError(parseContractError(err));
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, [publicClient, getEventInfo]);
+
+  /**
+   * Purchase a resale ticket from marketplace
+   * @param tokenId Token ID to purchase
+   * @returns Transaction hash if successful
+   */
+  const purchaseResaleTicket = useCallback(
+    async (tokenId: string) => {
+      if (!walletClient || !address) {
+        setError("Wallet not connected");
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Get listing info to know the price
+        const listing = await publicClient?.readContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: MARKETPLACE_FACET_ABI,
+          functionName: "getListing",
+          args: [BigInt(tokenId)],
+        });
+
+        if (!listing || !(listing as any).active) {
+          throw new Error("Listing not found or inactive");
+        }
+
+        const listingPrice = (listing as any).price;
+
+        // Approve IDRX for the purchase
+        const approveHash = await walletClient.writeContract({
+          address: CONTRACT_ADDRESSES.MockIDRX as `0x${string}`,
+          abi: IDRX_TOKEN_ABI,
+          functionName: "approve",
+          args: [
+            CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+            listingPrice,
+          ],
+        });
+
+        await publicClient?.waitForTransactionReceipt({ hash: approveHash });
+        console.log("✅ IDRX approved for resale purchase:", approveHash);
+
+        // Purchase the resale ticket
+        const hash = await walletClient.writeContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: MARKETPLACE_FACET_ABI,
+          functionName: "purchaseResaleTicket",
+          args: [BigInt(tokenId)],
+        });
+
+        await publicClient?.waitForTransactionReceipt({ hash });
+        
+        console.log("✅ Resale ticket purchased:", hash);
+        return hash;
+      } catch (err) {
+        console.error("Error purchasing resale ticket:", err);
+        setError(parseContractError(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [walletClient, address, publicClient]
+  );
+
+  /**
+   * Cancel a resale listing
+   * @param tokenId Token ID to cancel listing for
+   * @returns Transaction hash if successful
+   */
+  const cancelResaleListing = useCallback(
+    async (tokenId: string) => {
+      if (!walletClient || !address) {
+        setError("Wallet not connected");
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const hash = await walletClient.writeContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: MARKETPLACE_FACET_ABI,
+          functionName: "cancelResaleListing",
+          args: [BigInt(tokenId)],
+        });
+
+        await publicClient?.waitForTransactionReceipt({ hash });
+        
+        console.log("✅ Resale listing cancelled:", hash);
+        return hash;
+      } catch (err) {
+        console.error("Error cancelling resale listing:", err);
+        setError(parseContractError(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [walletClient, address, publicClient]
+  );
+
   return {
     // Event management (Diamond pattern)
     initializeEvent,
@@ -1040,6 +1436,11 @@ export const useSmartContract = () => {
     getUserTicketNFTs,
     updateUserNFTsMetadata,
     updateAllUserNFTsMetadata, // New function for updating existing NFTs
+    transferNFT, // New function for NFT transfers
+    createResaleListing, // New function for marketplace listings
+    getActiveMarketplaceListings, // New function for fetching marketplace data
+    purchaseResaleTicket, // New function for buying resale tickets
+    cancelResaleListing, // New function for cancelling listings
     burnTicketForQR,
     
     // State

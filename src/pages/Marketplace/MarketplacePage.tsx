@@ -12,8 +12,10 @@ import {
   Button,
   Spinner,
   useDisclosure,
+  Alert,
+  AlertIcon,
 } from "@chakra-ui/react";
-import { FaTicketAlt, FaShoppingCart } from "react-icons/fa";
+import { FaTicketAlt, FaShoppingCart, FaSync } from "react-icons/fa";
 import {
   ResaleTicketCard,
   ResaleTicket,
@@ -24,6 +26,10 @@ import {
 } from "../../components/marketplace/MarketplaceFilters";
 import { BuyResaleTicket } from "../../components/marketplace/BuyResaleTicket";
 import { mockEvents } from "../../data/mockEvents";
+import { useSmartContract } from "../../hooks/useSmartContract";
+import { DEVELOPMENT_CONFIG } from "../../constants";
+// FaRefresh tidak ada di react-icons/fa, kita gunakan yang lain
+// import { FaRefresh } from "react-icons/fa";
 
 // Mock data for resale tickets
 export const mockResaleTickets: ResaleTicket[] = [
@@ -126,9 +132,12 @@ const enrichTicketsWithImages = (tickets: ResaleTicket[]): ResaleTicket[] => {
 };
 
 export const MarketplacePage: React.FC = () => {
-  const [resaleTickets, setResaleTickets] = useState<ResaleTicket[]>([]);
+  const { getActiveMarketplaceListings } = useSmartContract();
   const [filteredTickets, setFilteredTickets] = useState<ResaleTicket[]>([]);
+  const [allTickets, setAllTickets] = useState<ResaleTicket[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [selectedTicket, setSelectedTicket] = useState<ResaleTicket | null>(
     null
   );
@@ -138,17 +147,61 @@ export const MarketplacePage: React.FC = () => {
   const locations = ["Jakarta", "Bandung", "Surabaya", "All"];
 
   useEffect(() => {
-    // Simulate API call to fetch resale tickets
-    setTimeout(() => {
-      const enrichedTickets = enrichTicketsWithImages(mockResaleTickets);
-      setResaleTickets(enrichedTickets);
-      setFilteredTickets(enrichedTickets);
-      setIsLoading(false);
-    }, 1500);
+    loadMarketplaceData();
   }, []);
 
+  const loadMarketplaceData = async (showRefreshNotification = false) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      let listings: ResaleTicket[] = [];
+      
+      if (!DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN) {
+        // Mock data for development
+        const enrichedTickets = enrichTicketsWithImages(mockResaleTickets);
+        listings = enrichedTickets;
+      } else {
+        // Real blockchain data
+        listings = await getActiveMarketplaceListings();
+        const enrichedTickets = enrichTicketsWithImages(listings);
+        listings = enrichedTickets;
+      }
+      
+      setAllTickets(listings);
+      setFilteredTickets(listings);
+      
+      if (showRefreshNotification && listings.length > 0) {
+        // Could add toast notification here for successful refresh
+      }
+      
+    } catch (err) {
+      console.error('Failed to load marketplace:', err);
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      
+      // Fallback to mock data
+      const enrichedTickets = enrichTicketsWithImages(mockResaleTickets);
+      setAllTickets(enrichedTickets);
+      setFilteredTickets(enrichedTickets);
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
+    }
+  };
+  
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadMarketplaceData(true);
+  };
+  
+  const handlePurchaseSuccess = () => {
+    // Refresh marketplace after successful purchase
+    handleRefresh();
+    onClose();
+  };
+
   const handleFilterChange = (filters: MarketplaceFiltersValue) => {
-    let filtered = [...resaleTickets];
+    let filtered = [...allTickets];
 
     // Apply search filter
     if (filters.search && filters.search.trim() !== "") {
@@ -231,7 +284,7 @@ export const MarketplacePage: React.FC = () => {
   };
 
   const handleShowDetails = (ticketId: string) => {
-    const ticket = resaleTickets.find((t) => t.id === ticketId);
+    const ticket = allTickets.find((t) => t.id === ticketId);
     if (ticket) {
       setSelectedTicket(ticket);
       onOpen();
@@ -242,10 +295,45 @@ export const MarketplacePage: React.FC = () => {
     <Container maxW="container.xl" py={8}>
       <VStack spacing={8} align="stretch">
         <Box>
-          <Heading size="lg">NFT Ticket Marketplace</Heading>
-          <Text color="gray.600">
-            Buy verified resale tickets for upcoming events
+          <Flex align="center" justify="space-between" mb={2}>
+            <Heading size="lg">
+              <Icon as={FaShoppingCart} mr={2} />
+              NFT Ticket Marketplace
+            </Heading>
+            <Button
+              size="sm"
+              variant="outline"
+              leftIcon={<Icon as={FaSync} />}
+              onClick={handleRefresh}
+              isLoading={refreshing}
+              loadingText="Refreshing..."
+            >
+              Refresh
+            </Button>
+          </Flex>
+          <Text color="gray.600" mb={4}>
+            Buy verified resale tickets for upcoming events. All transactions secured on the blockchain.
           </Text>
+          
+          {/* Status Display */}
+          {!DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN && (
+            <Alert status="info" borderRadius="md" mb={4}>
+              <AlertIcon />
+              <Text fontSize="sm">
+                Demo Mode: Showing sample marketplace listings. 
+                Enable blockchain to see real resale tickets.
+              </Text>
+            </Alert>
+          )}
+          
+          {error && (
+            <Alert status="error" borderRadius="md" mb={4}>
+              <AlertIcon />
+              <Text fontSize="sm">
+                Failed to load marketplace data: {error}. Showing sample listings.
+              </Text>
+            </Alert>
+          )}
         </Box>
 
         <MarketplaceFilters
@@ -267,6 +355,7 @@ export const MarketplacePage: React.FC = () => {
                 key={ticket.id}
                 ticket={ticket}
                 onShowDetails={handleShowDetails}
+                onCancelSuccess={handleRefresh}
               />
             ))}
           </SimpleGrid>
@@ -283,7 +372,7 @@ export const MarketplacePage: React.FC = () => {
               mt={4}
               leftIcon={<Icon as={FaShoppingCart} />}
               colorScheme="blue"
-              onClick={() => setFilteredTickets(resaleTickets)}
+              onClick={() => setFilteredTickets(allTickets)}
             >
               Show All Tickets
             </Button>
@@ -296,6 +385,7 @@ export const MarketplacePage: React.FC = () => {
           isOpen={isOpen}
           onClose={onClose}
           ticket={selectedTicket}
+          onPurchaseSuccess={handlePurchaseSuccess}
         />
       )}
     </Container>

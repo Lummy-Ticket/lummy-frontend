@@ -9,6 +9,7 @@ import {
   Icon,
   Divider,
   useDisclosure,
+  useToast,
   Image,
 } from "@chakra-ui/react";
 import {
@@ -18,9 +19,12 @@ import {
   FaShoppingCart,
   FaUserAlt,
   FaTags,
+  FaTimes,
 } from "react-icons/fa";
 import { BuyResaleTicket } from "./BuyResaleTicket";
 import { PriceComparison } from "./PriceComparison";
+import { useSmartContract } from "../../hooks/useSmartContract";
+import { useAccount } from "wagmi";
 import { mockEvents } from "../../data/mockEvents";
 
 export interface ResaleTicket {
@@ -45,13 +49,21 @@ export interface ResaleTicket {
 interface ResaleTicketCardProps {
   ticket: ResaleTicket;
   onShowDetails?: (ticketId: string) => void;
+  onCancelSuccess?: () => void;
 }
 
 export const ResaleTicketCard: React.FC<ResaleTicketCardProps> = ({
   ticket,
   onShowDetails,
+  onCancelSuccess,
 }) => {
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const toast = useToast();
+  const { address } = useAccount();
+  const { cancelResaleListing, loading } = useSmartContract();
+  const { isOpen: isBuyOpen, onOpen: onBuyOpen, onClose: onBuyClose } = useDisclosure();
+  
+  // Check if current user is the seller
+  const isOwnListing = address?.toLowerCase() === ticket.sellerAddress.toLowerCase();
 
   // Get the image URL from the mockEvents data
   const getEventImageUrl = (eventId: string): string => {
@@ -71,6 +83,43 @@ export const ResaleTicketCard: React.FC<ResaleTicketCardProps> = ({
   const handleShowDetails = () => {
     if (onShowDetails) {
       onShowDetails(ticket.id);
+    }
+  };
+
+  const handleCancelListing = async () => {
+    if (!ticket.tokenId) {
+      toast({
+        title: "Cancel Error",
+        description: "Invalid ticket - token ID not found",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    try {
+      const result = await cancelResaleListing(ticket.tokenId);
+      if (result) {
+        toast({
+          title: "Listing Cancelled",
+          description: "Your ticket listing has been removed from the marketplace",
+          status: "success",
+          duration: 5000,
+          isClosable: true,
+        });
+        
+        // Call success callback to refresh marketplace
+        onCancelSuccess?.();
+      }
+    } catch (err: any) {
+      toast({
+        title: "Cancel Failed",
+        description: err.message || "Failed to cancel listing. Please try again.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
     }
   };
 
@@ -172,19 +221,38 @@ export const ResaleTicketCard: React.FC<ResaleTicketCardProps> = ({
               View Details
             </Button>
 
-            <Button
-              size="sm"
-              colorScheme="blue"
-              leftIcon={<Icon as={FaShoppingCart} />}
-              onClick={onOpen}
-            >
-              Buy Now
-            </Button>
+            {isOwnListing ? (
+              <Button
+                size="sm"
+                colorScheme="red"
+                variant="outline"
+                leftIcon={<Icon as={FaTimes} />}
+                onClick={handleCancelListing}
+                isLoading={loading}
+                loadingText="Cancelling..."
+              >
+                Cancel Listing
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                colorScheme="blue"
+                leftIcon={<Icon as={FaShoppingCart} />}
+                onClick={onBuyOpen}
+              >
+                Buy Now
+              </Button>
+            )}
           </Flex>
         </Box>
       </Box>
 
-      <BuyResaleTicket isOpen={isOpen} onClose={onClose} ticket={ticket} />
+      <BuyResaleTicket 
+        isOpen={isBuyOpen} 
+        onClose={onBuyClose} 
+        ticket={ticket} 
+        onPurchaseSuccess={onCancelSuccess}
+      />
     </>
   );
 };
