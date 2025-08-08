@@ -61,8 +61,15 @@ import ResellSettings, {
 } from "../../components/organizer/ResellSettings";
 import AttendeeList, {
   Attendee,
+  AttendeeData,
 } from "../../components/organizer/AttendeeList";
+import EnhancedAttendeeListTable, {
+  EventAnalytics,
+} from "../../components/organizer/EnhancedAttendeeListTable";
+import AttendeeService from "../../services/AttendeeService";
 import { motion } from "framer-motion";
+import { useSmartContract } from "../../hooks/useSmartContract";
+import { DEVELOPMENT_CONFIG } from "../../constants";
 
 const MotionBox = motion(Box);
 
@@ -158,9 +165,10 @@ interface StaffMember {
   canManageStaff: boolean;     // MANAGER only
 }
 
-// Interface untuk Ticket Tier yang akan diedit
+// Interface untuk Ticket Tier yang akan diedit (contract supports updateTicketTier)
 interface EditableTier {
   id: string;
+  tierId: number; // Contract tier index
   name: string;
   price: number;
   currency: string;
@@ -176,6 +184,7 @@ const EventManagement: React.FC = () => {
   const toast = useToast();
   const cancelRef = React.useRef<HTMLButtonElement>(null!);
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const { getEventInfo, getTicketTiers, addStaffWithRole, removeStaffRole } = useSmartContract();
 
   // State
   const [loading, setLoading] = useState(true);
@@ -184,13 +193,24 @@ const EventManagement: React.FC = () => {
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [resellSettings, setResellSettings] =
     useState<ResellSettingsData | null>(null);
+    
+  // Enhanced attendee management state
+  const [enhancedAttendees, setEnhancedAttendees] = useState<AttendeeData[]>([]);
+  const [eventAnalytics, setEventAnalytics] = useState<EventAnalytics>({
+    totalTickets: 0,
+    checkedIn: 0,
+    remaining: 0,
+    checkInRate: 0,
+    tierBreakdown: [],
+  });
+  const [attendeeLoading, setAttendeeLoading] = useState(false);
   
   // Staff management state with contract-compatible hierarchy
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [newStaffAddress, setNewStaffAddress] = useState<string>("");
   const [newStaffRole, setNewStaffRole] = useState<StaffRole>(StaffRole.SCANNER);
 
-  // State and handler for ticket tier modal form
+  // State and handler for ticket tier modal form (contract supports updateTicketTier)
   const [editingTier, setEditingTier] = useState<EditableTier | null>(null);
   const [isNewTier, setIsNewTier] = useState(false);
   const {
@@ -202,39 +222,202 @@ const EventManagement: React.FC = () => {
   // Fetch event data on mount
   useEffect(() => {
     const fetchData = async () => {
-      // Simulate API calls
-      setTimeout(() => {
+      try {
+        if (DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN) {
+          // Get real event info from blockchain
+          const eventInfo = await getEventInfo();
+          if (eventInfo) {
+            // Get real tier data
+            let realTierStats = mockEvent.tierStats; // fallback
+            let realTicketsSold = 0;
+            let realTotalTickets = 0;
+            let realRevenue = 0;
+
+            try {
+              const tiers = await getTicketTiers();
+              if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+                console.log('🔍 EventManagement: Raw tier data from contract:', tiers);
+              }
+
+              if (tiers && tiers.length > 0) {
+                // Convert blockchain tiers to UI format with detailed logging
+                realTierStats = tiers.map((tier, index) => {
+                  const converted = {
+                    tierName: tier.name,
+                    sold: Number(tier.sold),
+                    total: Number(tier.available) + Number(tier.sold),
+                    price: Number(tier.price) / 1e18 // Convert from wei to IDRX
+                  };
+                  
+                  if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+                    console.log(`🔍 Tier ${index} conversion:`, {
+                      raw: tier,
+                      converted,
+                      checks: {
+                        nameValid: typeof tier.name === 'string' && tier.name.length > 0,
+                        soldIsNumber: !isNaN(Number(tier.sold)),
+                        availableIsNumber: !isNaN(Number(tier.available)),
+                        priceIsNumber: !isNaN(Number(tier.price))
+                      }
+                    });
+                  }
+                  
+                  return converted;
+                });
+
+                realTicketsSold = realTierStats.reduce((sum, tier) => sum + tier.sold, 0);
+                realTotalTickets = realTierStats.reduce((sum, tier) => sum + tier.total, 0);
+                realRevenue = realTierStats.reduce((sum, tier) => sum + (tier.sold * tier.price), 0);
+
+                if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+                  console.log('✅ Event Management: Processed tier data:', {
+                    tierStats: realTierStats,
+                    calculations: {
+                      totalTickets: realTotalTickets,
+                      ticketsSold: realTicketsSold,
+                      revenue: realRevenue
+                    },
+                    validationChecks: {
+                      totalTicketsIsNumber: !isNaN(realTotalTickets),
+                      ticketsSoldIsNumber: !isNaN(realTicketsSold),
+                      revenueIsNumber: !isNaN(realRevenue)
+                    }
+                  });
+                }
+              } else {
+                if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+                  console.log('⚠️ No tiers returned from contract');
+                }
+              }
+            } catch (tierError) {
+              if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+                console.log("❌ Could not load tiers, using mock:", tierError);
+              }
+            }
+
+            // Convert blockchain data to EventStatsData format
+            const blockchainEvent: EventStatsData = {
+              eventId: id || "1",
+              eventName: eventInfo.name || "Unknown Event",
+              ticketsSold: realTicketsSold,
+              totalTickets: realTotalTickets,
+              revenue: realRevenue,
+              currency: "IDRX",
+              tierStats: realTierStats,
+              daysUntilEvent: Math.ceil((Number(eventInfo.date) * 1000 - Date.now()) / (1000 * 60 * 60 * 24))
+            };
+            setEvent(blockchainEvent);
+
+            // Create real sales data based on blockchain data
+            const realSalesData: SalesData = {
+              totalRevenue: realRevenue,
+              soldTickets: realTicketsSold,
+              availableTickets: realTotalTickets - realTicketsSold,
+              totalTransactions: realTicketsSold > 0 ? Math.floor(realTicketsSold * 0.8) : 0, // Estimate
+              averageTicketPrice: realTicketsSold > 0 ? realRevenue / realTicketsSold : 0,
+              revenueByTier: realTierStats.reduce((acc, tier) => {
+                acc[tier.tierName] = tier.sold * tier.price;
+                return acc;
+              }, {} as { [tierName: string]: number }),
+              salesByDay: mockSalesData.salesByDay, // Keep mock for now (would need transaction history)
+              currency: "IDRX",
+              percentChange: mockSalesData.percentChange // Keep mock for now
+            };
+            setSalesData(realSalesData);
+
+            if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+              console.log("✅ Event Management: Loaded blockchain event", blockchainEvent.eventName);
+            }
+          } else {
+            // Fallback to mock data
+            setEvent(mockEvent);
+            setSalesData(mockSalesData);
+            if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+              console.log("⚠️ No blockchain event found, using mock data");
+            }
+          }
+        } else {
+          // Use mock data when blockchain disabled
+          setEvent(mockEvent);
+          setSalesData(mockSalesData);
+          if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+            console.log("🔧 Blockchain disabled, using mock data");
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching blockchain event data:", error);
+        // Fallback to mock data
         setEvent(mockEvent);
         setSalesData(mockSalesData);
-        setAttendees(mockAttendees);
-        setResellSettings(mockResellSettings);
-        // Mock staff list with contract-compatible roles
-        setStaffList([
-          {
-            address: "0x1234567890abcdef1234567890abcdef12345678",
-            role: StaffRole.SCANNER,
-            assignedBy: "0xorganizer123",
-            assignedDate: new Date(2025, 2, 15),
-            canScanTickets: true,
-            canCheckInAttendees: false,
-            canManageStaff: false
-          },
-          {
-            address: "0xabcdef1234567890abcdef1234567890abcdef12",
-            role: StaffRole.MANAGER,
-            assignedBy: "0xorganizer123",
-            assignedDate: new Date(2025, 2, 20),
-            canScanTickets: true,
-            canCheckInAttendees: true,
-            canManageStaff: true
-          }
-        ]);
-        setLoading(false);
-      }, 1000);
+      }
+      
+      setAttendees(mockAttendees);
+      setResellSettings(mockResellSettings);
+      // Mock staff list with contract-compatible roles
+      setStaffList([
+        {
+          address: "0x1234567890abcdef1234567890abcdef12345678",
+          role: StaffRole.SCANNER,
+          assignedBy: "0xorganizer123",
+          assignedDate: new Date(2025, 2, 15),
+          canScanTickets: true,
+          canCheckInAttendees: false,
+          canManageStaff: false
+        },
+        {
+          address: "0xabcdef1234567890abcdef1234567890abcdef12",
+          role: StaffRole.MANAGER,
+          assignedBy: "0xorganizer123",
+          assignedDate: new Date(2025, 2, 20),
+          canScanTickets: true,
+          canCheckInAttendees: true,
+          canManageStaff: true
+        }
+      ]);
+      setLoading(false);
     };
 
     fetchData();
-  }, [id]);
+    
+    // Load enhanced attendee data
+    loadEnhancedAttendeeData();
+  }, [id, getEventInfo, getTicketTiers]);
+
+  // Load enhanced attendee data with analytics
+  const loadEnhancedAttendeeData = async () => {
+    if (!id) return;
+    
+    setAttendeeLoading(true);
+    try {
+      // Simulate loading enhanced attendee data
+      const [attendeeData, analytics] = await Promise.all([
+        AttendeeService.getAllEventAttendees(),
+        AttendeeService.getEventAnalytics(),
+      ]);
+      
+      setEnhancedAttendees(attendeeData);
+      setEventAnalytics(analytics);
+      
+      if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+        console.log("✅ Enhanced attendee data loaded:", {
+          totalAttendees: attendeeData.length,
+          analytics,
+          sampleAttendee: attendeeData[0],
+        });
+      }
+    } catch (error) {
+      console.error("Error loading enhanced attendee data:", error);
+      toast({
+        title: "Failed to load attendee data",
+        description: "Using fallback data. Please try refreshing.",
+        status: "warning",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setAttendeeLoading(false);
+    }
+  };
 
   // Handle check-in
   const handleCheckIn = (attendeeId: string) => {
@@ -263,6 +446,198 @@ const EventManagement: React.FC = () => {
     });
   };
 
+  // Enhanced attendee management handlers
+  const handleEnhancedCheckIn = async (tokenId: string) => {
+    try {
+      // Mock staff data - in real app, get from current user context
+      const currentStaffAddress = "0x1234567890abcdef1234567890abcdef12345678";
+      const currentStaffRole = "SCANNER";
+      
+      const success = await AttendeeService.checkInAttendee(tokenId, currentStaffAddress, currentStaffRole);
+      
+      if (success) {
+        // Update local state
+        setEnhancedAttendees(prevAttendees => 
+          prevAttendees.map(attendee => 
+            attendee.tokenId === tokenId
+              ? {
+                  ...attendee,
+                  used: true,
+                  displayStatus: "Checked In" as const,
+                  checkInData: {
+                    timestamp: new Date(),
+                    staffAddress: currentStaffAddress,
+                    staffRole: currentStaffRole as any,
+                    // staffName removed - contract only provides wallet address
+                  },
+                }
+              : attendee
+          )
+        );
+        
+        // Refresh analytics
+        const newAnalytics = await AttendeeService.getEventAnalytics();
+        setEventAnalytics(newAnalytics);
+        
+        toast({
+          title: "Attendee checked in",
+          description: `Token ${tokenId} has been successfully checked in`,
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+    } catch (error) {
+      console.error("Check-in failed:", error);
+      toast({
+        title: "Check-in failed",
+        description: (error as Error).message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const handleSendEmailToAttendee = async (attendee: AttendeeData) => {
+    try {
+      const message = `Hello! This is a message from ${event?.eventName} organizer.`;
+      await AttendeeService.sendEmailToAttendee(attendee, message);
+      
+      toast({
+        title: "Email sent",
+        description: `Email sent successfully to ${attendee.email}`,
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error("Failed to send email:", error);
+      toast({
+        title: "Failed to send email",
+        description: (error as Error).message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const handleExportEnhanced = async () => {
+    try {
+      const csvData = await AttendeeService.exportAttendeeData(enhancedAttendees);
+      
+      // Create and download CSV file
+      const blob = new Blob([csvData], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `${event?.eventName}_attendees_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "Export successful",
+        description: "Enhanced attendee data has been exported to CSV",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error("Export failed:", error);
+      toast({
+        title: "Export failed",
+        description: "Failed to export attendee data",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
+  // Bulk operation handlers for table component
+  const handleBulkCheckIn = async (tokenIds: string[]) => {
+    try {
+      // Process bulk check-in
+      const successCount = await Promise.allSettled(
+        tokenIds.map(tokenId => AttendeeService.checkInAttendee(tokenId, "0x1234567890abcdef1234567890abcdef12345678", "SCANNER"))
+      );
+      
+      const successful = successCount.filter(result => result.status === 'fulfilled').length;
+      
+      // Update local state for successful check-ins
+      setEnhancedAttendees(prevAttendees => 
+        prevAttendees.map(attendee => 
+          tokenIds.includes(attendee.tokenId)
+            ? {
+                ...attendee,
+                used: true,
+                displayStatus: "Checked In" as const,
+                checkInData: {
+                  timestamp: new Date(),
+                  staffAddress: "0x1234567890abcdef1234567890abcdef12345678",
+                  staffRole: "SCANNER" as any,
+                  // staffName removed - contract only provides wallet address
+                },
+              }
+            : attendee
+        )
+      );
+      
+      // Refresh analytics
+      const newAnalytics = await AttendeeService.getEventAnalytics();
+      setEventAnalytics(newAnalytics);
+      
+      toast({
+        title: `Bulk check-in completed`,
+        description: `${successful} out of ${tokenIds.length} attendees checked in successfully`,
+        status: successful === tokenIds.length ? "success" : "warning",
+        duration: 4000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error("Bulk check-in failed:", error);
+      toast({
+        title: "Bulk check-in failed",
+        description: (error as Error).message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const handleBulkEmail = async (attendees: AttendeeData[]) => {
+    try {
+      const message = `Hello! This is a bulk message from ${event?.eventName} organizer. We hope you're excited for the upcoming event!`;
+      
+      const emailResults = await Promise.allSettled(
+        attendees.map(attendee => AttendeeService.sendEmailToAttendee(attendee, message))
+      );
+      
+      const successful = emailResults.filter(result => result.status === 'fulfilled').length;
+      
+      toast({
+        title: `Bulk emails sent`,
+        description: `${successful} out of ${attendees.length} emails sent successfully`,
+        status: successful === attendees.length ? "success" : "warning",
+        duration: 4000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error("Bulk email failed:", error);
+      toast({
+        title: "Bulk email failed",
+        description: (error as Error).message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
   // Handle resell settings update
   const handleResellSettingsUpdate = (settings: ResellSettingsData) => {
     setResellSettings(settings);
@@ -277,7 +652,7 @@ const EventManagement: React.FC = () => {
   };
 
   // Staff management handlers with role hierarchy
-  const handleAddStaff = () => {
+  const handleAddStaff = async () => {
     if (!newStaffAddress.trim()) {
       toast({
         title: "Invalid address",
@@ -300,43 +675,148 @@ const EventManagement: React.FC = () => {
       return;
     }
 
-    // Create new staff member with role-based permissions
-    const newStaffMember: StaffMember = {
-      address: newStaffAddress,
-      role: newStaffRole,
-      assignedBy: "0xorganizer123", // Mock organizer address
-      assignedDate: new Date(),
-      canScanTickets: newStaffRole >= StaffRole.SCANNER,
-      canCheckInAttendees: newStaffRole >= StaffRole.CHECKIN,
-      canManageStaff: newStaffRole === StaffRole.MANAGER
-    };
+    try {
+      if (DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN) {
+        if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+          console.log("🔄 Attempting to add staff to blockchain:", {
+            address: newStaffAddress,
+            role: newStaffRole,
+            roleInfo: getRoleInfo(newStaffRole),
+            timestamp: new Date().toISOString()
+          });
+        }
 
-    // TODO: Call smart contract addStaffWithRole(address, role) function
-    setStaffList([...staffList, newStaffMember]);
-    setNewStaffAddress("");
-    setNewStaffRole(StaffRole.SCANNER);
+        // Call real smart contract function
+        const result = await addStaffWithRole(newStaffAddress, newStaffRole);
+        if (!result) {
+          throw new Error("Failed to add staff to blockchain");
+        }
+        
+        if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+          console.log("✅ Staff added to blockchain:", { 
+            address: newStaffAddress, 
+            role: newStaffRole, 
+            hash: result,
+            success: true
+          });
+        }
+      }
 
-    const roleNames = ['NONE', 'SCANNER', 'CHECKIN', 'MANAGER'];
-    toast({
-      title: "Staff added",
-      description: `Staff member assigned as ${roleNames[newStaffRole]} successfully`,
-      status: "success",
-      duration: 3000,
-      isClosable: true,
-    });
+      // Create new staff member with role-based permissions
+      const newStaffMember: StaffMember = {
+        address: newStaffAddress,
+        role: newStaffRole,
+        assignedBy: "0xorganizer123", // Mock organizer address
+        assignedDate: new Date(),
+        canScanTickets: newStaffRole >= StaffRole.SCANNER,
+        canCheckInAttendees: newStaffRole >= StaffRole.CHECKIN,
+        canManageStaff: newStaffRole === StaffRole.MANAGER
+      };
+
+      setStaffList([...staffList, newStaffMember]);
+      setNewStaffAddress("");
+      setNewStaffRole(StaffRole.SCANNER);
+
+      const roleNames = ['NONE', 'SCANNER', 'CHECKIN', 'MANAGER'];
+      toast({
+        title: "Staff added",
+        description: `Staff member assigned as ${roleNames[newStaffRole]} successfully`,
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+        console.error("❌ Enhanced Staff Debug - Add Staff Failed:", {
+          error: error,
+          errorMessage: (error as Error).message,
+          errorStack: (error as Error).stack,
+          attemptedAddress: newStaffAddress,
+          attemptedRole: newStaffRole,
+          roleInfo: getRoleInfo(newStaffRole),
+          isInsufficientPrivileges: (error as Error).message.includes("InsufficientStaffPrivileges"),
+          blockchainEnabled: DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN,
+          timestamp: new Date().toISOString(),
+          possibleCauses: [
+            "Contract caller doesn't have MANAGER role",
+            "Contract event address mismatch", 
+            "Role enum value incorrect",
+            "Insufficient gas or transaction failed"
+          ]
+        });
+      }
+      console.error("Error adding staff:", error);
+      toast({
+        title: "Failed to add staff",
+        description: `Error: ${(error as Error).message}`,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
   };
 
-  const handleRemoveStaff = (staffAddress: string) => {
-    // TODO: Call smart contract removeStaffRole(address) function
-    setStaffList(staffList.filter(staff => staff.address !== staffAddress));
+  const handleRemoveStaff = async (staffAddress: string) => {
+    try {
+      if (DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN) {
+        if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+          console.log("🔄 Attempting to remove staff from blockchain:", {
+            address: staffAddress,
+            timestamp: new Date().toISOString()
+          });
+        }
 
-    toast({
-      title: "Staff removed",
-      description: "Staff member has been removed successfully",
-      status: "success",
-      duration: 3000,
-      isClosable: true,
-    });
+        // Call real smart contract function
+        const result = await removeStaffRole(staffAddress);
+        if (!result) {
+          throw new Error("Failed to remove staff from blockchain");
+        }
+        
+        if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+          console.log("✅ Staff removed from blockchain:", { 
+            address: staffAddress, 
+            hash: result,
+            success: true
+          });
+        }
+      }
+
+      setStaffList(staffList.filter(staff => staff.address !== staffAddress));
+
+      toast({
+        title: "Staff removed",
+        description: "Staff member has been removed successfully",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+        console.error("❌ Enhanced Staff Debug - Remove Staff Failed:", {
+          error: error,
+          errorMessage: (error as Error).message,
+          errorStack: (error as Error).stack,
+          attemptedAddress: staffAddress,
+          isInsufficientPrivileges: (error as Error).message.includes("InsufficientStaffPrivileges"),
+          blockchainEnabled: DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN,
+          timestamp: new Date().toISOString(),
+          possibleCauses: [
+            "Contract caller doesn't have MANAGER role",
+            "Contract event address mismatch",
+            "Staff address doesn't exist or has no role",
+            "Insufficient gas or transaction failed"
+          ]
+        });
+      }
+      console.error("Error removing staff:", error);
+      toast({
+        title: "Failed to remove staff",
+        description: `Error: ${(error as Error).message}`,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
   };
 
   // Helper function to get role display name and color
@@ -368,25 +848,38 @@ const EventManagement: React.FC = () => {
     navigate("/organizer/events");
   };
 
-  // Handlers for editing and adding tiers
-  const handleEditTier = (tier: any) => {
+  // Handlers for editing and adding tiers (contract supports updateTicketTier)
+  const handleEditTier = (tier: any, index: number) => {
     setEditingTier({
-      id: tier.id || `tier-${Date.now()}`,
+      id: tier.id || `tier-${index}`,
+      tierId: index, // Use index as tier ID for contract call
       name: tier.tierName,
       price: tier.price,
       currency: tier.currency || "IDRX",
-      description: "Ticket description", // Mock value since it's not in the data model
+      description: tier.description || "Ticket description", // Mock value
       available: tier.total,
-      maxPerPurchase: 4, // Mock value since it's not in the data model
-      benefits: [], // Mock value since it's not in the data model
+      maxPerPurchase: tier.maxPerPurchase || 4, // Mock value
+      benefits: tier.benefits || [], // Mock value
     });
     setIsNewTier(false);
     openTierModal();
   };
 
+  const handleDeleteTier = () => {
+    // TODO: Implement contract clearAllTiers() or individual tier removal
+    toast({
+      title: "Delete Tier",
+      description: "This feature requires contract integration for tier removal",
+      status: "info",
+      duration: 5000,
+      isClosable: true,
+    });
+  };
+
   const handleAddNewTier = () => {
     setEditingTier({
       id: `tier-${Date.now()}`,
+      tierId: -1, // New tier, no ID yet
       name: "",
       price: 0,
       currency: "IDRX",
@@ -409,105 +902,106 @@ const EventManagement: React.FC = () => {
     }
   };
 
-  // Handler to save changes
-  const handleSaveTier = () => {
+  // Handler to save changes - uses contract updateTicketTier()
+  const handleSaveTier = async () => {
     if (!editingTier || !event) return;
 
-    let updatedTierStats = [...event.tierStats];
+    try {
+      if (DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN) {
+        if (isNewTier) {
+          // Call addTicketTier() for new tier
+          // TODO: Implement real blockchain addTicketTier() call
+          toast({
+            title: "Add Tier",
+            description: "New tier creation requires addTicketTier() integration",
+            status: "info",
+            duration: 5000,
+            isClosable: true,
+          });
+        } else {
+          // Call updateTicketTier() for existing tier
+          // TODO: Implement real blockchain updateTicketTier() call
+          toast({
+            title: "Update Tier", 
+            description: "Tier update requires updateTicketTier() integration",
+            status: "info",
+            duration: 5000,
+            isClosable: true,
+          });
+        }
+      } else {
+        // Mock implementation for development
+        let updatedTierStats = [...event.tierStats];
 
-    if (isNewTier) {
-      // Add new tier
-      updatedTierStats.push({
-        tierName: editingTier.name,
-        sold: 0,
-        total: editingTier.available,
-        price: editingTier.price,
-      });
+        if (isNewTier) {
+          // Add new tier
+          updatedTierStats.push({
+            tierName: editingTier.name,
+            sold: 0,
+            total: editingTier.available,
+            price: editingTier.price,
+          });
 
+          toast({
+            title: "Ticket tier added",
+            description: `${editingTier.name} has been added successfully.`,
+            status: "success",
+            duration: 3000,
+            isClosable: true,
+          });
+        } else {
+          // Update existing tier
+          updatedTierStats = updatedTierStats.map((tier, index) =>
+            index === editingTier.tierId
+              ? {
+                  ...tier,
+                  tierName: editingTier.name,
+                  price: editingTier.price,
+                  total: editingTier.available,
+                }
+              : tier
+          );
+
+          toast({
+            title: "Ticket tier updated",
+            description: `${editingTier.name} has been updated successfully.`,
+            status: "success",
+            duration: 3000,
+            isClosable: true,
+          });
+        }
+
+        // Update event data
+        setEvent({
+          ...event,
+          tierStats: updatedTierStats,
+          // Update total tickets and revenue
+          totalTickets: updatedTierStats.reduce(
+            (total, tier) => total + tier.total,
+            0
+          ),
+          ticketsSold: updatedTierStats.reduce(
+            (total, tier) => total + tier.sold,
+            0
+          ),
+          revenue: updatedTierStats.reduce(
+            (total, tier) => total + tier.sold * tier.price,
+            0
+          ),
+        });
+      }
+
+      closeTierModal();
+    } catch (error) {
+      console.error("Error saving tier:", error);
       toast({
-        title: "Ticket tier added",
-        description: `${editingTier.name} has been added successfully.`,
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-      });
-    } else {
-      // Update existing tier
-      updatedTierStats = updatedTierStats.map((tier) =>
-        tier.tierName === editingTier.name
-          ? {
-              ...tier,
-              price: editingTier.price,
-              total: editingTier.available,
-            }
-          : tier
-      );
-
-      toast({
-        title: "Ticket tier updated",
-        description: `${editingTier.name} has been updated successfully.`,
-        status: "success",
-        duration: 3000,
+        title: "Failed to save tier",
+        description: `Error: ${(error as Error).message}`,
+        status: "error",
+        duration: 5000,
         isClosable: true,
       });
     }
-
-    // Update event data
-    setEvent({
-      ...event,
-      tierStats: updatedTierStats,
-      // Update total tickets and revenue
-      totalTickets: updatedTierStats.reduce(
-        (total, tier) => total + tier.total,
-        0
-      ),
-      ticketsSold: updatedTierStats.reduce(
-        (total, tier) => total + tier.sold,
-        0
-      ),
-      revenue: updatedTierStats.reduce(
-        (total, tier) => total + tier.sold * tier.price,
-        0
-      ),
-    });
-
-    closeTierModal();
-  };
-
-  // Handle delete tier
-  const handleDeleteTier = (tierName: string) => {
-    if (!event) return;
-
-    const updatedTierStats = event.tierStats.filter(
-      (tier) => tier.tierName !== tierName
-    );
-
-    // Update event data
-    setEvent({
-      ...event,
-      tierStats: updatedTierStats,
-      // Update total tickets and revenue
-      totalTickets: updatedTierStats.reduce(
-        (total, tier) => total + tier.total,
-        0
-      ),
-      ticketsSold: updatedTierStats.reduce(
-        (total, tier) => total + tier.sold,
-        0
-      ),
-      revenue: updatedTierStats.reduce(
-        (total, tier) => total + tier.sold * tier.price,
-        0
-      ),
-    });
-
-    toast({
-      title: "Ticket tier deleted",
-      description: `${tierName} has been deleted successfully.`,
-      status: "success",
-      duration: 3000,
-      isClosable: true,
-    });
   };
 
   if (loading) {
@@ -574,14 +1068,7 @@ const EventManagement: React.FC = () => {
         </Box>
 
         <HStack>
-          <Button
-            leftIcon={<EditIcon />}
-            colorScheme="purple"
-            variant="outline"
-            onClick={() => navigate(`/organizer/events/${id}/edit`)}
-          >
-            Edit Event
-          </Button>
+          {/* Edit Event button removed - core event info cannot be updated after creation */}
           <Button
             leftIcon={<DeleteIcon />}
             colorScheme="red"
@@ -614,8 +1101,8 @@ const EventManagement: React.FC = () => {
 
         <TabPanels>
           {/* Analytics Tab */}
-          <TabPanel px={0}>
-            <VStack spacing={8} align="stretch">
+          <TabPanel px={0} py={6}>
+            <VStack spacing={6} align="stretch">
               <SalesStatistics
                 salesData={salesData}
                 eventName={event.eventName}
@@ -641,7 +1128,7 @@ const EventManagement: React.FC = () => {
           {/* Tickets Tab */}
           <TabPanel px={0} py={6}>
             <VStack spacing={6} align="stretch">
-              <Flex justify="space-between" align="center" mb={4}>
+              <Flex justify="space-between" align="center">
                 <Heading size="md">Ticket Tiers</Heading>
                 <Button
                   leftIcon={<AddIcon />}
@@ -662,22 +1149,29 @@ const EventManagement: React.FC = () => {
                   transition="all 0.3s"
                   _hover={{ boxShadow: "md" }}
                 >
-                  <Flex justify="space-between" align="start">
-                    <Box flex="1">
-                      <HStack mb={2} align="center">
-                        <Text fontWeight="bold" fontSize="lg">
-                          {tier.tierName}
+                  <Flex justify="space-between" align="start" w="full">
+                    <VStack align="start" spacing={3} flex="1">
+                      {/* Tier Name */}
+                      <Text fontWeight="bold" fontSize="lg">
+                        {tier.tierName}
+                      </Text>
+                      
+                      {/* Sold Stats - Compact Format */}
+                      <HStack spacing={4} align="center">
+                        <Text fontSize="md" fontWeight="medium">
+                          {tier.sold} / {tier.total}
                         </Text>
-                        <Badge colorScheme="purple">
-                          {tier.price} {event.currency}
+                        <Badge colorScheme="blue" variant="subtle">
+                          {((tier.sold / tier.total) * 100).toFixed(0)}%
                         </Badge>
                       </HStack>
-
-                      <Text fontSize="sm" color="gray.600" mb={2}>
-                        {tier.sold} / {tier.total} sold (
-                        {((tier.sold / tier.total) * 100).toFixed(0)}%)
+                      
+                      {/* Price per ticket */}
+                      <Text fontSize="md" color="purple.600" fontWeight="medium">
+                        {event.currency} {tier.price} per ticket
                       </Text>
 
+                      {/* Progress bar */}
                       <Progress
                         value={(tier.sold / tier.total) * 100}
                         size="sm"
@@ -687,41 +1181,31 @@ const EventManagement: React.FC = () => {
                             : "blue"
                         }
                         borderRadius="full"
-                        mb={2}
+                        w="full"
                       />
+                    </VStack>
 
-                      <HStack mt={3} spacing={4}>
-                        <Text fontSize="sm" color="gray.500">
-                          Max Per Purchase: 4
-                        </Text>
-                        <Text fontSize="sm" color="gray.500">
-                          Revenue: {event.currency}{" "}
-                          {(tier.sold * tier.price).toLocaleString()}
-                        </Text>
-                      </HStack>
-                    </Box>
-
-                    <HStack spacing={2}>
+                    {/* Tier Actions - Contract supports updateTicketTier() */}
+                    <VStack spacing={2} ml={4}>
                       <Button
                         size="sm"
                         leftIcon={<EditIcon />}
                         colorScheme="purple"
                         variant="outline"
-                        onClick={() => handleEditTier(tier)}
+                        onClick={() => handleEditTier(tier, index)}
                       >
                         Edit
                       </Button>
-
                       <Button
                         size="sm"
                         leftIcon={<DeleteIcon />}
                         colorScheme="red"
                         variant="outline"
-                        onClick={() => handleDeleteTier(tier.tierName)}
+                        onClick={() => handleDeleteTier()}
                       >
                         Delete
                       </Button>
-                    </HStack>
+                    </VStack>
                   </Flex>
                 </Box>
               ))}
@@ -747,45 +1231,74 @@ const EventManagement: React.FC = () => {
             </VStack>
           </TabPanel>
 
-          {/* Attendees Tab */}
-          <TabPanel px={0} py={4}>
-            <Flex justify="space-between" align="center" mb={6}>
-              <Heading size="md">Attendee Management</Heading>
-              <HStack>
-                <Button
-                  colorScheme="purple"
-                  onClick={() => navigate(`/organizer/events/${id}/check-in`)}
-                >
-                  Check-in Dashboard
-                </Button>
-              </HStack>
-            </Flex>
-            <AttendeeList
-              attendees={attendees}
-              onCheckIn={handleCheckIn}
-              onExport={handleExport}
-            />
+          {/* Attendees Tab - Enhanced Version */}
+          <TabPanel px={0} py={6}>
+            <VStack spacing={6} align="stretch">
+              <Flex justify="space-between" align="center">
+                <Heading size="md">Attendee Management</Heading>
+                <HStack>
+                  <Button
+                    colorScheme="purple"
+                    onClick={() => navigate(`/organizer/events/${id}/check-in`)}
+                  >
+                    QR Scanner Dashboard
+                  </Button>
+                </HStack>
+              </Flex>
+              
+              {attendeeLoading ? (
+                <VStack spacing={4} py={8}>
+                  <Text color="gray.500">Loading enhanced attendee data...</Text>
+                  <Progress size="lg" isIndeterminate w="50%" />
+                </VStack>
+              ) : (
+                <EnhancedAttendeeListTable
+                  attendees={enhancedAttendees}
+                  analytics={eventAnalytics}
+                  onCheckIn={handleEnhancedCheckIn}
+                  onSendEmail={handleSendEmailToAttendee}
+                  onExport={handleExportEnhanced}
+                  onRefreshData={loadEnhancedAttendeeData}
+                  onBulkCheckIn={handleBulkCheckIn}
+                  onBulkEmail={handleBulkEmail}
+                />
+              )}
+              
+              {/* Fallback to old attendee list if needed */}
+              {enhancedAttendees.length === 0 && !attendeeLoading && (
+                <Box>
+                  <Text color="gray.500" mb={4} fontSize="sm">
+                    Fallback to basic attendee list (enhanced data not available)
+                  </Text>
+                  <AttendeeList
+                    attendees={attendees}
+                    onCheckIn={handleCheckIn}
+                    onExport={handleExport}
+                  />
+                </Box>
+              )}
+            </VStack>
           </TabPanel>
 
           {/* Staff Tab */}
-          <TabPanel px={0} py={4}>
+          <TabPanel px={0} py={6}>
             <VStack spacing={6} align="stretch">
-              <Flex justify="space-between" align="center" mb={4}>
+              <Flex justify="space-between" align="center">
                 <Heading size="md">Staff Management</Heading>
               </Flex>
               
-              <Text color="gray.600" mb={6}>
+              <Text color="gray.600">
                 Manage staff members with role-based permissions. Roles have hierarchical access: SCANNER → CHECKIN → MANAGER.
               </Text>
 
               {/* Role Hierarchy Info */}
               <Box
-                bg="blue.50"
                 p={4}
-                borderRadius="lg"
-                border="1px solid"
+                borderWidth="2px"
+                borderRadius="md"
                 borderColor="blue.200"
-                mb={6}
+                bg="blue.50"
+                shadow="sm"
               >
                 <Text fontWeight="medium" mb={2} color="blue.800">Role Hierarchy & Permissions:</Text>
                 <VStack align="start" spacing={1} fontSize="sm" color="blue.700">
@@ -797,11 +1310,12 @@ const EventManagement: React.FC = () => {
 
               {/* Add Staff */}
               <Box
-                bg="white"
-                p={6}
-                borderRadius="lg"
-                border="1px solid"
+                p={4}
+                borderWidth="2px"
+                borderRadius="md"
                 borderColor="gray.200"
+                bg="white"
+                shadow="sm"
               >
                 <Heading size="sm" mb={4}>Add New Staff Member</Heading>
                 <VStack spacing={4} mb={6}>
@@ -859,11 +1373,12 @@ const EventManagement: React.FC = () => {
 
               {/* Staff List */}
               <Box
-                bg="white"
-                p={6}
-                borderRadius="lg"
-                border="1px solid"
+                p={4}
+                borderWidth="2px"
+                borderRadius="md"
                 borderColor="gray.200"
+                bg="white"
+                shadow="sm"
               >
                 <VStack align="stretch" spacing={3}>
                   <Text fontWeight="medium" mb={2}>
@@ -936,11 +1451,15 @@ const EventManagement: React.FC = () => {
           </TabPanel>
 
           {/* Settings Tab */}
-          <TabPanel px={0} py={4}>
-            <VStack spacing={8} align="stretch">
+          <TabPanel px={0} py={6}>
+            <VStack spacing={6} align="stretch">
+              <Flex justify="space-between" align="center">
+                <Heading size="md">Event Settings</Heading>
+              </Flex>
+              
               <ResellSettings
                 settings={resellSettings}
-                onChange={handleResellSettingsUpdate}
+                onSave={handleResellSettingsUpdate}
               />
             </VStack>
           </TabPanel>
@@ -976,7 +1495,7 @@ const EventManagement: React.FC = () => {
         </AlertDialogOverlay>
       </AlertDialog>
 
-      {/* Ticket Tier Edit/Add Modal */}
+      {/* Ticket Tier Edit/Add Modal - Contract supports updateTicketTier() */}
       <Modal isOpen={isTierModalOpen} onClose={closeTierModal} size="lg">
         <ModalOverlay />
         <ModalContent>
@@ -1065,8 +1584,7 @@ const EventManagement: React.FC = () => {
                     </NumberInputStepper>
                   </NumberInput>
                   <Text fontSize="sm" color="gray.500" mt={1}>
-                    Maximum number of tickets that can be purchased in a single
-                    transaction
+                    Maximum number of tickets that can be purchased in a single transaction
                   </Text>
                 </FormControl>
 

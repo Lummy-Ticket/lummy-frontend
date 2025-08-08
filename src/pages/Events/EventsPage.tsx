@@ -8,6 +8,7 @@ import {
   SimpleGrid,
   Button,
   VStack,
+  Flex,
   Skeleton,
   Alert,
   AlertIcon,
@@ -300,12 +301,14 @@ const EventsPage: React.FC = () => {
   return (
     <Container maxW="container.xl" py={8}>
       <VStack spacing={8} align="stretch">
-        <Box>
-          <Heading size="lg">Discover Events</Heading>
-          <Text color="gray.600">
-            Find and book blockchain-verified tickets for the best events
-          </Text>
-        </Box>
+        <Flex justify="space-between" align="center" mb={0}>
+          <Box>
+            <Heading size="lg">Discover Events</Heading>
+            <Text color="gray.600">
+              Find and book blockchain-verified tickets for the best events
+            </Text>
+          </Box>
+        </Flex>
 
         {/* Display status message */}
         {errorMsg && (

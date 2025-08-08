@@ -646,7 +646,7 @@ const CreateEventForm: React.FC = () => {
         >
           <ResellSettings
             settings={resellSettings}
-            onChange={setResellSettings}
+            onSave={setResellSettings}
           />
         </Box>
 

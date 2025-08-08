@@ -6,7 +6,8 @@ import { TICKET_PURCHASE_FACET_ABI } from "../contracts/TicketPurchaseFacet";
 import { TICKET_NFT_ABI } from "../contracts/TicketNFT";
 import { IDRX_TOKEN_ABI } from "../contracts/MockIDRX";
 import { MARKETPLACE_FACET_ABI } from "../contracts/MarketplaceFacet";
-import { CONTRACT_ADDRESSES, IDRX_DECIMALS } from "../constants";
+import { STAFF_MANAGEMENT_FACET_ABI } from "../contracts/StaffManagementFacet";
+import { CONTRACT_ADDRESSES, IDRX_DECIMALS, DEVELOPMENT_CONFIG } from "../constants";
 import { parseUnits, formatUnits } from "viem";
 import { ResaleTicket } from "../components/marketplace/ResaleTicketCard";
 import { useEmailService } from "./useEmailService";
@@ -231,7 +232,7 @@ export const useSmartContract = () => {
           name: (tier as any).name || tier[0],
           price: (tier as any).price || tier[1],
           available: (tier as any).available || tier[2],
-          sold: (tier as any).sold || tier[3],
+          sold: (tier as any).sold !== undefined ? (tier as any).sold : tier[3],
           maxPerPurchase: (tier as any).maxPerPurchase || tier[4],
           active: (tier as any).active || tier[5],
           // TODO: Add back when contract fixed
@@ -1418,6 +1419,523 @@ export const useSmartContract = () => {
     [walletClient, address, publicClient]
   );
 
+  /**
+   * Validate ticket for staff scanning
+   * @param tokenId Token ID to validate
+   * @returns Ticket validation result
+   */
+  const validateTicket = useCallback(
+    async (tokenId: string) => {
+      if (!publicClient) {
+        setError("Provider not available");
+        return null;
+      }
+
+      setError(null);
+
+      try {
+        // Get NFT metadata
+        const metadata = await publicClient.readContract({
+          address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+          abi: TICKET_NFT_ABI,
+          functionName: "getTicketMetadata",
+          args: [BigInt(tokenId)],
+        });
+
+        // Get owner
+        const owner = await publicClient.readContract({
+          address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+          abi: TICKET_NFT_ABI,
+          functionName: "ownerOf",
+          args: [BigInt(tokenId)],
+        });
+
+        // Get event info
+        const eventInfo = await getEventInfo();
+
+        if (metadata && eventInfo) {
+          const ticketMetadata = metadata as any;
+          return {
+            tokenId,
+            owner: owner as string,
+            eventId: eventInfo.eventId ? eventInfo.eventId.toString() : "1",
+            eventName: ticketMetadata.eventName || eventInfo.name || "Unknown Event",
+            eventVenue: ticketMetadata.eventVenue || eventInfo.venue || "Unknown Venue",
+            tierName: ticketMetadata.tierName || "Unknown Tier",
+            originalPrice: ticketMetadata.originalPrice || BigInt(0),
+            used: ticketMetadata.used || false,
+            status: ticketMetadata.used ? 'used' : 'valid',
+            transferCount: Number(ticketMetadata.transferCount || 0)
+          };
+        }
+
+        return null;
+      } catch (err) {
+        console.error("Error validating ticket:", err);
+        setError(parseContractError(err));
+        return null;
+      }
+    },
+    [publicClient, getEventInfo]
+  );
+
+  /**
+   * Get staff role for current wallet address
+   * @returns Staff role enum (0=NONE, 1=SCANNER, 2=CHECKIN, 3=MANAGER)
+   */
+  const getStaffRole = useCallback(
+    async (staffAddress?: string) => {
+      if (!publicClient) {
+        setError("Provider not available");
+        return null;
+      }
+
+      const targetAddress = staffAddress || address;
+      if (!targetAddress) {
+        return null;
+      }
+
+      try {
+        const role = await publicClient.readContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: STAFF_MANAGEMENT_FACET_ABI,
+          functionName: "getStaffRole",
+          args: [targetAddress as `0x${string}`],
+        });
+
+        return Number(role); // Convert to number (0=NONE, 1=SCANNER, 2=CHECKIN, 3=MANAGER)
+      } catch (err) {
+        console.error("Error getting staff role:", err);
+        setError(parseContractError(err));
+        return null;
+      }
+    },
+    [publicClient, address]
+  );
+
+  /**
+   * Check if wallet has sufficient staff privileges
+   * @param requiredRole Minimum role required (1=SCANNER, 2=CHECKIN, 3=MANAGER)
+   * @returns True if has sufficient privileges
+   */
+  const hasStaffRole = useCallback(
+    async (requiredRole: number, staffAddress?: string) => {
+      if (!publicClient) {
+        setError("Provider not available");
+        return false;
+      }
+
+      const targetAddress = staffAddress || address;
+      if (!targetAddress) {
+        return false;
+      }
+
+      try {
+        const hasRole = await publicClient.readContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: STAFF_MANAGEMENT_FACET_ABI,
+          functionName: "hasStaffRole",
+          args: [targetAddress as `0x${string}`, requiredRole],
+        });
+
+        return Boolean(hasRole);
+      } catch (err) {
+        console.error("Error checking staff role:", err);
+        setError(parseContractError(err));
+        return false;
+      }
+    },
+    [publicClient, address]
+  );
+
+  /**
+   * Validate ticket using StaffManagementFacet (requires staff role)
+   * @param tokenId Token ID to validate
+   * @returns Enhanced ticket validation result
+   */
+  const validateTicketAsStaff = useCallback(
+    async (tokenId: string) => {
+      if (!walletClient || !address) {
+        setError("Wallet not connected");
+        return null;
+      }
+
+      setError(null);
+
+      try {
+        // Debug staff privileges
+        const staffRoleNumber = await getStaffRole();
+        const hasStaffPrivileges = await hasStaffRole(1); // SCANNER role minimum
+        
+        if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+          console.log('🔍 Staff Role Debug:', {
+            address,
+            staffRoleNumber,
+            hasStaffPrivileges,
+            contractAddress: CONTRACT_ADDRESSES.DiamondLummy
+          });
+        }
+        
+        if (!hasStaffPrivileges) {
+          throw new Error(`Insufficient staff privileges - requires SCANNER role or higher. Current role: ${staffRoleNumber}`);
+        }
+
+        // Validate ticket via StaffManagementFacet
+        const [isValid, owner, tierId, status] = await publicClient?.readContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: STAFF_MANAGEMENT_FACET_ABI,
+          functionName: "validateTicket",
+          args: [BigInt(tokenId)],
+        }) as [boolean, string, bigint, string];
+
+        // Get enhanced metadata
+        const metadata = await publicClient?.readContract({
+          address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+          abi: TICKET_NFT_ABI,
+          functionName: "getTicketMetadata",
+          args: [BigInt(tokenId)],
+        });
+
+        // Get event info
+        const eventInfo = await getEventInfo();
+
+        if (metadata && eventInfo) {
+          const ticketMetadata = metadata as any;
+          return {
+            tokenId,
+            isValid,
+            owner,
+            tierId: Number(tierId),
+            status,
+            eventId: eventInfo.eventId ? eventInfo.eventId.toString() : "1",
+            eventName: ticketMetadata.eventName || eventInfo.name || "Unknown Event",
+            eventVenue: ticketMetadata.eventVenue || eventInfo.venue || "Unknown Venue",
+            tierName: ticketMetadata.tierName || "Unknown Tier",
+            originalPrice: ticketMetadata.originalPrice || BigInt(0),
+            transferCount: Number(ticketMetadata.transferCount || 0),
+            canMarkAsUsed: status === 'valid' && isValid
+          };
+        }
+
+        return {
+          tokenId,
+          isValid,
+          owner,
+          tierId: Number(tierId),
+          status,
+          canMarkAsUsed: status === 'valid' && isValid
+        };
+      } catch (err) {
+        console.error("Error validating ticket as staff:", err);
+        setError(parseContractError(err));
+        return null;
+      }
+    },
+    [walletClient, address, publicClient, hasStaffRole, getEventInfo]
+  );
+
+  /**
+   * Update ticket status from valid to used (requires staff role)
+   * @param tokenId Token ID to mark as used
+   * @returns Transaction hash if successful
+   */
+  const updateTicketStatus = useCallback(
+    async (tokenId: string) => {
+      if (!walletClient || !address) {
+        setError("Wallet not connected");
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Check staff privileges first
+        const hasStaffPrivileges = await hasStaffRole(1); // SCANNER role minimum
+        if (!hasStaffPrivileges) {
+          throw new Error("Insufficient staff privileges - requires SCANNER role or higher");
+        }
+
+        // Update ticket status via StaffManagementFacet
+        const hash = await walletClient.writeContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: STAFF_MANAGEMENT_FACET_ABI,
+          functionName: "updateTicketStatus",
+          args: [BigInt(tokenId)],
+        });
+
+        await publicClient?.waitForTransactionReceipt({ hash });
+        
+        console.log(`✅ Ticket ${tokenId} marked as used:`, hash);
+        return hash;
+      } catch (err) {
+        console.error("Error updating ticket status:", err);
+        setError(parseContractError(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [walletClient, address, publicClient, hasStaffRole]
+  );
+
+  /**
+   * Batch update multiple ticket statuses (efficient for bulk check-in)
+   * @param tokenIds Array of token IDs to mark as used
+   * @returns Transaction hash if successful
+   */
+  const batchUpdateTicketStatus = useCallback(
+    async (tokenIds: string[]) => {
+      if (!walletClient || !address) {
+        setError("Wallet not connected");
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Check staff privileges first
+        const hasStaffPrivileges = await hasStaffRole(1); // SCANNER role minimum
+        if (!hasStaffPrivileges) {
+          throw new Error("Insufficient staff privileges - requires SCANNER role or higher");
+        }
+
+        const tokenIdsBigInt = tokenIds.map(id => BigInt(id));
+
+        // Batch update via StaffManagementFacet
+        const hash = await walletClient.writeContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: STAFF_MANAGEMENT_FACET_ABI,
+          functionName: "batchUpdateTicketStatus",
+          args: [tokenIdsBigInt],
+        });
+
+        await publicClient?.waitForTransactionReceipt({ hash });
+        
+        console.log(`✅ Batch updated ${tokenIds.length} tickets:`, hash);
+        return hash;
+      } catch (err) {
+        console.error("Error batch updating ticket status:", err);
+        setError(parseContractError(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [walletClient, address, publicClient, hasStaffRole]
+  );
+
+  /**
+   * Check if current wallet is the organizer of the event
+   * @param walletAddress Optional wallet address to check (defaults to current wallet)
+   * @returns True if wallet is the organizer of the current event
+   */
+  const isEventOrganizer = useCallback(
+    async (walletAddress?: string) => {
+      const targetAddress = walletAddress || address;
+      if (!targetAddress) {
+        return false;
+      }
+
+      try {
+        const eventInfo = await getEventInfo();
+        if (!eventInfo || !eventInfo.organizer) {
+          return false;
+        }
+
+        const isOrganizer = eventInfo.organizer.toLowerCase() === targetAddress.toLowerCase();
+        
+        if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+          console.log("🔍 Organizer Check:", {
+            wallet: targetAddress,
+            eventOrganizer: eventInfo.organizer,
+            isOrganizer,
+            eventName: eventInfo.name
+          });
+        }
+
+        return isOrganizer;
+      } catch (err) {
+        console.error("Error checking organizer status:", err);
+        return false;
+      }
+    },
+    [address, getEventInfo]
+  );
+
+  /**
+   * Get comprehensive role information for current wallet
+   * @returns Object with role detection results
+   */
+  const getWalletRoles = useCallback(
+    async (walletAddress?: string) => {
+      const targetAddress = walletAddress || address;
+      if (!targetAddress) {
+        return {
+          isOrganizer: false,
+          staffRole: 0,
+          hasAnyRole: false,
+          recommendedRole: 'customer' as const
+        };
+      }
+
+      try {
+        // Check organizer status
+        const isOrganizer = await isEventOrganizer(targetAddress);
+        
+        // Check staff role  
+        const staffRole = await getStaffRole(targetAddress) || 0;
+        
+        // Determine recommended role
+        let recommendedRole: 'customer' | 'organizer' | 'staff' = 'customer';
+        if (isOrganizer) {
+          recommendedRole = 'organizer';
+        } else if (staffRole >= 1) {
+          recommendedRole = 'staff';
+        }
+
+        const hasAnyRole = isOrganizer || staffRole >= 1;
+
+        if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+          console.log("👤 Wallet Roles:", {
+            address: targetAddress,
+            isOrganizer,
+            staffRole,
+            hasAnyRole,
+            recommendedRole
+          });
+        }
+
+        return {
+          isOrganizer,
+          staffRole,
+          hasAnyRole,
+          recommendedRole
+        };
+      } catch (err) {
+        console.error("Error getting wallet roles:", err);
+        return {
+          isOrganizer: false,
+          staffRole: 0,
+          hasAnyRole: false,
+          recommendedRole: 'customer' as const
+        };
+      }
+    },
+    [address, isEventOrganizer, getStaffRole]
+  );
+
+  /**
+   * Add staff member with specific role (organizer only)
+   * @param staffAddress Address to assign staff role
+   * @param roleLevel Role level (1=SCANNER, 2=CHECKIN, 3=MANAGER)
+   * @returns Transaction hash if successful
+   */
+  const addStaffWithRole = useCallback(
+    async (staffAddress: string, roleLevel: number) => {
+      if (!walletClient || !address) {
+        setError("Wallet not connected");
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Verify organizer permissions first
+        const isOrganizer = await isEventOrganizer();
+        if (!isOrganizer) {
+          throw new Error("Only organizers can add staff members");
+        }
+
+        if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+          console.log('🔍 Staff Management: Attempting to add staff:', {
+            staffAddress,
+            roleLevel,
+            walletAddress: address,
+            contractAddress: CONTRACT_ADDRESSES.DiamondLummy,
+            isOrganizer
+          });
+        }
+
+        const hash = await walletClient.writeContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: STAFF_MANAGEMENT_FACET_ABI,
+          functionName: "addStaffWithRole",
+          args: [
+            staffAddress as `0x${string}`,
+            roleLevel, // 1=SCANNER, 2=CHECKIN, 3=MANAGER
+          ],
+        });
+
+        await publicClient?.waitForTransactionReceipt({ hash });
+        
+        console.log(`✅ Staff added: ${staffAddress} with role ${roleLevel}`);
+        return hash;
+      } catch (err) {
+        console.error("Error adding staff:", err);
+        setError(parseContractError(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [walletClient, address, publicClient, isEventOrganizer]
+  );
+
+  /**
+   * Remove staff member (organizer only)
+   * @param staffAddress Address to remove from staff
+   * @returns Transaction hash if successful
+   */
+  const removeStaffRole = useCallback(
+    async (staffAddress: string) => {
+      if (!walletClient || !address) {
+        setError("Wallet not connected");
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Verify organizer permissions first
+        const isOrganizer = await isEventOrganizer();
+        if (!isOrganizer) {
+          throw new Error("Only organizers can remove staff members");
+        }
+
+        const hash = await walletClient.writeContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: STAFF_MANAGEMENT_FACET_ABI,
+          functionName: "removeStaffRole",
+          args: [staffAddress as `0x${string}`],
+        });
+
+        await publicClient?.waitForTransactionReceipt({ hash });
+        
+        console.log(`✅ Staff removed: ${staffAddress}`);
+        return hash;
+      } catch (err) {
+        console.error("Error removing staff:", err);
+        setError(parseContractError(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [walletClient, address, publicClient, isEventOrganizer]
+  );
+
+  /**
+   * Get staff role names for display
+   * @returns Array of role names
+   */
+  const getStaffRoleNames = useCallback(() => {
+    return ['NONE', 'SCANNER', 'CHECKIN', 'MANAGER'];
+  }, []);
+
   return {
     // Event management (Diamond pattern)
     initializeEvent,
@@ -1441,6 +1959,23 @@ export const useSmartContract = () => {
     getActiveMarketplaceListings, // New function for fetching marketplace data
     purchaseResaleTicket, // New function for buying resale tickets
     cancelResaleListing, // New function for cancelling listings
+    validateTicket, // New function for staff ticket validation
+    
+    // Staff management functions
+    getStaffRole, // Get staff role for address
+    hasStaffRole, // Check staff privileges
+    validateTicketAsStaff, // Enhanced staff validation
+    updateTicketStatus, // Mark ticket as used (staff only)
+    batchUpdateTicketStatus, // Batch mark tickets as used
+    
+    // Organizer & role detection functions
+    isEventOrganizer, // Check if wallet is event organizer
+    getWalletRoles, // Get comprehensive role information
+    
+    // Staff management functions (organizer only)
+    addStaffWithRole, // Add staff with specific role
+    removeStaffRole, // Remove staff role
+    getStaffRoleNames, // Get role name labels
     burnTicketForQR,
     
     // State

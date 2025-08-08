@@ -29,16 +29,24 @@ export const IDRX_DECIMALS = 18;
 // Development configuration
 export const DEVELOPMENT_CONFIG = {
   // Feature flags for hybrid development
-  ENABLE_BLOCKCHAIN: false, // Toggle untuk development vs production
+  ENABLE_BLOCKCHAIN: true, // Toggle untuk development vs production
   ENABLE_REAL_IPFS: false,  // Toggle untuk IPFS vs mock storage
   ENABLE_CONTRACT_DEPLOYMENT: false, // Toggle untuk contract calls
+  
+  // Organizer system flags
+  ENABLE_ORGANIZER_BACKEND: false, // Toggle untuk real API vs mock
+  ENABLE_DOCUMENT_UPLOAD: false,   // Toggle untuk real file upload vs mock
+  ENABLE_ADMIN_BLOCKCHAIN_CALLS: false, // Toggle untuk admin contract calls
   
   // Mock behavior configurations
   MOCK_TRANSACTION_DELAY: 2000, // Simulate blockchain delay
   MOCK_SUCCESS_RATE: 0.95, // 95% success rate untuk mock transactions
+  MOCK_UPLOAD_DELAY: 1500, // Simulate document upload delay
+  MOCK_ADMIN_PROCESSING_TIME: 5000, // Simulate admin review processing
   
   // Development helpers
   LOG_CONTRACT_CALLS: true, // Log semua contract calls ke console
+  LOG_API_CALLS: true, // Log organizer API calls
   SHOW_DEV_NOTICES: true,   // Show development notices
 };
 
@@ -59,6 +67,10 @@ export const UI_CONFIG = {
     MIN: { width: 256, height: 256 },
     MAX: { width: 1024, height: 1024 },
   },
+  // Document upload configuration
+  SUPPORTED_DOCUMENT_TYPES: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+  MAX_DOCUMENT_SIZE: 10 * 1024 * 1024, // 10MB for DOCX files
+  ORGANIZER_APPLICATION_TEMPLATE_URL: "/assets/templates/organizer-application-template.docx",
 };
 
 // Chain Configuration

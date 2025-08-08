@@ -121,30 +121,56 @@ const EventsPage: React.FC = () => {
           revenue: 0,
           currency: "IDRX",
           date: new Date(Number(eventInfo.date) * 1000).toISOString().split('T')[0],
-          venue: eventInfo.venue,
+          venue: eventInfo.venue || "Venue TBD",
           category: "Blockchain",
           daysUntilEvent: Math.ceil((Number(eventInfo.date) * 1000 - Date.now()) / (1000 * 60 * 60 * 24)),
           ticketingSystem: "Diamond Pattern" as const,
         };
 
-        // Try to get ticket tiers
+        // Try to get ticket tiers for real data
         try {
           const tiers = await getTicketTiers();
           if (tiers && tiers.length > 0) {
             blockchainEvent.totalTickets = tiers.reduce((sum, tier) => sum + Number(tier.available) + Number(tier.sold), 0);
             blockchainEvent.ticketsSold = tiers.reduce((sum, tier) => sum + Number(tier.sold), 0);
+            // Calculate revenue properly (tier.price already in wei, convert to IDRX)
             blockchainEvent.revenue = tiers.reduce((sum, tier) => sum + (Number(tier.sold) * Number(tier.price) / 1e18), 0);
+            
+            if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+              console.log('✅ Loaded real blockchain data:', {
+                eventName: blockchainEvent.eventName,
+                totalTickets: blockchainEvent.totalTickets,
+                ticketsSold: blockchainEvent.ticketsSold,
+                revenue: blockchainEvent.revenue,
+                tiers: tiers.length
+              });
+            }
+          } else {
+            if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+              console.log('⚠️ No tiers found, using 0 values');
+            }
           }
         } catch (tierError) {
-          console.log("Could not load tiers:", tierError);
+          if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+            console.log("Could not load tiers:", tierError);
+          }
         }
 
         // Replace mock events with blockchain event
         setEvents([blockchainEvent]);
-        console.log("✅ Loaded blockchain event for organizer:", blockchainEvent.eventName);
+        
+        if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+          console.log("✅ Organizer Events: Loaded blockchain event", blockchainEvent.eventName);
+        }
+      } else {
+        if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+          console.log("⚠️ No blockchain event found, using mock data");
+        }
       }
     } catch (error) {
-      console.log("Blockchain load failed, using mock events:", error);
+      if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+        console.log("❌ Blockchain load failed, using mock events:", error);
+      }
     }
   };
 
@@ -351,10 +377,10 @@ const EventsPage: React.FC = () => {
           
           <HStack justify="space-between" width="full" color="gray.600" fontSize="sm">
             <Text>
-              Showing {filteredEvents.length} of {mockEvents.length} events
+              Showing {filteredEvents.length} of {events.length} events
             </Text>
             <Text>
-              Total Revenue: IDRX {mockEvents.reduce((sum, event) => sum + event.revenue, 0).toLocaleString()}
+              Total Revenue: IDRX {events.reduce((sum, event) => sum + event.revenue, 0).toLocaleString()}
             </Text>
           </HStack>
         </VStack>

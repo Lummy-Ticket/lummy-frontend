@@ -294,13 +294,14 @@ export const MarketplacePage: React.FC = () => {
   return (
     <Container maxW="container.xl" py={8}>
       <VStack spacing={8} align="stretch">
-        <Box>
-          <Flex align="center" justify="space-between" mb={2}>
-            <Heading size="lg">
-              <Icon as={FaShoppingCart} mr={2} />
-              NFT Ticket Marketplace
-            </Heading>
-            <Button
+        <Flex justify="space-between" align="center" mb={0}>
+          <Box>
+            <Heading size="lg">NFT Ticket Marketplace</Heading>
+            <Text color="gray.600">
+              Buy verified resale tickets for upcoming events. All transactions secured on the blockchain.
+            </Text>
+          </Box>
+          <Button
               size="sm"
               variant="outline"
               leftIcon={<Icon as={FaSync} />}
@@ -310,10 +311,7 @@ export const MarketplacePage: React.FC = () => {
             >
               Refresh
             </Button>
-          </Flex>
-          <Text color="gray.600" mb={4}>
-            Buy verified resale tickets for upcoming events. All transactions secured on the blockchain.
-          </Text>
+        </Flex>
           
           {/* Status Display */}
           {!DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN && (
@@ -334,7 +332,6 @@ export const MarketplacePage: React.FC = () => {
               </Text>
             </Alert>
           )}
-        </Box>
 
         <MarketplaceFilters
           onFilterChange={handleFilterChange}

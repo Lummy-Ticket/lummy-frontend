@@ -14,6 +14,7 @@ import {
   CreateEventForm,
   EventManagement,
 } from "./pages/Organizer";
+import StaffManagementPage from "./pages/Organizer/StaffManagementPage";
 import OrganizerEventsPage from "./pages/Organizer/EventsPage";
 import FinancePage from "./pages/Organizer/FinancePage";
 import { CheckInDashboard, ScannerPage } from "./pages/TicketManagement";
@@ -54,6 +55,7 @@ function App() {
               <Route path="/organizer/events" element={<OrganizerEventsPage />} />
               <Route path="/organizer/events/create" element={<CreateEventForm />} />
               <Route path="/organizer/events/:id" element={<EventManagement />} />
+              <Route path="/organizer/events/:id/staff" element={<StaffManagementPage />} />
               <Route path="/organizer/finance" element={<FinancePage />} />
 
               {/* Ticket Management routes */}

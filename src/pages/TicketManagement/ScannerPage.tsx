@@ -249,7 +249,7 @@ const ScannerPage: React.FC = () => {
       <Grid templateColumns={{ base: "1fr", lg: "1fr 1fr" }} gap={6}>
         <GridItem>
           <VStack spacing={6} align="stretch">
-            <QrScanner onScan={handleScan} isLoading={isLoading} />
+            <QrScanner onScan={handleScan} isLoading={isLoading} eventId={eventId} />
 
             <Box bg={cardBg} p={6} borderRadius="lg" shadow="sm">
               <Flex justify="space-between" align="center" mb={4}>

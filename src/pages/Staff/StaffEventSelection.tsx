@@ -19,6 +19,8 @@ import {
   FaQrcode,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import { useSmartContract } from "../../hooks/useSmartContract";
+import { DEVELOPMENT_CONFIG } from "../../constants";
 
 // Mock data for events where user is staff
 interface StaffEvent {
@@ -73,18 +75,59 @@ const StaffEventSelection: React.FC = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [staffEvents, setStaffEvents] = useState<StaffEvent[]>([]);
+  const { getEventInfo, getStaffRole } = useSmartContract();
 
   const cardBg = "white";
   const borderColor = "gray.200";
 
   useEffect(() => {
-    // Simulate fetching events where current wallet is staff
-    // TODO: Replace with actual contract calls to check staffWhitelist across events
-    setTimeout(() => {
-      setStaffEvents(mockStaffEvents);
-      setIsLoading(false);
-    }, 1500);
-  }, []);
+    const fetchStaffEvents = async () => {
+      try {
+        if (DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN) {
+          // Real implementation: Check staff role and get event info
+          const staffRole = await getStaffRole();
+          
+          if (staffRole && staffRole >= 1) {
+            // User has staff privileges, get event info
+            const eventInfo = await getEventInfo();
+            
+            if (eventInfo) {
+              const realEvent: StaffEvent = {
+                eventId: eventInfo.eventId?.toString() || "1",
+                eventName: eventInfo.name || "Unknown Event", 
+                eventDate: new Date(Number(eventInfo.date) * 1000).toISOString().split('T')[0],
+                eventLocation: eventInfo.venue || "Unknown Venue",
+                eventContract: eventInfo.organizer || "Unknown Contract",
+                totalAttendees: 0, // TODO: Get from contract stats
+                checkedIn: 0, // TODO: Get from contract stats
+                status: "upcoming" as const,
+                organizerName: "Event Organizer",
+              };
+              
+              setStaffEvents([realEvent]);
+            } else {
+              // No event found, show empty
+              setStaffEvents([]);
+            }
+          } else {
+            // No staff privileges
+            setStaffEvents([]);
+          }
+        } else {
+          // Mock mode - show sample events
+          setStaffEvents(mockStaffEvents);
+        }
+      } catch (error) {
+        console.error("Error fetching staff events:", error);
+        // Fallback to mock data
+        setStaffEvents(mockStaffEvents);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchStaffEvents();
+  }, [getEventInfo, getStaffRole]);
 
   const getStatusColor = (status: string) => {
     switch (status) {

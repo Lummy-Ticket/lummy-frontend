@@ -34,6 +34,47 @@ import {
   ViewIcon,
 } from "@chakra-ui/icons";
 
+// Enhanced attendee data structure (contract + database aligned)
+export interface CheckInData {
+  timestamp: Date;
+  staffAddress: string;
+  staffRole: "SCANNER" | "CHECKIN" | "MANAGER";
+  // staffName removed - contract only provides wallet address
+}
+
+export interface AttendeeData {
+  // Smart Contract Data
+  tokenId: string;              // NFT token ID
+  walletAddress: string;        // Current NFT owner
+  tierName: string;             // Ticket tier name
+  tierId: number;               // Tier ID
+  originalPrice: number;        // Purchase price in IDRX
+  purchaseDate: Date;           // Block timestamp
+  serialNumber: number;         // Tier sequence number
+  used: boolean;                // Check-in status from contract
+  status: "valid" | "used" | "refunded" | "invalid"; // Contract status
+  transferCount: number;        // Ownership changes
+  
+  // Database Data (Supabase - Email System)
+  email?: string;               // From user_email_mapping
+  emailVerified: boolean;       // Email verification status
+  notificationPrefs?: {         // Email preferences
+    ticket_purchase: boolean;
+    event_reminders: boolean;
+    price_alerts: boolean;
+  };
+  
+  // Enhanced Check-in Data (Mock Contract Enhancement)
+  checkInData?: CheckInData;    // Detailed check-in info
+  
+  // Computed Properties
+  isCurrentOwner: boolean;      // transferCount === 0
+  canCheckIn: boolean;          // valid && not used && current owner
+  canReceiveEmails: boolean;    // email exists && verified
+  displayStatus: "Valid" | "Checked In" | "Transferred" | "Refunded"; // UI-friendly status
+}
+
+// Backward compatibility interface
 export interface Attendee {
   id: string;
   name: string;

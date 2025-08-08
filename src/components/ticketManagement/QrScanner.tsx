@@ -10,10 +10,13 @@ import {
 } from "@chakra-ui/react";
 import { CheckIcon, CloseIcon } from "@chakra-ui/icons";
 import { FaQrcode } from "react-icons/fa";
+import { DEVELOPMENT_CONFIG } from "../../constants";
+import { useSmartContract } from "../../hooks/useSmartContract";
 
 interface QrScannerProps {
   onScan: (ticketData: any) => void;
   isLoading?: boolean;
+  eventId?: string; // Current event context for validation
 }
 
 // Contract-compatible ticket status values
@@ -68,15 +71,253 @@ const mockScanResults = [
   },
 ];
 
-// This will simulate the active camera view
-const QrScanner: React.FC<QrScannerProps> = ({ onScan, isLoading = false }) => {
+// QR Scanner with real data extraction support
+const QrScanner: React.FC<QrScannerProps> = ({ onScan, isLoading = false, eventId }) => {
+  const { validateTicketAsStaff, updateTicketStatus, hasStaffRole } = useSmartContract();
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [scanResult, setScanResult] = useState<any>(null);
+  const [staffPrivileges, setStaffPrivileges] = useState<number | null>(null);
   const toast = useToast();
 
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const borderColor = "gray.200";
+
+  // QR Data extraction utility
+  const extractQRData = (qrString: string) => {
+    try {
+      // Handle deep link format: lummy-ticket://scan/{tokenId}/{eventId}
+      if (qrString.startsWith('lummy-ticket://scan/') || qrString.startsWith('mock://scan/')) {
+        const parts = qrString.split('/');
+        if (parts.length >= 4) {
+          return {
+            tokenId: parts[3],
+            eventId: parts[4] || 'unknown',
+            source: 'deeplink'
+          };
+        }
+      }
+      
+      // Handle fallback URL format: https://lummy-ticket.vercel.app/scanner?token={tokenId}&event={eventId}
+      if (qrString.includes('lummy-ticket.vercel.app/scanner')) {
+        const url = new URL(qrString);
+        const tokenId = url.searchParams.get('token');
+        const eventIdParam = url.searchParams.get('event');
+        if (tokenId) {
+          return {
+            tokenId,
+            eventId: eventIdParam || 'unknown',
+            source: 'url'
+          };
+        }
+      }
+      
+      // Handle legacy or direct token format
+      if (/^\d{10,}$/.test(qrString)) {
+        return {
+          tokenId: qrString,
+          eventId: 'unknown',
+          source: 'direct'
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('QR data extraction error:', error);
+      return null;
+    }
+  };
+
+  // Real ticket validation via blockchain
+  const validateRealTicket = async (tokenId: string) => {
+    try {
+      // Force real blockchain validation when user has staff privileges
+      const shouldUseBlockchain = DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN || (staffPrivileges && staffPrivileges >= 1);
+      
+      if (!shouldUseBlockchain) {
+        // Return mock data only when blockchain disabled AND no staff privileges
+        const mockResult = mockScanResults.find(r => r.ticketId === tokenId) || mockScanResults[0];
+        return { ...mockResult, tokenId };
+      }
+
+      // Real blockchain validation with staff privileges
+      const ticketData = await validateTicketAsStaff(tokenId);
+      if (!ticketData) {
+        return {
+          valid: false,
+          error: "Ticket not found or invalid",
+          tokenId: tokenId,
+          ownerAddress: 'Unknown Owner',
+          status: 'invalid' as TicketStatus
+        };
+      }
+
+      return {
+        valid: ticketData.isValid || ticketData.status === 'valid',
+        ticketId: tokenId,
+        eventId: ticketData.eventId,
+        ticketType: ticketData.tierName || 'Unknown Tier',
+        eventName: ticketData.eventName || 'Unknown Event',
+        ownerAddress: ticketData.owner || 'Unknown Owner',
+        status: ticketData.status as TicketStatus,
+        canMarkUsed: ticketData.canMarkAsUsed || false,
+        error: !ticketData.isValid ? `Ticket is ${ticketData.status}` : undefined
+      };
+    } catch (error) {
+      console.error('Ticket validation error:', error);
+      return {
+        valid: false,
+        error: "Validation failed: " + (error as Error).message,
+        tokenId: tokenId,
+        ownerAddress: 'Unknown Owner',
+        status: 'error' as TicketStatus
+      };
+    }
+  };
+
+  // Simulate QR code scanning with real data extraction
+  const simulateQRScan = async () => {
+    // Include real NFT token IDs from your blockchain
+    // These should match the actual NFTs you own
+    const realTokenIds = [
+      '1000100001', // Your confirmed real NFT token ID
+      '1000100002', 
+      '1000100003',
+      '1000100004',
+      '1000100005',
+    ];
+    
+    // Simulate different QR code formats being scanned with real token IDs
+    const mockQRCodes = realTokenIds.map(tokenId => 
+      `lummy-ticket://scan/${tokenId}/${eventId || '1'}`
+    ).concat([
+      // Also include some formats for variety  
+      `mock://scan/1000100001/${eventId || '1'}`,
+      `https://lummy-ticket.vercel.app/scanner?token=1000100001&event=${eventId || '1'}`,
+      '1000100001' // Direct token ID
+    ]);
+
+    // For testing: Always prioritize real token ID first
+    const randomQR = mockQRCodes[0]; // This will be your real NFT token ID
+    
+    if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+      console.log('🎲 Available QR codes:', mockQRCodes.length);
+      console.log('🎯 Selected QR:', randomQR);
+    }
+    
+    // Extract token and event data
+    const qrData = extractQRData(randomQR);
+    if (!qrData) {
+      return {
+        valid: false,
+        error: "Invalid QR code format",
+        qrContent: randomQR,
+        tokenId: 'unknown',
+        ownerAddress: 'Unknown Owner',
+        qrData: null
+      };
+    }
+
+    // Validate event context if provided
+    if (eventId && qrData.eventId !== 'unknown' && qrData.eventId !== eventId) {
+      return {
+        valid: false,
+        error: `Ticket is for different event: ${qrData.eventId}`,
+        tokenId: qrData.tokenId,
+        ownerAddress: 'Unknown Owner',
+        eventMismatch: true,
+        qrData,
+        qrContent: randomQR
+      };
+    }
+
+    // Validate the ticket
+    const validationResult = await validateRealTicket(qrData.tokenId);
+    return {
+      ...validationResult,
+      qrData,
+      qrContent: randomQR
+    };
+  };
+
+  // Handle marking ticket as used
+  const handleMarkAsUsed = async (tokenId: string) => {
+    try {
+      const hash = await updateTicketStatus(tokenId);
+      if (hash) {
+        // Success! Update the scan result to show new status
+        setScanResult({
+          ...scanResult,
+          status: 'used',
+          valid: false,
+          canMarkUsed: false,
+          error: undefined
+        });
+
+        toast({
+          title: "Ticket Marked as Used ✅",
+          description: `Ticket ${tokenId.substring(0, 8)}... is now marked as used`,
+          status: "success",
+          duration: 5000,
+          isClosable: true,
+        });
+
+        // Notify parent component
+        if (onScan) {
+          onScan({
+            ...scanResult,
+            status: 'used',
+            valid: false,
+            canMarkUsed: false
+          });
+        }
+
+        if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+          console.log("✅ Ticket marked as used:", { tokenId, hash });
+        }
+      }
+    } catch (error) {
+      console.error("Error marking ticket as used:", error);
+      toast({
+        title: "Failed to Mark as Used",
+        description: "Could not update ticket status. Please try again.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
+  // Direct function to mark real NFT as used - bypass validation
+  const handleDirectMarkAsUsed = async (tokenId: string) => {
+    try {
+      console.log(`🎯 Direct Mark as Used: ${tokenId}`);
+      
+      const hash = await updateTicketStatus(tokenId);
+      if (hash) {
+        toast({
+          title: "Success! 🎉",
+          description: `Token ${tokenId} marked as used! Transaction: ${hash.substring(0, 10)}...`,
+          status: "success",
+          duration: 10000,
+          isClosable: true,
+        });
+
+        console.log(`✅ SUCCESS: Token ${tokenId} marked as used:`, hash);
+      } else {
+        throw new Error("Transaction failed");
+      }
+    } catch (error) {
+      console.error("❌ Error marking token as used:", error);
+      toast({
+        title: "Failed to Mark as Used",
+        description: `Error: ${(error as Error).message}`,
+        status: "error",
+        duration: 10000,
+        isClosable: true,
+      });
+    }
+  };
 
   const handleToggleCamera = () => {
     if (isCameraActive) {
@@ -88,26 +329,38 @@ const QrScanner: React.FC<QrScannerProps> = ({ onScan, isLoading = false }) => {
       setScanResult(null);
     } else {
       setIsCameraActive(true);
-      // Simulate scanning with random results for demo
-      scanIntervalRef.current = setInterval(() => {
+      // Real QR scanning simulation with extraction logic
+      scanIntervalRef.current = setInterval(async () => {
         // Only simulate a successful scan occasionally
         if (Math.random() > 0.7) {
-          const mockResult =
-            mockScanResults[Math.floor(Math.random() * mockScanResults.length)];
-          setScanResult(mockResult);
-          onScan(mockResult);
+          const scanResult = await simulateQRScan();
+          setScanResult(scanResult);
+          onScan(scanResult);
 
-          const statusMessage = mockResult.valid 
-            ? `${mockResult.ticketType} for ${mockResult.eventName}` 
-            : `${mockResult.error} (Status: ${mockResult.status})`;
+          // Enhanced toast with QR extraction info
+          const statusMessage = scanResult.valid 
+            ? `${(scanResult as any).ticketType || 'Ticket'} for ${(scanResult as any).eventName || 'Event'}` 
+            : scanResult.error || 'Invalid ticket';
+
+          const qrSource = (scanResult as any).qrData?.source ? ` (${(scanResult as any).qrData.source})` : '';
           
           toast({
-            title: mockResult.valid ? "Valid Ticket" : "Invalid Ticket",
-            description: statusMessage,
-            status: mockResult.valid ? "success" : "error",
-            duration: 5000,
+            title: scanResult.valid ? "Valid Ticket ✅" : "Invalid Ticket ❌",
+            description: `${statusMessage}${qrSource}`,
+            status: scanResult.valid ? "success" : "error",
+            duration: 6000,
             isClosable: true,
           });
+
+          if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS && (scanResult as any).qrContent) {
+            console.log('🔍 QR Scanned:', (scanResult as any).qrContent);
+            console.log('📊 Extracted Data:', (scanResult as any).qrData);
+            console.log('✅ Validation Result:', {
+              valid: scanResult.valid,
+              tokenId: (scanResult as any).tokenId,
+              error: scanResult.error
+            });
+          }
 
           // Stop camera after successful scan
           setIsCameraActive(false);
@@ -117,6 +370,36 @@ const QrScanner: React.FC<QrScannerProps> = ({ onScan, isLoading = false }) => {
       }, 2000); // Check every 2 seconds
     }
   };
+
+  // Check staff privileges when component mounts
+  React.useEffect(() => {
+    const checkStaffPrivileges = async () => {
+      if (DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN) {
+        try {
+          const hasPrivileges = await hasStaffRole(1); // Check SCANNER role
+          setStaffPrivileges(hasPrivileges ? 1 : 0);
+          
+          if (!hasPrivileges) {
+            toast({
+              title: "Staff Access Required",
+              description: "You need SCANNER role or higher to use this scanner",
+              status: "warning",
+              duration: 5000,
+              isClosable: true,
+            });
+          }
+        } catch (error) {
+          console.error("Error checking staff privileges:", error);
+          setStaffPrivileges(0);
+        }
+      } else {
+        // Mock mode - allow access for testing
+        setStaffPrivileges(1);
+      }
+    };
+
+    checkStaffPrivileges();
+  }, [hasStaffRole, toast]);
 
   // Clean up on unmount
   React.useEffect(() => {
@@ -264,21 +547,37 @@ const QrScanner: React.FC<QrScannerProps> = ({ onScan, isLoading = false }) => {
                       <Text>{scanResult.ownerName}</Text>
                     </HStack>
                   )}
-                  <HStack>
-                    <Text fontWeight="medium">Wallet:</Text>
-                    <Text fontSize="sm" fontFamily="monospace">
-                      {scanResult.ownerAddress.substring(0, 8)}...
-                      {scanResult.ownerAddress.substring(
-                        scanResult.ownerAddress.length - 6
-                      )}
-                    </Text>
-                  </HStack>
-                  {scanResult.valid && scanResult.canMarkUsed && (
-                    <Box mt={3} p={3} bg="blue.50" borderRadius="md" width="100%">
-                      <Text fontSize="sm" color="blue.700">
-                        ✓ Ready to mark as used by staff
+                  {scanResult.ownerAddress && (
+                    <HStack>
+                      <Text fontWeight="medium">Wallet:</Text>
+                      <Text fontSize="sm" fontFamily="monospace">
+                        {scanResult.ownerAddress.substring(0, 8)}...
+                        {scanResult.ownerAddress.substring(
+                          scanResult.ownerAddress.length - 6
+                        )}
                       </Text>
-                    </Box>
+                    </HStack>
+                  )}
+                  {scanResult.valid && scanResult.canMarkUsed && (
+                    <VStack mt={3} spacing={2} width="100%">
+                      <Box p={3} bg="blue.50" borderRadius="md" width="100%">
+                        <Text fontSize="sm" color="blue.700">
+                          ✓ Ready to mark as used by staff
+                        </Text>
+                      </Box>
+                      {staffPrivileges && staffPrivileges >= 1 && (
+                        <Button
+                          colorScheme="green"
+                          size="md"
+                          width="100%"
+                          onClick={() => handleMarkAsUsed(scanResult.ticketId)}
+                          isLoading={isLoading}
+                          loadingText="Marking as Used..."
+                        >
+                          Mark as Used ✓
+                        </Button>
+                      )}
+                    </VStack>
                   )}
                 </VStack>
               </Flex>
@@ -293,13 +592,49 @@ const QrScanner: React.FC<QrScannerProps> = ({ onScan, isLoading = false }) => {
         onClick={handleToggleCamera}
         isLoading={isLoading}
         width="100%"
+        isDisabled={DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN && staffPrivileges === 0}
       >
         {isCameraActive ? "Stop Camera" : "Start Camera"}
       </Button>
 
       <Text fontSize="sm" color="gray.500" textAlign="center">
-        Position the QR code within the frame to scan
+        {DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN && staffPrivileges === 0 
+          ? "Staff access required to use scanner" 
+          : "Position the QR code within the frame to scan"
+        }
       </Text>
+
+      {DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN && staffPrivileges !== null && (
+        <Text fontSize="xs" color="blue.500" textAlign="center">
+          Staff Privileges: {staffPrivileges >= 1 ? "✅ SCANNER+" : "❌ None"}
+          {staffPrivileges >= 2 && " | CHECKIN+"}
+          {staffPrivileges >= 3 && " | MANAGER"}
+        </Text>
+      )}
+
+      {/* Direct Test Button - Mark Real NFT as Used */}
+      {staffPrivileges && staffPrivileges >= 1 && (
+        <Box mt={6} p={4} bg="yellow.50" borderRadius="lg" border="2px dashed" borderColor="yellow.300">
+          <VStack spacing={3}>
+            <Text fontSize="sm" fontWeight="bold" color="yellow.800" textAlign="center">
+              🧪 Direct Test: Mark Real NFT as Used
+            </Text>
+            <Button
+              colorScheme="orange"
+              size="lg"
+              width="100%"
+              onClick={() => handleDirectMarkAsUsed('1000100001')}
+              isLoading={isLoading}
+              loadingText="Marking as Used..."
+            >
+              Mark Token 1000100001 as Used 🎫
+            </Button>
+            <Text fontSize="xs" color="yellow.700" textAlign="center">
+              This will directly call blockchain updateTicketStatus() for your real NFT
+            </Text>
+          </VStack>
+        </Box>
+      )}
     </VStack>
   );
 };

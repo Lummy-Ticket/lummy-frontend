@@ -21,6 +21,9 @@ import {
   AlertIcon,
   AlertTitle,
   AlertDescription,
+  Button,
+  HStack,
+  Badge,
 } from "@chakra-ui/react";
 
 export interface ResellSettingsData {
@@ -50,15 +53,16 @@ export const convertFromContractFormat = (contractData: any): ResellSettingsData
 
 interface ResellSettingsProps {
   settings: ResellSettingsData;
-  onChange: (settings: ResellSettingsData) => void; // Changed from onSave to onChange
+  onSave: (settings: ResellSettingsData) => void; // Changed back to onSave for manual save
 }
 
 const ResellSettings: React.FC<ResellSettingsProps> = ({
   settings,
-  onChange,
+  onSave,
 }) => {
   const [currentSettings, setCurrentSettings] =
     useState<ResellSettingsData>(settings);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const cardBg = "white";
 
@@ -69,9 +73,7 @@ const ResellSettings: React.FC<ResellSettingsProps> = ({
     };
     
     setCurrentSettings(newSettings);
-    
-    // Immediately notify parent of changes (auto-save)
-    onChange(newSettings);
+    setHasUnsavedChanges(true);
     
     // Show contract values in console for debugging
     const contractFormat = convertToContractFormat(newSettings);
@@ -79,14 +81,19 @@ const ResellSettings: React.FC<ResellSettingsProps> = ({
     console.log("Contract format:", contractFormat);
   };
 
+  const handleSave = () => {
+    onSave(currentSettings);
+    setHasUnsavedChanges(false);
+  };
+
   return (
     <Box
       bg={cardBg}
-      borderRadius="md"
-      p={6}
+      p={4}
       border="2px solid"
       borderColor="gray.200"
-      rounded="xl"
+      borderRadius="md"
+      shadow="sm"
     >
       <VStack spacing={6} align="stretch">
         <VStack spacing={2} align="stretch">
@@ -96,8 +103,8 @@ const ResellSettings: React.FC<ResellSettingsProps> = ({
           <Text fontSize="sm" color="gray.600">
             Configure resale rules for your event tickets. These settings are enforced by smart contract.
           </Text>
-          <Text fontSize="xs" color="purple.600" fontWeight="medium">
-            ✨ Settings are automatically saved when you create the event
+          <Text fontSize="xs" color="orange.600" fontWeight="medium">
+            ⚠️ Remember to save your changes before leaving this page
           </Text>
         </VStack>
 
@@ -275,6 +282,29 @@ const ResellSettings: React.FC<ResellSettingsProps> = ({
             </Box>
           </Alert>
         )}
+
+        {/* Save Button Section */}
+        <Divider />
+        <HStack justify="space-between" align="center" pt={2}>
+          <HStack>
+            {hasUnsavedChanges && (
+              <Badge colorScheme="orange" variant="subtle">
+                Unsaved Changes
+              </Badge>
+            )}
+            <Text fontSize="sm" color="gray.500">
+              Changes need to be saved manually
+            </Text>
+          </HStack>
+          <Button
+            colorScheme="purple"
+            onClick={handleSave}
+            isDisabled={!hasUnsavedChanges}
+            size="md"
+          >
+            Save Settings
+          </Button>
+        </HStack>
       </VStack>
     </Box>
   );

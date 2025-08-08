@@ -6,6 +6,7 @@ import {
   Text,
   VStack,
   HStack,
+  Flex,
   SimpleGrid,
   Button,
   Tabs,
@@ -268,7 +269,7 @@ export const MyTicketsPage: React.FC = () => {
   return (
     <Container maxW="container.xl" py={8}>
       <VStack spacing={8} align="stretch">
-        <HStack justify="space-between">
+        <Flex justify="space-between" align="center" mb={0}>
           <Box>
             <Heading size="lg">My Tickets</Heading>
             <Text color="gray.600">
@@ -288,7 +289,7 @@ export const MyTicketsPage: React.FC = () => {
               />
             </InputGroup>
           </HStack>
-        </HStack>
+        </Flex>
 
         {/* Loading State */}
         {(isLoadingTickets || loading) && (

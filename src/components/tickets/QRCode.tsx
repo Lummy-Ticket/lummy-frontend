@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Box, VStack, Text } from "@chakra-ui/react";
+import { QRCodeSVG } from "qrcode.react";
+import { DEVELOPMENT_CONFIG } from "../../constants";
 
 interface QRCodeProps {
   ticketId: string;
@@ -12,82 +14,65 @@ export const QRCode: React.FC<QRCodeProps> = ({
   eventId,
   size = 200,
 }) => {
-  // In a real implementation, this would be replaced with actual QR code generation
-  // using libraries like qrcode.react
-  const [timeKey, setTimeKey] = useState<number>(Date.now());
+  // Generate QR code data based on development configuration
+  const generateQRData = () => {
+    if (DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN) {
+      // Real implementation: Deep link to staff scanner
+      return `lummy-ticket://scan/${ticketId}/${eventId}`;
+    } else {
+      // Mock implementation: Still use deep link format for testing
+      return `mock://scan/${ticketId}/${eventId}`;
+    }
+  };
 
-  // For demo purposes, we'll change the QR code every 10 seconds
-  // This simulates dynamic QR codes that change periodically for security
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTimeKey(Date.now());
-    }, 10000);
+  const qrData = generateQRData();
+  
+  // Fallback URL for web browsers that don't handle deep links
+  const fallbackUrl = `https://lummy-ticket.vercel.app/scanner?token=${ticketId}&event=${eventId}`;
 
-    return () => clearInterval(interval);
-  }, []);
-
-  // Placeholder for QR code
+  // Real QR code implementation
   return (
     <VStack spacing={2}>
       <Box
-        width={`${size}px`}
-        height={`${size}px`}
-        bg="gray.100"
+        p={4}
+        bg="white"
         borderRadius="md"
+        border="1px solid"
+        borderColor="gray.200"
         display="flex"
         alignItems="center"
         justifyContent="center"
-        position="relative"
-        overflow="hidden"
       >
-        {/* QR code visual placeholder */}
-        <Box
-          position="absolute"
-          width="80%"
-          height="80%"
-          bg="white"
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-        >
-          <Text fontSize="xs" color="gray.500" textAlign="center">
-            Ticket QR Code
-            <br />
-            ID: {ticketId.substring(0, 8)}
-            <br />
-            Key: {timeKey.toString().substring(8)}
-          </Text>
-        </Box>
-
-        {/* QR code pattern placeholder */}
-        <Box position="absolute" width="100%" height="100%">
-          {Array.from({ length: 5 }).map((_, rowIndex) => (
-            <Box key={`row-${rowIndex}`} display="flex">
-              {Array.from({ length: 5 }).map((_, colIndex) => {
-                // Pseudo-random pattern based on ticketId, eventId and timestamp
-                const isBlock =
-                  (parseInt(ticketId.charAt(rowIndex % ticketId.length), 16) +
-                    parseInt(eventId.charAt(colIndex % eventId.length), 16) +
-                    (timeKey % 10)) %
-                    3 ===
-                  0;
-
-                return (
-                  <Box
-                    key={`cell-${rowIndex}-${colIndex}`}
-                    width={`${size / 5}px`}
-                    height={`${size / 5}px`}
-                    bg={isBlock ? "black" : "transparent"}
-                  />
-                );
-              })}
-            </Box>
-          ))}
-        </Box>
+        <QRCodeSVG
+          value={qrData}
+          size={size}
+          level="M"
+          includeMargin={true}
+          fgColor="#000000"
+          bgColor="#FFFFFF"
+        />
       </Box>
-      <Text fontSize="xs" color="gray.500">
-        Updates every 10 seconds
-      </Text>
+      <VStack spacing={1} textAlign="center">
+        <Text fontSize="xs" color="gray.600" fontWeight="medium">
+          Ticket QR Code
+        </Text>
+        <Text fontSize="xs" color="gray.500" fontFamily="mono">
+          {ticketId.substring(0, 8)}...{ticketId.substring(ticketId.length - 4)}
+        </Text>
+        <Text fontSize="xs" color="gray.400">
+          {DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN 
+            ? "Blockchain Mode" 
+            : "Mock Mode"}
+        </Text>
+        {DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS && (
+          <Text fontSize="xs" color="blue.500" mt={1}>
+            QR: {qrData}
+          </Text>
+        )}
+        <Text fontSize="xs" color="gray.400" mt={1}>
+          Fallback: {fallbackUrl}
+        </Text>
+      </VStack>
     </VStack>
   );
 };
