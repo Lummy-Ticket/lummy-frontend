@@ -206,12 +206,24 @@ export const EventDetailPage: React.FC = () => {
                 const sold = (tier as any).sold || 0;
                 const maxPerPurchase = (tier as any).maxPerPurchase || 0;
                 const name = (tier as any).name || `Tier ${index + 1}`;
+                const description = (tier as any).description || name;
+                const benefitsString = (tier as any).benefits || "[]";
                 
-                // TODO: Temporarily removed description & benefits due to contract storage corruption
-                // Restore when contract issue is fixed
+                // Parse benefits JSON string to array
+                let benefits: string[] = [];
+                try {
+                  if (benefitsString && benefitsString !== "[]") {
+                    benefits = JSON.parse(benefitsString);
+                  }
+                } catch (e) {
+                  console.warn(`Failed to parse benefits for tier ${index}:`, e);
+                  benefits = [];
+                }
                 
                 console.log(`🎫 Processing tier ${index}:`, {
                   name,
+                  description,
+                  benefits,
                   priceWei: price,
                   priceIDRX: Number(price) / 1e18,
                   available,
@@ -224,10 +236,10 @@ export const EventDetailPage: React.FC = () => {
                   name,
                   price: Number(price) / 1e18, // Convert Wei to IDRX
                   currency: "IDRX",
-                  description: name, // TODO: Use tier.description when contract fixed
+                  description,
                   available: Number(available) - Number(sold),
                   maxPerPurchase: Number(maxPerPurchase),
-                  benefits: [], // TODO: Parse tier.benefits when contract fixed
+                  benefits,
                 };
               });
 

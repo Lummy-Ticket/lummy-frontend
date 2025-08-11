@@ -43,7 +43,6 @@ const CreateEventForm: React.FC = () => {
     title: "",
     description: "",
     venue: "",
-    address: "",
     date: "",
     time: "",
     endTime: "",
@@ -199,7 +198,7 @@ const CreateEventForm: React.FC = () => {
         eventData.title,
         eventData.description,
         eventDate,
-        eventData.venue || eventData.address,
+        eventData.venue,
         eventData.eventImageHash, // Pass IPFS hash ke contract
         eventData.category // Pass category ke contract
       );
@@ -543,14 +542,6 @@ const CreateEventForm: React.FC = () => {
             <Input
               value={eventData.venue}
               onChange={(e) => handleInputChange("venue", e.target.value)}
-            />
-          </FormControl>
-          <FormControl mt={2}>
-            <FormLabel>Address</FormLabel>
-            <Textarea
-              value={eventData.address}
-              onChange={(e) => handleInputChange("address", e.target.value)}
-              rows={2}
             />
           </FormControl>
         </Box>

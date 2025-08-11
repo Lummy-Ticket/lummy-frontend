@@ -36,7 +36,7 @@ import { TicketCard, Ticket } from "../../components/tickets/TicketCard";
 import { TicketDetails } from "../../components/tickets/TicketDetails";
 import { useSmartContract } from "../../hooks/useSmartContract";
 import { useAccount } from "wagmi";
-import { DEVELOPMENT_CONFIG } from "../../constants";
+import { DEVELOPMENT_CONFIG, CONTRACT_ADDRESSES } from "../../constants";
 
 // Mock data for tickets
 export const mockTickets: Ticket[] = [
@@ -163,9 +163,16 @@ export const MyTicketsPage: React.FC = () => {
         console.log("🎫 Loading user's ticket NFTs...");
         
         // Get user's NFT tickets with auto-populated metadata
-        console.log("📞 Calling getUserTicketNFTs...");
+        console.log("📞 Calling getUserTicketNFTs for address:", address);
         const userNFTs = await getUserTicketNFTs();
         console.log("📦 getUserTicketNFTs returned:", userNFTs.length, "NFTs with complete metadata");
+        
+        if (userNFTs.length === 0) {
+          console.log("🔍 Debug info:");
+          console.log("- Contract address:", CONTRACT_ADDRESSES.DiamondLummy);
+          console.log("- User address:", address);
+          console.log("- Blockchain enabled:", DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN);
+        }
         
         if (userNFTs.length === 0) {
           console.log("No NFT tickets found");

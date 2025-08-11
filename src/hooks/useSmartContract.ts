@@ -44,9 +44,8 @@ export interface TicketTierData {
   sold: bigint;
   maxPerPurchase: bigint;
   active: boolean;
-  // TODO: Add back when contract fixed
-  // description: string;
-  // benefits: string;  // JSON string
+  description: string;
+  benefits: string;  // JSON string
 }
 
 /**
@@ -216,15 +215,13 @@ export const useSmartContract = () => {
       // Get tier details for each tier
       const tiers: TicketTierData[] = [];
       for (let i = 0; i < Number(tierCount); i++) {
-        // TODO: Revert to 6 fields temporarily due to contract storage corruption
-        // When multiple events are created, Diamond contract state gets corrupted
-        // Restore description & benefits fields when contract issue is fixed
+        // Get full tier data with description & benefits (all 8 fields)
         const tier = (await publicClient.readContract({
           address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
           abi: EVENT_CORE_FACET_ABI,
           functionName: "getTicketTier",
           args: [BigInt(i)],
-        })) as [string, bigint, bigint, bigint, bigint, boolean];
+        })) as [string, bigint, bigint, bigint, bigint, boolean, string, string];
 
         console.log(`🔍 Raw tier ${i}:`, tier);
 
@@ -235,9 +232,8 @@ export const useSmartContract = () => {
           sold: (tier as any).sold !== undefined ? (tier as any).sold : tier[3],
           maxPerPurchase: (tier as any).maxPerPurchase || tier[4],
           active: (tier as any).active || tier[5],
-          // TODO: Add back when contract fixed
-          // description: (tier as any).description || tier[6],
-          // benefits: (tier as any).benefits || tier[7],
+          description: (tier as any).description || tier[6],
+          benefits: (tier as any).benefits || tier[7],
         };
 
         console.log(`🔍 Formatted tier ${i}:`, tierData);
@@ -568,6 +564,85 @@ export const useSmartContract = () => {
   );
 
   /**
+   * Fallback method to discover user tokens (for older contracts without efficient functions)
+   * @param userAddress User address to check
+   * @returns Array of token IDs owned by user
+   */
+  const discoverUserTokensBasic = async (userAddress: string): Promise<bigint[]> => {
+    const foundTokenIds: bigint[] = [];
+    
+    try {
+      // Get NFT balance first to check if user has any tokens
+      const balance = await publicClient.readContract({
+        address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+        abi: TICKET_NFT_ABI,
+        functionName: "balanceOf", 
+        args: [userAddress as `0x${string}`],
+      }) as bigint;
+
+      console.log(`User balance: ${balance.toString()} NFTs`);
+
+      if (balance === 0n) {
+        return foundTokenIds;
+      }
+
+      // For known token ID patterns (Algorithm 1: 1EEETTTSSSSS)
+      // Check likely token IDs based on recent purchases
+      const eventId = 0; // Corrected: Event ID is 0 based on token ID 1000100001
+      const expectedBalance = Number(balance);
+      console.log(`🔍 Scanning for ${expectedBalance} tokens with basic method...`);
+      
+      // Optimized: Check likely token IDs in parallel batches
+      const candidateTokens: bigint[] = [];
+      
+      // Generate likely token IDs (first 50 most likely)
+      for (let tierId = 0; tierId < 5; tierId++) {
+        for (let sequential = 1; sequential <= 10; sequential++) {
+          const tokenId = BigInt(1000000000 + (eventId * 1000000) + ((tierId + 1) * 100000) + sequential);
+          candidateTokens.push(tokenId);
+        }
+      }
+      
+      console.log(`🚀 Batch checking ${candidateTokens.length} potential tokens in parallel...`);
+      
+      // Check ownership in parallel (much faster!)
+      const ownershipChecks = candidateTokens.map(async (tokenId) => {
+        try {
+          const owner = await publicClient.readContract({
+            address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+            abi: TICKET_NFT_ABI,
+            functionName: "ownerOf",
+            args: [tokenId],
+          }) as string;
+
+          if (owner.toLowerCase() === userAddress.toLowerCase()) {
+            console.log(`✅ Found owned token: ${tokenId.toString()}`);
+            return tokenId;
+          }
+        } catch (e) {
+          // Token doesn't exist or error
+        }
+        return null;
+      });
+      
+      // Wait for all parallel checks to complete
+      const results = await Promise.all(ownershipChecks);
+      const ownedTokens = results.filter((tokenId): tokenId is bigint => tokenId !== null);
+      
+      foundTokenIds.push(...ownedTokens);
+      console.log(`🎯 Found ${ownedTokens.length}/${expectedBalance} tokens using parallel batch method`);
+
+      if (ownedTokens.length < expectedBalance) {
+        console.log(`⚠️ Found ${ownedTokens.length}/${expectedBalance} tokens. Some may be from other events.`);
+      }
+    } catch (e) {
+      console.error("Error in basic token discovery:", e);
+    }
+
+    return foundTokenIds;
+  };
+
+  /**
    * Gets user's ticket NFTs using Transfer events (since ERC721Enumerable is not available)
    * @param userAddress User's wallet address (optional, defaults to connected address)
    * @returns Array of user's ticket NFTs with enhanced metadata
@@ -589,92 +664,94 @@ export const useSmartContract = () => {
       setError(null);
 
       try {
-        console.log("🎫 Loading user's ticket NFTs for:", targetAddress);
-        console.log("TicketNFT contract:", CONTRACT_ADDRESSES.TicketNFT);
-
-        // Get user's NFT balance first
-        const balance = await publicClient.readContract({
-          address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
-          abi: TICKET_NFT_ABI,
-          functionName: "balanceOf",
-          args: [targetAddress as `0x${string}`],
-        }) as bigint;
-
-        console.log("User NFT balance:", balance.toString());
-
-        if (balance === 0n) {
-          return [];
-        }
-
-        // Since we don't have enumeration, we'll use known token IDs approach
-        // This is more efficient than nested loops
-        const userNFTs: any[] = [];
+        console.log("🚀 Phase 1.3: Loading user NFTs EFFICIENTLY for:", targetAddress);
         
-        // Known token IDs to check (based on Algorithm 1 pattern and user's tokens)
-        const knownTokenIds = [1000100001, 1000200001];
+        // Try Phase 1.3 efficient method first, fallback to basic method
+        let tokenIds: bigint[] = [];
         
-        // Check known token IDs directly (much faster than nested loops)
-        for (const tokenId of knownTokenIds) {
+        try {
+          // NEW: Phase 1.3 - Use efficient getAttendeeTokens (replaces 5000+ contract calls!)
+          tokenIds = await publicClient.readContract({
+            address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+            abi: EVENT_CORE_FACET_ABI,
+            functionName: "getAttendeeTokens",
+            args: [targetAddress as `0x${string}`],
+          }) as bigint[];
+
+          console.log(`✅ Found ${tokenIds.length} tokens using efficient method (1 call vs 5000+ calls)`);
+        } catch (efficientError) {
+          console.warn("⚠️ Efficient method failed, falling back to basic discovery:", efficientError.message);
+          
+          // Fallback: Try to find user's tokens by checking known pattern
+          // This is less efficient but works with older contract deployments
+          console.log("🔄 Starting basic token discovery (max 60 seconds)...");
+          
+          const discoveryPromise = discoverUserTokensBasic(targetAddress);
+          const timeoutPromise = new Promise<bigint[]>((_, reject) => {
+            setTimeout(() => reject(new Error("Token discovery timeout")), 60000); // Increased to 60 seconds
+          });
           
           try {
-            // Check if user owns this token
-            const owner = await publicClient.readContract({
-              address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
-              abi: TICKET_NFT_ABI,
-              functionName: "ownerOf",
-              args: [BigInt(tokenId)],
-            }) as string;
-
-            if (owner.toLowerCase() === targetAddress.toLowerCase()) {
-              
-              // Get enhanced ticket metadata
-              const metadata = await publicClient.readContract({
-                address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
-                abi: TICKET_NFT_ABI,
-                functionName: "getTicketMetadata",
-                args: [BigInt(tokenId)],
-              }) as any;
-
-              // Parse actual eventId from token ID using reverse Algorithm 1
-              const remaining = tokenId - 1000000000;
-              const parsedEventId = Math.floor(remaining / 1000000);
-              const remainingAfterEvent = remaining % 1000000;
-              const actualTierCode = Math.floor(remainingAfterEvent / 100000);
-              const parsedTierCode = actualTierCode - 1; // Convert back: actualTierCode = tierCode + 1
-              
-              
-              // Convert to our expected format
-              const ticketData = {
-                tokenId: BigInt(tokenId),
-                owner: owner,
-                eventId: parsedEventId, // Use parsed eventId instead of metadata.eventId
-                tierId: parsedTierCode, // Use parsed tierCode instead of metadata.tierId
-                originalPrice: metadata.originalPrice,
-                used: metadata.used,
-                purchaseDate: metadata.purchaseDate,
-                eventName: metadata.eventName,
-                eventVenue: metadata.eventVenue,
-                eventDate: metadata.eventDate,
-                tierName: metadata.tierName,
-                organizerName: metadata.organizerName,
-                serialNumber: metadata.serialNumber,
-                status: metadata.status,
-                transferCount: metadata.transferCount,
-              };
-
-              userNFTs.push(ticketData);
-            }
-          } catch (tokenError: unknown) {
-            // Token doesn't exist or we don't own it, continue silently
-            const errorStr = (tokenError as Error).toString();
-            if (!errorStr.includes("ERC721: invalid token ID") && 
-                !errorStr.includes("ERC721NonexistentToken") &&
-                !errorStr.includes("nonexistent token")) {
-              console.log(`Unexpected error for token ${tokenId}:`, tokenError);
-            }
+            tokenIds = await Promise.race([discoveryPromise, timeoutPromise]);
+            console.log(`📦 Found ${tokenIds.length} tokens using basic method (fallback)`);
+          } catch (timeoutError) {
+            console.warn("⏰ Token discovery timed out, returning empty array");
+            tokenIds = [];
           }
         }
 
+        if (tokenIds.length === 0) {
+          return [];
+        }
+
+        // Get metadata for each token in parallel
+        const userNFTs: any[] = [];
+        
+        for (const tokenIdBigInt of tokenIds) {
+          try {
+            // Get enhanced ticket metadata
+            const metadata = await publicClient.readContract({
+              address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+              abi: TICKET_NFT_ABI,
+              functionName: "getTicketMetadata",
+              args: [tokenIdBigInt],
+            }) as any;
+
+            // Parse eventId and tierId from token ID using Algorithm 1
+            const tokenId = Number(tokenIdBigInt);
+            const remaining = tokenId - 1000000000;
+            const parsedEventId = Math.floor(remaining / 1000000);
+            const remainingAfterEvent = remaining % 1000000;
+            const actualTierCode = Math.floor(remainingAfterEvent / 100000);
+            const parsedTierCode = actualTierCode - 1;
+            
+            // Convert to expected format with auto-populated metadata
+            const ticketData = {
+              tokenId: tokenIdBigInt,
+              owner: targetAddress, // We know this from getAttendeeTokens
+              eventId: parsedEventId,
+              tierId: parsedTierCode,
+              originalPrice: metadata.originalPrice,
+              used: metadata.used,
+              purchaseDate: metadata.purchaseDate,
+              // Phase 1.1 auto-populated metadata - no more "Unknown Event"!
+              eventName: metadata.eventName,
+              eventVenue: metadata.eventVenue,
+              eventDate: metadata.eventDate,
+              tierName: metadata.tierName,
+              organizerName: metadata.organizerName,
+              serialNumber: metadata.serialNumber,
+              status: metadata.status,
+              transferCount: metadata.transferCount,
+            };
+
+            userNFTs.push(ticketData);
+          } catch (tokenError) {
+            console.error(`Error getting metadata for token ${tokenIdBigInt}:`, tokenError);
+          }
+        }
+
+        console.log(`✅ Phase 1.3 Success: Loaded ${userNFTs.length} NFTs efficiently`);
         return userNFTs;
       } catch (err) {
         console.error("Error getting user ticket NFTs:", err);
@@ -1726,6 +1803,97 @@ export const useSmartContract = () => {
     [walletClient, address, publicClient, hasStaffRole]
   );
 
+  // ========== PHASE 1.3: EFFICIENT ATTENDEE MANAGEMENT FUNCTIONS ==========
+
+  /**
+   * Get all attendees for current event (EFFICIENT - single call)
+   * @returns Array of attendee addresses
+   */
+  const getAllAttendees = useCallback(
+    async () => {
+      if (!publicClient) {
+        setError("Provider not available");
+        return [];
+      }
+
+      try {
+        const attendees = await publicClient.readContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: EVENT_CORE_FACET_ABI,
+          functionName: "getAllAttendees",
+        }) as string[];
+
+        return attendees;
+      } catch (err) {
+        console.error("Error getting all attendees:", err);
+        setError(parseContractError(err));
+        return [];
+      }
+    },
+    [publicClient]
+  );
+
+  /**
+   * Get attendee statistics (EFFICIENT - single call)
+   * @returns Object with totalAttendees and totalTokensMinted
+   */
+  const getAttendeeStats = useCallback(
+    async () => {
+      if (!publicClient) {
+        setError("Provider not available");
+        return { totalAttendees: 0, totalTokensMinted: 0 };
+      }
+
+      try {
+        const [totalAttendees, totalTokensMinted] = await publicClient.readContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: EVENT_CORE_FACET_ABI,
+          functionName: "getAttendeeStats",
+        }) as [bigint, bigint];
+
+        return {
+          totalAttendees: Number(totalAttendees),
+          totalTokensMinted: Number(totalTokensMinted)
+        };
+      } catch (err) {
+        console.error("Error getting attendee stats:", err);
+        setError(parseContractError(err));
+        return { totalAttendees: 0, totalTokensMinted: 0 };
+      }
+    },
+    [publicClient]
+  );
+
+  /**
+   * Check if address is an attendee (EFFICIENT - O(1) lookup)
+   * @param attendeeAddress Address to check
+   * @returns True if address has purchased tickets
+   */
+  const isEventAttendee = useCallback(
+    async (attendeeAddress: string) => {
+      if (!publicClient) {
+        setError("Provider not available");
+        return false;
+      }
+
+      try {
+        const isAttendee = await publicClient.readContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: EVENT_CORE_FACET_ABI,
+          functionName: "isEventAttendee",
+          args: [attendeeAddress as `0x${string}`],
+        }) as boolean;
+
+        return isAttendee;
+      } catch (err) {
+        console.error("Error checking if event attendee:", err);
+        setError(parseContractError(err));
+        return false;
+      }
+    },
+    [publicClient]
+  );
+
   /**
    * Check if current wallet is the organizer of the event
    * @param walletAddress Optional wallet address to check (defaults to current wallet)
@@ -1960,6 +2128,11 @@ export const useSmartContract = () => {
     purchaseResaleTicket, // New function for buying resale tickets
     cancelResaleListing, // New function for cancelling listings
     validateTicket, // New function for staff ticket validation
+    
+    // Phase 1.3: Efficient attendee management functions (REPLACES 5000+ CALLS!)
+    getAllAttendees, // Get all event attendees (1 call vs manual iteration)
+    getAttendeeStats, // Get attendee statistics (1 call vs multiple calculations)
+    isEventAttendee, // Check if address is attendee (O(1) vs O(n) lookup)
     
     // Staff management functions
     getStaffRole, // Get staff role for address

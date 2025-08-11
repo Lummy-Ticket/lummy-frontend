@@ -2,7 +2,11 @@ export const TICKET_PURCHASE_FACET_ABI = [
   {
     type: "constructor",
     inputs: [
-      { name: "trustedForwarder", type: "address", internalType: "address" },
+      {
+        name: "trustedForwarder",
+        type: "address",
+        internalType: "address",
+      },
     ],
     stateMutability: "nonpayable",
   },
@@ -32,7 +36,11 @@ export const TICKET_PURCHASE_FACET_ABI = [
     name: "getRevenueStats",
     inputs: [],
     outputs: [
-      { name: "totalRevenue", type: "uint256", internalType: "uint256" },
+      {
+        name: "totalRevenue",
+        type: "uint256",
+        internalType: "uint256",
+      },
       { name: "totalRefunds", type: "uint256", internalType: "uint256" },
     ],
     stateMutability: "view",
@@ -155,7 +163,12 @@ export const TICKET_PURCHASE_FACET_ABI = [
     type: "event",
     name: "RefundProcessed",
     inputs: [
-      { name: "to", type: "address", indexed: true, internalType: "address" },
+      {
+        name: "to",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
       {
         name: "amount",
         type: "uint256",
