@@ -99,16 +99,17 @@ export const mockTickets: Ticket[] = [
 ];
 
 /**
- * Converts enhanced NFT metadata to Ticket interface format
+ * Converts NFT metadata to Ticket interface format
+ * Note: Metadata is now auto-populated by contract, so fallbacks should rarely be needed
  */
 const convertNFTToTicket = (nft: any): Ticket => {
   return {
     id: `ticket-${nft.tokenId.toString()}`,
     eventId: nft.eventId.toString(),
-    eventName: nft.eventName || "Unknown Event",
+    eventName: nft.eventName || "Unknown Event", // Contract auto-populates, fallback for safety
     eventDate: nft.eventDate ? new Date(Number(nft.eventDate) * 1000).toISOString() : new Date().toISOString(),
-    eventLocation: nft.eventVenue || "Unknown Venue",
-    ticketType: nft.tierName || `Tier ${nft.tierId.toString()}`,
+    eventLocation: nft.eventVenue || "Unknown Venue", // Contract auto-populates, fallback for safety
+    ticketType: nft.tierName || `Tier ${nft.tierId.toString()}`, // Contract auto-populates, fallback for safety
     price: Number(nft.originalPrice) / 1e18, // Convert from Wei to IDRX
     currency: "IDRX",
     status: nft.used ? "used" : (nft.status === "valid" ? "valid" : nft.status || "valid"),
@@ -125,8 +126,6 @@ export const MyTicketsPage: React.FC = () => {
   // Smart contract hooks
   const { 
     getUserTicketNFTs,
-    getEventInfo,
-    getTicketTiers,
     loading 
   } = useSmartContract();
 
@@ -163,17 +162,10 @@ export const MyTicketsPage: React.FC = () => {
       try {
         console.log("🎫 Loading user's ticket NFTs...");
         
-        // Get user's NFT tickets and current event info
+        // Get user's NFT tickets with auto-populated metadata
         console.log("📞 Calling getUserTicketNFTs...");
         const userNFTs = await getUserTicketNFTs();
-        console.log("📦 getUserTicketNFTs returned:", userNFTs.length, "NFTs");
-        
-        // Get current event info and tiers from Diamond contract to fill missing metadata
-        console.log("📞 Getting event info from Diamond contract...");
-        const eventInfo = await getEventInfo();
-        const tiers = await getTicketTiers();
-        console.log("📦 Event info:", eventInfo);
-        console.log("📦 Tiers:", tiers);
+        console.log("📦 getUserTicketNFTs returned:", userNFTs.length, "NFTs with complete metadata");
         
         if (userNFTs.length === 0) {
           console.log("No NFT tickets found");
@@ -184,21 +176,11 @@ export const MyTicketsPage: React.FC = () => {
           return;
         }
 
-        // Convert NFT metadata to Ticket format with event info from Diamond contract
+        // Convert NFT metadata to Ticket format - metadata now auto-populated by contract
         const convertedTickets: Ticket[] = userNFTs.map(nft => {
-          // Enhanced conversion with actual event data
-          const tierData = tiers?.[nft.tierId] || null;
-          const enhancedNFT = {
-            ...nft,
-            eventName: eventInfo?.name || "Unknown Event",
-            eventVenue: eventInfo?.venue || "Unknown Venue", 
-            eventDate: eventInfo?.date || 0,
-            tierName: tierData?.name || `Tier ${nft.tierId}`,
-            organizerName: eventInfo?.organizer || "Unknown Organizer"
-          };
-          
-          const ticket = convertNFTToTicket(enhancedNFT);
-          console.log("✅ Enhanced NFT to ticket:", ticket);
+          // Direct conversion - no workaround needed since contract auto-populates metadata
+          const ticket = convertNFTToTicket(nft);
+          console.log("✅ NFT to ticket (auto-populated metadata):", ticket);
           return ticket;
         });
 
