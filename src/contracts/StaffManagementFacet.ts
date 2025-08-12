@@ -2,7 +2,11 @@ export const STAFF_MANAGEMENT_FACET_ABI = [
   {
     type: "constructor",
     inputs: [
-      { name: "trustedForwarder", type: "address", internalType: "address" },
+      {
+        name: "trustedForwarder",
+        type: "address",
+        internalType: "address",
+      },
     ],
     stateMutability: "nonpayable",
   },
@@ -41,7 +45,11 @@ export const STAFF_MANAGEMENT_FACET_ABI = [
     name: "getAllStaff",
     inputs: [],
     outputs: [
-      { name: "staffMembers", type: "address[]", internalType: "address[]" },
+      {
+        name: "staffMembers",
+        type: "address[]",
+        internalType: "address[]",
+      },
       {
         name: "roles",
         type: "uint8[]",
@@ -62,7 +70,11 @@ export const STAFF_MANAGEMENT_FACET_ABI = [
     name: "getStaffRole",
     inputs: [{ name: "account", type: "address", internalType: "address" }],
     outputs: [
-      { name: "", type: "uint8", internalType: "enum LibAppStorage.StaffRole" },
+      {
+        name: "",
+        type: "uint8",
+        internalType: "enum LibAppStorage.StaffRole",
+      },
     ],
     stateMutability: "view",
   },

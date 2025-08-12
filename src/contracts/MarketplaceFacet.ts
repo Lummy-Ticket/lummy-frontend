@@ -2,7 +2,11 @@ export const MARKETPLACE_FACET_ABI = [
   {
     type: "constructor",
     inputs: [
-      { name: "trustedForwarder", type: "address", internalType: "address" },
+      {
+        name: "trustedForwarder",
+        type: "address",
+        internalType: "address",
+      },
     ],
     stateMutability: "nonpayable",
   },
@@ -11,7 +15,11 @@ export const MARKETPLACE_FACET_ABI = [
     name: "calculateResaleFees",
     inputs: [{ name: "resalePrice", type: "uint256", internalType: "uint256" }],
     outputs: [
-      { name: "organizerFee", type: "uint256", internalType: "uint256" },
+      {
+        name: "organizerFee",
+        type: "uint256",
+        internalType: "uint256",
+      },
       { name: "platformFee", type: "uint256", internalType: "uint256" },
       { name: "sellerAmount", type: "uint256", internalType: "uint256" },
     ],
@@ -29,7 +37,11 @@ export const MARKETPLACE_FACET_ABI = [
     name: "getActiveListings",
     inputs: [],
     outputs: [
-      { name: "tokenIds", type: "uint256[]", internalType: "uint256[]" },
+      {
+        name: "tokenIds",
+        type: "uint256[]",
+        internalType: "uint256[]",
+      },
       { name: "prices", type: "uint256[]", internalType: "uint256[]" },
       { name: "sellers", type: "address[]", internalType: "address[]" },
     ],
@@ -48,7 +60,11 @@ export const MARKETPLACE_FACET_ABI = [
           { name: "seller", type: "address", internalType: "address" },
           { name: "price", type: "uint256", internalType: "uint256" },
           { name: "active", type: "bool", internalType: "bool" },
-          { name: "listingDate", type: "uint256", internalType: "uint256" },
+          {
+            name: "listingDate",
+            type: "uint256",
+            internalType: "uint256",
+          },
         ],
       },
     ],
@@ -58,7 +74,11 @@ export const MARKETPLACE_FACET_ABI = [
     type: "function",
     name: "getMaxResalePrice",
     inputs: [
-      { name: "originalPrice", type: "uint256", internalType: "uint256" },
+      {
+        name: "originalPrice",
+        type: "uint256",
+        internalType: "uint256",
+      },
     ],
     outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
     stateMutability: "view",
@@ -131,7 +151,11 @@ export const MARKETPLACE_FACET_ABI = [
     name: "updateResaleSettings",
     inputs: [
       { name: "_allowResell", type: "bool", internalType: "bool" },
-      { name: "_requireVerification", type: "bool", internalType: "bool" },
+      {
+        name: "_requireVerification",
+        type: "bool",
+        internalType: "bool",
+      },
     ],
     outputs: [],
     stateMutability: "nonpayable",

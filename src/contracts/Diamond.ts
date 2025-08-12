@@ -8,7 +8,11 @@ export const DIAMOND_ABI = [
         type: "tuple[]",
         internalType: "struct IDiamondCut.FacetCut[]",
         components: [
-          { name: "facetAddress", type: "address", internalType: "address" },
+          {
+            name: "facetAddress",
+            type: "address",
+            internalType: "address",
+          },
           {
             name: "action",
             type: "uint8",
@@ -36,7 +40,11 @@ export const DIAMOND_ABI = [
         indexed: false,
         internalType: "struct IDiamondCut.FacetCut[]",
         components: [
-          { name: "facetAddress", type: "address", internalType: "address" },
+          {
+            name: "facetAddress",
+            type: "address",
+            internalType: "address",
+          },
           {
             name: "action",
             type: "uint8",
@@ -139,7 +147,11 @@ export const DIAMOND_ABI = [
     type: "error",
     name: "NoBytecodeAtAddress",
     inputs: [
-      { name: "facetAddress", type: "address", internalType: "address" },
+      {
+        name: "facetAddress",
+        type: "address",
+        internalType: "address",
+      },
       { name: "message", type: "string", internalType: "string" },
     ],
   },

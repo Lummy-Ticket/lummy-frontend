@@ -1,20 +1,20 @@
 // IDRX Token on Lisk Sepolia (FINAL DEPLOYMENT)
-export const IDRX_LISK_SEPOLIA = "0xCF89ec0AA123B155fb7616b7c51e0A4eF68EcbA9";
+export const IDRX_LISK_SEPOLIA = "0xcC15F5bD63BBE859b825ec7B06b2f3e7a059fb64";
 // Legacy naming for compatibility
 export const IDRX_SEPOLIA = IDRX_LISK_SEPOLIA;
 
 // Contract addresses - DEPLOYED ON LISK SEPOLIA (FINAL DEPLOYMENT WITH ALL NEW FEATURES)
 export const CONTRACT_ADDRESSES = {
-  DiamondLummy: "0x5F5CF7953928Cd90831300f1a8dec2f99142544D",     // Main Diamond contract (FINAL)
-  MockIDRX: "0xCF89ec0AA123B155fb7616b7c51e0A4eF68EcbA9",        // IDRX token on Lisk Sepolia (FINAL)
-  TrustedForwarder: "0x45712889f07a2e9C129D9FB7C04DD7C7Ee478F12", // SimpleForwarder for gasless txs (FINAL)
-  TicketNFT: "0x93f81E02B5622f263629ba4E35d08e724A8ec300",        // TicketNFT contract (FINAL)
+  DiamondLummy: "0x4D561b1518B35416b14fdE95C7644151766Ba392",     // Main Diamond contract (FINAL)
+  MockIDRX: "0xcC15F5bD63BBE859b825ec7B06b2f3e7a059fb64",        // IDRX token on Lisk Sepolia (FINAL)
+  TrustedForwarder: "0xfF6750Aa52D879C303023f3339488F5c9bA1E133", // SimpleForwarder for gasless txs (FINAL)
+  TicketNFT: "0xeCccb13a614423228991a4b385B16F557961B9F8",        // TicketNFT contract (FINAL)
   
   // Diamond Facets (for reference - all integrated into DiamondLummy)
-  EventCoreFacet: "0xDd1Ba490522036A48E77941Abc769C8a93977D1E",     // Contains clearAllTiers() & getIPFSMetadata()
-  TicketPurchaseFacet: "0xe146C8566dCE841450c104ee6aD5428031B0b3f1",  // Ticket purchasing logic
-  MarketplaceFacet: "0x5adB2F41BF2330d5A50F786Dbb0B4bEb75008742",    // Marketplace & resale logic
-  StaffManagementFacet: "0xd490bCC7964d528C5554467D122D39AE56CB2994", // Staff management
+  EventCoreFacet: "0x32c7059822294F2ce030E3353E879A1435771162",     // Contains clearAllTiers() & getIPFSMetadata()
+  TicketPurchaseFacet: "0x83613E71ACCeC9Cd384F1cfC13fC801fA91d07a5",  // Ticket purchasing logic
+  MarketplaceFacet: "0x6ad133Bdc59ae230Cfc600EFCB6Ff73D1620c03a",    // Marketplace & resale logic
+  StaffManagementFacet: "0x793e59bB8E1B56F1E8500f17Fa5e16b5AAf8B5Ec", // Staff management
 } as const;
 
 // Contract constants (from smart contract - UPDATED FOR 7%/3% FEE STRUCTURE)

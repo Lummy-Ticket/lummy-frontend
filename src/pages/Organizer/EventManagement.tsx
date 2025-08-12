@@ -72,7 +72,7 @@ import { useSmartContract } from "../../hooks/useSmartContract";
 import { useStaffEventListener } from "../../hooks/useStaffEventListener";
 import { DEVELOPMENT_CONFIG } from "../../constants";
 
-const MotionBox = motion(Box);
+const MotionBox = motion.create(Box);
 
 // Mock event data - would be fetched from API in real application
 const mockEvent: EventStatsData = {
@@ -174,7 +174,7 @@ const EventManagement: React.FC = () => {
   const toast = useToast();
   const cancelRef = React.useRef<HTMLButtonElement>(null!);
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const { getEventInfo, getTicketTiers, addStaff, removeStaff } = useSmartContract();
+  const { getEventInfo, getTicketTiers, addStaff, removeStaff, getResaleRules, setResaleRules } = useSmartContract();
   
   // Event-based staff management
   const {
@@ -350,7 +350,28 @@ const EventManagement: React.FC = () => {
       }
       
       setAttendees(mockAttendees);
-      setResellSettings(mockResellSettings);
+      
+      // Load actual resale rules from blockchain
+      try {
+        const resaleRules = await getResaleRules();
+        if (resaleRules) {
+          console.log("📋 Loading resale rules from blockchain (already converted):", resaleRules);
+          const frontendSettings: ResellSettingsData = {
+            allowResell: resaleRules.allowResell,
+            maxMarkupPercentage: resaleRules.maxMarkupPercentage, // Already converted in useSmartContract: 50%
+            organizerFeePercentage: resaleRules.organizerFeePercentage, // Already converted in useSmartContract: 10%
+            restrictResellTiming: resaleRules.restrictResellTiming,
+            minDaysBeforeEvent: resaleRules.minDaysBeforeEvent,
+          };
+          console.log("📋 Frontend settings (no additional conversion):", frontendSettings);
+          setResellSettings(frontendSettings);
+        } else {
+          setResellSettings(mockResellSettings);
+        }
+      } catch (error) {
+        console.error("Failed to load resale rules from blockchain:", error);
+        setResellSettings(mockResellSettings);
+      }
       
       // Staff data now comes from useStaffEventListener hook automatically
       setLoading(false);
@@ -618,16 +639,38 @@ const EventManagement: React.FC = () => {
   };
 
   // Handle resell settings update
-  const handleResellSettingsUpdate = (settings: ResellSettingsData) => {
-    setResellSettings(settings);
+  const handleResellSettingsUpdate = async (settings: ResellSettingsData) => {
+    try {
+      // Call contract function with 4 separate parameters
+      const result = await setResaleRules(
+        settings.maxMarkupPercentage,        // Already in percentage (e.g., 50)
+        settings.organizerFeePercentage,     // Already in percentage (e.g., 10)
+        settings.restrictResellTiming,
+        settings.minDaysBeforeEvent
+      );
+      
+      if (result) {
+        // Update local state only after successful blockchain update
+        setResellSettings(settings);
 
-    toast({
-      title: "Settings updated",
-      description: "Resale settings have been successfully updated",
-      status: "success",
-      duration: 3000,
-      isClosable: true,
-    });
+        toast({
+          title: "Settings updated",
+          description: "Resale settings have been successfully updated on blockchain",
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to update resale settings:", error);
+      toast({
+        title: "Update failed",
+        description: `Failed to update resale settings: ${(error as Error).message}`,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
   };
 
   // Staff management handlers with role hierarchy

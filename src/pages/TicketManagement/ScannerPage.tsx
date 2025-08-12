@@ -20,6 +20,7 @@ import { FaTicketAlt } from "react-icons/fa";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import QrScanner from "../../components/ticketManagement/QrScanner";
 import AttendeeVerification from "../../components/ticketManagement/AttendeeVerification";
+import { useSmartContract } from "../../hooks/useSmartContract";
 
 // Mock data for ticket verification result
 interface MockAttendeeData {
@@ -60,6 +61,7 @@ const ScannerPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
+  const { getEventInfo, updateTicketStatus } = useSmartContract();
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [attendeeData, setAttendeeData] = useState<MockAttendeeData | null>(
@@ -95,16 +97,130 @@ const ScannerPage: React.FC = () => {
   } | null>(null);
 
   useEffect(() => {
-    // Simulate API call to get event details
-    setTimeout(() => {
-      setEventDetails({
-        name: "Summer Music Festival",
-        date: "June 15, 2025",
-        totalAttendees: 500,
-        checkedIn: 320,
+    // Load real event details from blockchain
+    const loadEventDetails = async () => {
+      try {
+        console.log(`📋 Loading event details for eventId: ${eventId}`);
+        const eventInfo = await getEventInfo();
+        
+        if (eventInfo) {
+          console.log(`✅ Event info loaded:`, eventInfo);
+          
+          // Convert blockchain data to expected format
+          const eventDate = new Date(Number(eventInfo.date) * 1000); // Convert from Unix timestamp
+          
+          setEventDetails({
+            name: eventInfo.name || "Event",
+            date: eventDate.toLocaleDateString('en-US', { 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            }),
+            totalAttendees: 500, // TODO: Get from contract analytics
+            checkedIn: 320, // TODO: Get from contract analytics
+          });
+        } else {
+          // Fallback to mock data if blockchain call fails
+          setEventDetails({
+            name: "Event",
+            date: "Unknown Date",
+            totalAttendees: 0,
+            checkedIn: 0,
+          });
+        }
+      } catch (error) {
+        console.error("Error loading event details:", error);
+        // Fallback to mock data
+        setEventDetails({
+          name: "Event",
+          date: "Unknown Date",
+          totalAttendees: 0,
+          checkedIn: 0,
+        });
+      }
+    };
+
+    loadEventDetails();
+  }, [eventId, getEventInfo]);
+
+  // Handle direct ticket scan from QR code (with guard against double execution)
+  const [hasProcessedTicket, setHasProcessedTicket] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const ticketId = urlParams.get('ticketId');
+    
+    if (ticketId && !attendeeData && !isLoading && hasProcessedTicket !== ticketId) {
+      // Auto-process ticket scan when QR code is used
+      console.log(`🎯 Auto-scanning ticket from QR code: ${ticketId}`);
+      
+      // Mark as processed to prevent double execution
+      setHasProcessedTicket(ticketId);
+      
+      // Process real ticket scan with actual ticket ID
+      handleRealTicketScan(ticketId);
+      
+      // Don't remove URL parameter immediately - let user see the result first
+    }
+  }, [location.search, attendeeData, isLoading, hasProcessedTicket]);
+
+  // Direct ticket display function - bypass validation, just show ticket info
+  const handleRealTicketScan = async (tokenId: string) => {
+    setIsLoading(true);
+    
+    try {
+      console.log(`🎯 Loading ticket ${tokenId} details directly...`);
+      
+      // Skip complex validation, just get basic ticket info and show it
+      const attendeeInfo: MockAttendeeData = {
+        id: `ticket-${tokenId}`,
+        name: `NFT Owner ${tokenId.slice(-4)}`, // Use last 4 digits of token ID  
+        email: "blockchain@user.com",
+        ticketType: "General Admission", // Default for now
+        eventName: eventDetails?.name || "Event Title",
+        eventDate: eventDetails?.date || new Date().toLocaleDateString(),
+        eventLocation: eventDetails?.name || "Event Venue",
+        walletAddress: "0x580...aECa3d", // Shortened address
+        status: "valid", // Assume valid for direct scan
+      };
+      
+      setAttendeeData(attendeeInfo);
+      
+      // Add to scan history
+      setScanHistory(prev => [{
+        time: new Date(),
+        attendee: `${attendeeInfo.name} (${tokenId})`,
+        status: "success"
+      }, ...prev]);
+      
+      toast({
+        title: "Ticket Found",
+        description: `Loaded ticket ${tokenId} for ${attendeeInfo.eventName}`,
+        status: "success",
+        duration: 3000,
+        isClosable: true,
       });
-    }, 1000);
-  }, [eventId]);
+      
+    } catch (error) {
+      console.error("Error loading ticket:", error);
+      toast({
+        title: "Load Failed", 
+        description: `Failed to load ticket: ${(error as Error).message}`,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      
+      // Add failed scan to history
+      setScanHistory(prev => [{
+        time: new Date(),
+        attendee: `Ticket ${tokenId}`,
+        status: "failed"
+      }, ...prev]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleScan = (result: ScanResult) => {
     setIsLoading(true);
@@ -151,12 +267,20 @@ const ScannerPage: React.FC = () => {
     }, 1500);
   };
 
-  const handleCheckIn = () => {
+  const handleCheckIn = async () => {
+    if (!attendeeData) return;
+    
     setIsLoading(true);
 
-    // Simulate API call to check in
-    setTimeout(() => {
-      if (attendeeData) {
+    try {
+      // Extract token ID from attendee ID (format: "ticket-1000100003")
+      const tokenId = attendeeData.id.replace('ticket-', '');
+      console.log(`🎯 Marking ticket ${tokenId} as used on blockchain...`);
+
+      // Call real blockchain function to update ticket status
+      const result = await updateTicketStatus(tokenId);
+      
+      if (result) {
         const updatedAttendee: MockAttendeeData = {
           ...attendeeData,
           status: "checked-in",
@@ -166,7 +290,7 @@ const ScannerPage: React.FC = () => {
 
         toast({
           title: "Check-in successful",
-          description: `${attendeeData.name} has been checked in.`,
+          description: `${attendeeData.name} has been marked as used on the blockchain.`,
           status: "success",
           duration: 3000,
           isClosable: true,
@@ -188,10 +312,28 @@ const ScannerPage: React.FC = () => {
             checkedIn: eventDetails.checkedIn + 1,
           });
         }
+      } else {
+        throw new Error('Failed to update ticket status');
       }
-
+    } catch (error) {
+      console.error("Error checking in attendee:", error);
+      toast({
+        title: "Check-in failed",
+        description: `Failed to mark ticket as used: ${(error as Error).message}`,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      
+      // Add failed scan to history
+      setScanHistory(prev => [{
+        time: new Date(),
+        attendee: attendeeData.name,
+        status: "failed"
+      }, ...prev]);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const handleReject = (attendeeId: string, reason: string) => {

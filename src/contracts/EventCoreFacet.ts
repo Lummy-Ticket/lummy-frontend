@@ -84,6 +84,34 @@ export const EVENT_CORE_FACET_ABI = [
   },
   {
     type: "function",
+    name: "getEventAnalytics",
+    inputs: [],
+    outputs: [
+      {
+        name: "totalTicketsSold",
+        type: "uint256",
+        internalType: "uint256",
+      },
+      {
+        name: "totalRevenue",
+        type: "uint256",
+        internalType: "uint256",
+      },
+      {
+        name: "uniqueAttendees",
+        type: "uint256",
+        internalType: "uint256",
+      },
+      {
+        name: "tierSalesCount",
+        type: "uint256[]",
+        internalType: "uint256[]",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "getEventInfo",
     inputs: [],
     outputs: [
