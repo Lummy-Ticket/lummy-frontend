@@ -236,8 +236,8 @@ export const TicketDetails: React.FC<TicketDetailsProps> = ({ ticket }) => {
               >
                 {isActive ? (
                   <>
-                    <Text fontWeight="medium" mb={4}>
-                      Scan this QR code at the event
+                    <Text fontWeight="medium" mb={4} color="green.700">
+                      🎫 Show this QR to event staff for check-in
                     </Text>
                     <Flex justify="center">
                       <QRCode
@@ -246,9 +246,17 @@ export const TicketDetails: React.FC<TicketDetailsProps> = ({ ticket }) => {
                         size={180}
                       />
                     </Flex>
-                    <Text fontSize="sm" color="gray.600" mt={2}>
-                      Token ID: {ticket.tokenId}
-                    </Text>
+                    <VStack spacing={2} mt={3}>
+                      <Text fontSize="sm" color="gray.600">
+                        Token ID: {ticket.tokenId}
+                      </Text>
+                      <Text fontSize="xs" color="orange.600" fontWeight="medium">
+                        🔒 For security: Do not share or screenshot this QR code
+                      </Text>
+                      <Text fontSize="xs" color="blue.600">
+                        ✅ Staff-only scanner • Secure blockchain verification
+                      </Text>
+                    </VStack>
                   </>
                 ) : (
                   <Text color="gray.600" py={8}>

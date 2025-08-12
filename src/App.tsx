@@ -23,6 +23,7 @@ import OrganizerRequestsAdmin from "./pages/OrganizerRequest/OrganizerRequestsAd
 import { AdminDashboard, AdminOrganizerRequests, AdminEventManagement, AdminAnalytics, AdminRevenue } from "./pages/Admin";
 import { StaffEventSelection } from "./pages/Staff";
 import { PublicNFTPage } from "./pages/PublicNFT/PublicNFTPage";
+import { StaffScanPage } from "./pages/Staff/StaffScanPage";
 import { Web3Provider } from "./services/Web3Provider";
 import { RoleProvider } from "./context/RoleContext";
 
@@ -72,6 +73,7 @@ function App() {
               <Route path="/staff" element={<StaffEventSelection />} />
               <Route path="/staff/event/:eventId" element={<CheckInDashboard />} />
               <Route path="/staff/event/:eventId/scanner" element={<ScannerPage />} />
+              <Route path="/staff/scan/:tokenId" element={<StaffScanPage />} />
 
               {/* Organizer Request routes */}
               <Route path="/organizer-request" element={<OrganizerRequestPage />} />

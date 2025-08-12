@@ -11,24 +11,26 @@ interface QRCodeProps {
 
 export const QRCode: React.FC<QRCodeProps> = ({
   ticketId,
-  eventId,
   size = 200,
 }) => {
-  // Generate QR code data based on development configuration
+  // Extract clean token ID (remove "ticket-" prefix if present)
+  const cleanTokenId = ticketId.startsWith('ticket-') ? ticketId.replace('ticket-', '') : ticketId;
+  
+  // Generate QR code data for secure staff scanner access
   const generateQRData = () => {
     if (DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN) {
-      // Real implementation: Deep link to staff scanner
-      return `lummy-ticket://scan/${ticketId}/${eventId}`;
+      // Real implementation: Direct to staff scanner page with clean token ID
+      return `https://lummy-ticket.vercel.app/staff/scan/${cleanTokenId}`;
     } else {
-      // Mock implementation: Still use deep link format for testing
-      return `mock://scan/${ticketId}/${eventId}`;
+      // Mock implementation: Use staff scanner format for testing
+      return `https://lummy-ticket.vercel.app/staff/scan/${cleanTokenId}`;
     }
   };
 
   const qrData = generateQRData();
   
-  // Fallback URL for web browsers that don't handle deep links
-  const fallbackUrl = `https://lummy-ticket.vercel.app/scanner?token=${ticketId}&event=${eventId}`;
+  // Fallback URL for web browsers (same as primary for web compatibility)
+  const fallbackUrl = `https://lummy-ticket.vercel.app/staff/scan/${cleanTokenId}`;
 
   // Real QR code implementation
   return (

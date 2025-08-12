@@ -69,6 +69,7 @@ import EnhancedAttendeeListTable, {
 import AttendeeService from "../../services/AttendeeService";
 import { motion } from "framer-motion";
 import { useSmartContract } from "../../hooks/useSmartContract";
+import { useStaffEventListener } from "../../hooks/useStaffEventListener";
 import { DEVELOPMENT_CONFIG } from "../../constants";
 
 const MotionBox = motion(Box);
@@ -146,24 +147,13 @@ const mockResellSettings: ResellSettingsData = {
   minDaysBeforeEvent: 1,            // 1 day minimum
 };
 
-// Contract-compatible Staff Role enum (matches smart contract)
+// Contract-compatible Staff Role enum (simplified to single role)
 enum StaffRole {
   NONE = 0,
-  SCANNER = 1,
-  CHECKIN = 2,
-  MANAGER = 3
+  SCANNER = 1, // All staff get SCANNER role
 }
 
-// Staff member interface with role hierarchy
-interface StaffMember {
-  address: string;
-  role: StaffRole;
-  assignedBy: string;
-  assignedDate: Date;
-  canScanTickets: boolean;     // SCANNER+ roles
-  canCheckInAttendees: boolean; // CHECKIN+ roles
-  canManageStaff: boolean;     // MANAGER only
-}
+// Using StaffMember interface from useStaffEventListener
 
 // Interface untuk Ticket Tier yang akan diedit (contract supports updateTicketTier)
 interface EditableTier {
@@ -184,7 +174,16 @@ const EventManagement: React.FC = () => {
   const toast = useToast();
   const cancelRef = React.useRef<HTMLButtonElement>(null!);
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const { getEventInfo, getTicketTiers, addStaffWithRole, removeStaffRole } = useSmartContract();
+  const { getEventInfo, getTicketTiers, addStaff, removeStaff } = useSmartContract();
+  
+  // Event-based staff management
+  const {
+    staffList: eventBasedStaffList,
+    isLoading: staffEventsLoading,
+    isListening: staffEventsListening,
+    error: staffEventsError,
+    refreshStaffEvents,
+  } = useStaffEventListener();
 
   // State
   const [loading, setLoading] = useState(true);
@@ -205,8 +204,7 @@ const EventManagement: React.FC = () => {
   });
   const [attendeeLoading, setAttendeeLoading] = useState(false);
   
-  // Staff management state with contract-compatible hierarchy
-  const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  // Staff management state (now uses event-based system)
   const [newStaffAddress, setNewStaffAddress] = useState<string>("");
   const [newStaffRole, setNewStaffRole] = useState<StaffRole>(StaffRole.SCANNER);
 
@@ -353,27 +351,8 @@ const EventManagement: React.FC = () => {
       
       setAttendees(mockAttendees);
       setResellSettings(mockResellSettings);
-      // Mock staff list with contract-compatible roles
-      setStaffList([
-        {
-          address: "0x1234567890abcdef1234567890abcdef12345678",
-          role: StaffRole.SCANNER,
-          assignedBy: "0xorganizer123",
-          assignedDate: new Date(2025, 2, 15),
-          canScanTickets: true,
-          canCheckInAttendees: false,
-          canManageStaff: false
-        },
-        {
-          address: "0xabcdef1234567890abcdef1234567890abcdef12",
-          role: StaffRole.MANAGER,
-          assignedBy: "0xorganizer123",
-          assignedDate: new Date(2025, 2, 20),
-          canScanTickets: true,
-          canCheckInAttendees: true,
-          canManageStaff: true
-        }
-      ]);
+      
+      // Staff data now comes from useStaffEventListener hook automatically
       setLoading(false);
     };
 
@@ -664,7 +643,7 @@ const EventManagement: React.FC = () => {
       return;
     }
 
-    if (staffList.some(staff => staff.address === newStaffAddress)) {
+    if (eventBasedStaffList.some(staff => staff.address.toLowerCase() === newStaffAddress.toLowerCase())) {
       toast({
         title: "Staff already exists",
         description: "This address is already in the staff list",
@@ -676,51 +655,19 @@ const EventManagement: React.FC = () => {
     }
 
     try {
-      if (DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN) {
-        if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
-          console.log("🔄 Attempting to add staff to blockchain:", {
-            address: newStaffAddress,
-            role: newStaffRole,
-            roleInfo: getRoleInfo(newStaffRole),
-            timestamp: new Date().toISOString()
-          });
-        }
-
-        // Call real smart contract function
-        const result = await addStaffWithRole(newStaffAddress, newStaffRole);
-        if (!result) {
-          throw new Error("Failed to add staff to blockchain");
-        }
-        
-        if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
-          console.log("✅ Staff added to blockchain:", { 
-            address: newStaffAddress, 
-            role: newStaffRole, 
-            hash: result,
-            success: true
-          });
-        }
+      // Call the contract function (event system will update UI automatically)
+      const result = await addStaff(newStaffAddress);
+      if (!result) {
+        throw new Error("Failed to add staff to blockchain");
       }
-
-      // Create new staff member with role-based permissions
-      const newStaffMember: StaffMember = {
-        address: newStaffAddress,
-        role: newStaffRole,
-        assignedBy: "0xorganizer123", // Mock organizer address
-        assignedDate: new Date(),
-        canScanTickets: newStaffRole >= StaffRole.SCANNER,
-        canCheckInAttendees: newStaffRole >= StaffRole.CHECKIN,
-        canManageStaff: newStaffRole === StaffRole.MANAGER
-      };
-
-      setStaffList([...staffList, newStaffMember]);
+      
+      // Reset form - staff list will be updated via events
       setNewStaffAddress("");
       setNewStaffRole(StaffRole.SCANNER);
 
-      const roleNames = ['NONE', 'SCANNER', 'CHECKIN', 'MANAGER'];
       toast({
         title: "Staff added",
-        description: `Staff member assigned as ${roleNames[newStaffRole]} successfully`,
+        description: "Staff member added with scanner access successfully",
         status: "success",
         duration: 3000,
         isClosable: true,
@@ -758,30 +705,11 @@ const EventManagement: React.FC = () => {
 
   const handleRemoveStaff = async (staffAddress: string) => {
     try {
-      if (DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN) {
-        if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
-          console.log("🔄 Attempting to remove staff from blockchain:", {
-            address: staffAddress,
-            timestamp: new Date().toISOString()
-          });
-        }
-
-        // Call real smart contract function
-        const result = await removeStaffRole(staffAddress);
-        if (!result) {
-          throw new Error("Failed to remove staff from blockchain");
-        }
-        
-        if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
-          console.log("✅ Staff removed from blockchain:", { 
-            address: staffAddress, 
-            hash: result,
-            success: true
-          });
-        }
+      // Call the contract function (event system will update UI automatically)
+      const result = await removeStaff(staffAddress);
+      if (!result) {
+        throw new Error("Failed to remove staff from blockchain");
       }
-
-      setStaffList(staffList.filter(staff => staff.address !== staffAddress));
 
       toast({
         title: "Staff removed",
@@ -819,17 +747,13 @@ const EventManagement: React.FC = () => {
     }
   };
 
-  // Helper function to get role display name and color
+  // Helper function to get role display name and color (simplified)
   const getRoleInfo = (role: StaffRole) => {
     switch (role) {
       case StaffRole.SCANNER:
-        return { name: 'SCANNER', color: 'blue', description: 'Can scan tickets' };
-      case StaffRole.CHECKIN:
-        return { name: 'CHECKIN', color: 'green', description: 'Can scan tickets and check-in attendees' };
-      case StaffRole.MANAGER:
-        return { name: 'MANAGER', color: 'purple', description: 'Can scan, check-in, and manage staff' };
+        return { name: 'Staff', color: 'blue', description: 'Can scan QR codes and validate tickets' };
       default:
-        return { name: 'NONE', color: 'gray', description: 'No permissions' };
+        return { name: 'None', color: 'gray', description: 'No permissions' };
     }
   };
 
@@ -1288,10 +1212,10 @@ const EventManagement: React.FC = () => {
               </Flex>
               
               <Text color="gray.600">
-                Manage staff members with role-based permissions. Roles have hierarchical access: SCANNER → CHECKIN → MANAGER.
+                Manage staff members who can scan QR codes and validate tickets at your event. All staff get the same scanning permissions.
               </Text>
 
-              {/* Role Hierarchy Info */}
+              {/* Staff Access Info */}
               <Box
                 p={4}
                 borderWidth="2px"
@@ -1300,11 +1224,11 @@ const EventManagement: React.FC = () => {
                 bg="blue.50"
                 shadow="sm"
               >
-                <Text fontWeight="medium" mb={2} color="blue.800">Role Hierarchy & Permissions:</Text>
+                <Text fontWeight="medium" mb={2} color="blue.800">Staff Access & Permissions:</Text>
                 <VStack align="start" spacing={1} fontSize="sm" color="blue.700">
-                  <Text>• <strong>SCANNER:</strong> Can scan tickets for verification</Text>
-                  <Text>• <strong>CHECKIN:</strong> Can scan tickets + check-in attendees</Text>
-                  <Text>• <strong>MANAGER:</strong> Can scan + check-in + manage other staff</Text>
+                  <Text>• <strong>Ticket Scanning:</strong> Can scan QR codes to validate tickets</Text>
+                  <Text>• <strong>Status Updates:</strong> Can mark tickets as used after validation</Text>
+                  <Text>• <strong>Event Access:</strong> Can access the staff scanner interface</Text>
                 </VStack>
               </Box>
 
@@ -1328,45 +1252,27 @@ const EventManagement: React.FC = () => {
                     />
                   </FormControl>
                   
-                  <FormControl>
-                    <FormLabel>Role Assignment</FormLabel>
-                    <HStack spacing={4}>
-                      <Button
-                        size="sm"
-                        variant={newStaffRole === StaffRole.SCANNER ? "solid" : "outline"}
-                        colorScheme={newStaffRole === StaffRole.SCANNER ? "blue" : "gray"}
-                        onClick={() => setNewStaffRole(StaffRole.SCANNER)}
-                      >
-                        SCANNER
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={newStaffRole === StaffRole.CHECKIN ? "solid" : "outline"}
-                        colorScheme={newStaffRole === StaffRole.CHECKIN ? "green" : "gray"}
-                        onClick={() => setNewStaffRole(StaffRole.CHECKIN)}
-                      >
-                        CHECKIN
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={newStaffRole === StaffRole.MANAGER ? "solid" : "outline"}
-                        colorScheme={newStaffRole === StaffRole.MANAGER ? "purple" : "gray"}
-                        onClick={() => setNewStaffRole(StaffRole.MANAGER)}
-                      >
-                        MANAGER
-                      </Button>
-                    </HStack>
-                    <Text fontSize="sm" color="gray.500" mt={2}>
-                      {getRoleInfo(newStaffRole).description}
+                  <Box
+                    p={3}
+                    borderWidth="1px"
+                    borderRadius="md"
+                    borderColor="blue.200"
+                    bg="blue.50"
+                  >
+                    <Text fontSize="sm" color="blue.800" fontWeight="medium">
+                      Access Level: <Badge colorScheme="blue" ml={2}>Scanner Access</Badge>
                     </Text>
-                  </FormControl>
+                    <Text fontSize="sm" color="blue.600" mt={1}>
+                      Staff members can scan QR codes and validate tickets at your event.
+                    </Text>
+                  </Box>
                   
                   <Button
                     colorScheme="green"
                     onClick={handleAddStaff}
                     w="full"
                   >
-                    Add Staff with {getRoleInfo(newStaffRole).name} Role
+                    Add Staff Member
                   </Button>
                 </VStack>
               </Box>
@@ -1381,11 +1287,38 @@ const EventManagement: React.FC = () => {
                 shadow="sm"
               >
                 <VStack align="stretch" spacing={3}>
-                  <Text fontWeight="medium" mb={2}>
-                    Current Staff ({staffList.length})
-                  </Text>
-                  {staffList.length > 0 ? (
-                    staffList.map((staff, index) => {
+                  <HStack justify="space-between">
+                    <Text fontWeight="medium">
+                      Current Staff ({eventBasedStaffList.length})
+                    </Text>
+                    <HStack spacing={2}>
+                      {staffEventsListening && (
+                        <Badge colorScheme="green" size="sm">
+                          🟢 Live Updates
+                        </Badge>
+                      )}
+                      {staffEventsError && (
+                        <Badge colorScheme="red" size="sm">
+                          ❌ Error Loading
+                        </Badge>
+                      )}
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        colorScheme="blue"
+                        onClick={refreshStaffEvents}
+                        isDisabled={staffEventsLoading}
+                      >
+                        🔄 Refresh
+                      </Button>
+                    </HStack>
+                  </HStack>
+                  {staffEventsLoading ? (
+                    <Text color="gray.500" textAlign="center" py={4}>
+                      Loading staff events...
+                    </Text>
+                  ) : eventBasedStaffList.length > 0 ? (
+                    eventBasedStaffList.map((staff, index) => {
                       const roleInfo = getRoleInfo(staff.role);
                       return (
                         <Flex
@@ -1406,7 +1339,9 @@ const EventManagement: React.FC = () => {
                                 {roleInfo.name}
                               </Badge>
                               <Text fontSize="xs" color="gray.500">
-                                Added {staff.assignedDate.toLocaleDateString()}
+                                Added {staff.assignedDate instanceof Date 
+                                  ? staff.assignedDate.toLocaleDateString() 
+                                  : new Date(staff.assignedDate).toLocaleDateString()}
                               </Text>
                             </HStack>
                             <Text fontSize="xs" color="gray.600">
@@ -1415,9 +1350,7 @@ const EventManagement: React.FC = () => {
                           </VStack>
                           <VStack spacing={2}>
                             <HStack spacing={1} fontSize="xs">
-                              {staff.canScanTickets && <Badge size="xs" colorScheme="blue">Scan</Badge>}
-                              {staff.canCheckInAttendees && <Badge size="xs" colorScheme="green">Check-in</Badge>}
-                              {staff.canManageStaff && <Badge size="xs" colorScheme="purple">Manage</Badge>}
+                              {staff.canScanTickets && <Badge size="xs" colorScheme="blue">Scanner</Badge>}
                             </HStack>
                             <Button
                               size="sm"

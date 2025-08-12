@@ -573,7 +573,7 @@ export const useSmartContract = () => {
     
     try {
       // Get NFT balance first to check if user has any tokens
-      const balance = await publicClient.readContract({
+      const balance = await publicClient!.readContract({
         address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
         abi: TICKET_NFT_ABI,
         functionName: "balanceOf", 
@@ -608,7 +608,7 @@ export const useSmartContract = () => {
       // Check ownership in parallel (much faster!)
       const ownershipChecks = candidateTokens.map(async (tokenId) => {
         try {
-          const owner = await publicClient.readContract({
+          const owner = await publicClient!.readContract({
             address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
             abi: TICKET_NFT_ABI,
             functionName: "ownerOf",
@@ -680,7 +680,7 @@ export const useSmartContract = () => {
 
           console.log(`✅ Found ${tokenIds.length} tokens using efficient method (1 call vs 5000+ calls)`);
         } catch (efficientError) {
-          console.warn("⚠️ Efficient method failed, falling back to basic discovery:", efficientError.message);
+          console.warn("⚠️ Efficient method failed, falling back to basic discovery:", (efficientError as Error).message);
           
           // Fallback: Try to find user's tokens by checking known pattern
           // This is less efficient but works with older contract deployments
@@ -2097,12 +2097,142 @@ export const useSmartContract = () => {
   );
 
   /**
+   * Add staff member with default SCANNER role (organizer only) - Simple version
+   * @param staffAddress Address to assign staff role
+   * @returns Transaction hash if successful
+   */
+  const addStaff = useCallback(
+    async (staffAddress: string) => {
+      if (!walletClient || !address) {
+        setError("Wallet not connected");
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Verify organizer permissions first
+        const isOrganizer = await isEventOrganizer();
+        if (!isOrganizer) {
+          throw new Error("Only organizers can add staff members");
+        }
+
+        if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
+          console.log('🔍 Staff Management: Attempting to add staff:', {
+            staffAddress,
+            contractAddress: CONTRACT_ADDRESSES.DiamondLummy,
+          });
+        }
+
+        const hash = await walletClient.writeContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: STAFF_MANAGEMENT_FACET_ABI,
+          functionName: "addStaff",
+          args: [staffAddress as `0x${string}`],
+        });
+
+        await publicClient?.waitForTransactionReceipt({ hash });
+        
+        console.log(`✅ Staff added: ${staffAddress} with default SCANNER role`);
+        return hash;
+      } catch (err) {
+        console.error("Error adding staff:", err);
+        setError(parseContractError(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [walletClient, address, publicClient, isEventOrganizer]
+  );
+
+  /**
+   * Remove staff member (organizer only) - Simple version
+   * @param staffAddress Address to remove from staff
+   * @returns Transaction hash if successful
+   */
+  const removeStaff = useCallback(
+    async (staffAddress: string) => {
+      if (!walletClient || !address) {
+        setError("Wallet not connected");
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Verify organizer permissions first
+        const isOrganizer = await isEventOrganizer();
+        if (!isOrganizer) {
+          throw new Error("Only organizers can remove staff members");
+        }
+
+        const hash = await walletClient.writeContract({
+          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+          abi: STAFF_MANAGEMENT_FACET_ABI,
+          functionName: "removeStaff",
+          args: [staffAddress as `0x${string}`],
+        });
+
+        await publicClient?.waitForTransactionReceipt({ hash });
+        
+        console.log(`✅ Staff removed: ${staffAddress}`);
+        return hash;
+      } catch (err) {
+        console.error("Error removing staff:", err);
+        setError(parseContractError(err));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [walletClient, address, publicClient, isEventOrganizer]
+  );
+
+  /**
    * Get staff role names for display
    * @returns Array of role names
    */
   const getStaffRoleNames = useCallback(() => {
     return ['NONE', 'SCANNER', 'CHECKIN', 'MANAGER'];
   }, []);
+
+  /**
+   * Get comprehensive event analytics (Phase 1.3 - ORGANIZER DASHBOARD)
+   * @returns Event analytics for organizer dashboard
+   */
+  const getEventAnalytics = useCallback(async () => {
+    if (!publicClient) {
+      setError("Provider not available");
+      return null;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const analytics = await publicClient.readContract({
+        address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+        abi: EVENT_CORE_FACET_ABI,
+        functionName: "getEventAnalytics",
+      }) as [bigint, bigint, bigint, bigint[]];
+
+      return {
+        totalTicketsSold: Number(analytics[0]),
+        totalRevenue: analytics[1], // Keep as BigInt for precise calculations
+        uniqueAttendees: Number(analytics[2]),
+        tierSalesCount: analytics[3].map(count => Number(count))
+      };
+    } catch (err) {
+      console.error("Error getting event analytics:", err);
+      setError(parseContractError(err));
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [publicClient]);
 
   return {
     // Event management (Diamond pattern)
@@ -2133,6 +2263,7 @@ export const useSmartContract = () => {
     getAllAttendees, // Get all event attendees (1 call vs manual iteration)
     getAttendeeStats, // Get attendee statistics (1 call vs multiple calculations)
     isEventAttendee, // Check if address is attendee (O(1) vs O(n) lookup)
+    getEventAnalytics, // Get comprehensive event analytics for organizer dashboard
     
     // Staff management functions
     getStaffRole, // Get staff role for address
@@ -2146,8 +2277,10 @@ export const useSmartContract = () => {
     getWalletRoles, // Get comprehensive role information
     
     // Staff management functions (organizer only)
-    addStaffWithRole, // Add staff with specific role
-    removeStaffRole, // Remove staff role
+    addStaff, // Add staff with default SCANNER role (simple)
+    removeStaff, // Remove staff member (simple)
+    addStaffWithRole, // Add staff with specific role (legacy)
+    removeStaffRole, // Remove staff role (legacy)
     getStaffRoleNames, // Get role name labels
     burnTicketForQR,
     

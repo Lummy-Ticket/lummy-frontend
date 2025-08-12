@@ -11,7 +11,6 @@ import {
   Icon,
   Grid,
   GridItem,
-  Flex,
   Divider,
   Alert,
   AlertIcon,
@@ -29,8 +28,8 @@ import {
   FaShare,
 } from "react-icons/fa";
 import { useParams, useNavigate } from "react-router-dom";
-import { QRCode } from "../../components/tickets/QRCode";
 import { useSmartContract } from "../../hooks/useSmartContract";
+import { CONTRACT_ADDRESSES } from "../../constants";
 import { Ticket } from "../../components/tickets/TicketCard";
 
 export const PublicNFTPage: React.FC = () => {
@@ -204,7 +203,7 @@ export const PublicNFTPage: React.FC = () => {
               leftIcon={<Icon as={FaExternalLinkAlt} />}
               colorScheme="blue"
               size="sm"
-              onClick={() => window.open(`https://sepolia-blockscout.lisk.com/token/0x7076657b501EDA89f43682df965bE50eD209F5A5/instance/${tokenId}`, '_blank')}
+              onClick={() => window.open(`https://sepolia-blockscout.lisk.com/token/${CONTRACT_ADDRESSES.TicketNFT}/instance/${tokenId}`, '_blank')}
             >
               View on Explorer
             </Button>
@@ -338,26 +337,23 @@ export const PublicNFTPage: React.FC = () => {
                   />
                 </Box>
 
-                {/* QR Code Section */}
+                {/* Security Notice - QR Hidden for Public View */}
                 <Box
                   borderWidth="1px"
                   borderRadius="lg"
                   p={6}
-                  bg="white"
+                  bg="orange.50"
                   width="100%"
                   textAlign="center"
+                  borderColor="orange.200"
                 >
-                  <Text fontWeight="medium" mb={4}>
-                    Blockchain Verification QR
+                  <Text fontWeight="medium" mb={2} color="orange.800">
+                    🔒 QR Code Access
                   </Text>
-                  <Flex justify="center">
-                    <QRCode
-                      ticketId={ticket.id}
-                      eventId={ticket.eventId}
-                      size={180}
-                    />
-                  </Flex>
-                  <Text fontSize="sm" color="gray.600" mt={2}>
+                  <Text fontSize="sm" color="orange.700" mb={3}>
+                    QR codes are only available to ticket owners in their MyTickets page for security reasons.
+                  </Text>
+                  <Text fontSize="xs" color="orange.600">
                     Token ID: {ticket.tokenId}
                   </Text>
                 </Box>

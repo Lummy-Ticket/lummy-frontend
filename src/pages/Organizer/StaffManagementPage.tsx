@@ -7,7 +7,6 @@ import {
   Button,
   VStack,
   Input,
-  Select,
   Table,
   Thead,
   Tbody,
@@ -37,23 +36,7 @@ import {
 import { AddIcon, DeleteIcon, ArrowBackIcon } from "@chakra-ui/icons";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSmartContract } from "../../hooks/useSmartContract";
-import { DEVELOPMENT_CONFIG } from "../../constants";
-
-// Mock data for development
-const mockStaffMembers = [
-  {
-    address: "0x1234567890abcdef1234567890abcdef12345678",
-    role: 1,
-    addedBy: "organizer",
-    addedAt: new Date().toISOString(),
-  },
-  {
-    address: "0x2345678901bcdef2345678901bcdef23456789ab",
-    role: 2,
-    addedBy: "organizer", 
-    addedAt: new Date().toISOString(),
-  },
-];
+import { useStaffEventListener } from "../../hooks/useStaffEventListener";
 
 const StaffManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -64,19 +47,23 @@ const StaffManagementPage: React.FC = () => {
   const {
     isEventOrganizer,
     getEventInfo,
-    addStaffWithRole,
-    removeStaffRole,
-    getStaffRoleNames,
+    addStaff, // Use simple addStaff instead of addStaffWithRole
+    removeStaff, // Use removeStaff instead of removeStaffRole
   } = useSmartContract();
 
+  // Event-based staff management
+  const {
+    staffList: eventBasedStaffList,
+    isLoading: staffEventsLoading,
+    isListening: staffEventsListening,
+    error: staffEventsError,
+    refreshStaffEvents,
+  } = useStaffEventListener();
+
   const [isOrganizerVerified, setIsOrganizerVerified] = useState(false);
-  const [staffMembers, setStaffMembers] = useState<any[]>([]);
   const [newStaffAddress, setNewStaffAddress] = useState("");
-  const [newStaffRole, setNewStaffRole] = useState(1);
   const [isAddingStaff, setIsAddingStaff] = useState(false);
   const [eventInfo, setEventInfo] = useState<any>(null);
-
-  const roleNames = getStaffRoleNames();
 
   // Verify organizer permissions on mount
   useEffect(() => {
@@ -101,13 +88,7 @@ const StaffManagementPage: React.FC = () => {
         const eventData = await getEventInfo();
         setEventInfo(eventData);
         
-        // Load staff members (for now use mock data)
-        if (DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN) {
-          // In real implementation, we'd get staff list from contract events
-          setStaffMembers(mockStaffMembers);
-        } else {
-          setStaffMembers(mockStaffMembers);
-        }
+        // Staff members are now loaded via useStaffEventListener hook
       } catch (error) {
         console.error("Error verifying organizer:", error);
         toast({
@@ -150,28 +131,18 @@ const StaffManagementPage: React.FC = () => {
     setIsAddingStaff(true);
     
     try {
-      const hash = await addStaffWithRole(newStaffAddress.trim(), newStaffRole);
+      const hash = await addStaff(newStaffAddress.trim());
       if (hash) {
         toast({
           title: "Staff Added Successfully",
-          description: `Added ${newStaffAddress.substring(0, 8)}... as ${roleNames[newStaffRole]}`,
+          description: `Added ${newStaffAddress.substring(0, 8)}... as Staff (Scanner)`,
           status: "success",
           duration: 5000,
           isClosable: true,
         });
 
-        // Add to local state (in real app, refetch from contract)
-        const newStaffMember = {
-          address: newStaffAddress.trim(),
-          role: newStaffRole,
-          addedBy: "organizer",
-          addedAt: new Date().toISOString(),
-        };
-        setStaffMembers([...staffMembers, newStaffMember]);
-
-        // Reset form
+        // Reset form - staff list will be updated via events
         setNewStaffAddress("");
-        setNewStaffRole(1);
         onClose();
       }
     } catch (error) {
@@ -189,7 +160,7 @@ const StaffManagementPage: React.FC = () => {
 
   const handleRemoveStaff = async (staffAddress: string) => {
     try {
-      const hash = await removeStaffRole(staffAddress);
+      const hash = await removeStaff(staffAddress);
       if (hash) {
         toast({
           title: "Staff Removed",
@@ -199,8 +170,7 @@ const StaffManagementPage: React.FC = () => {
           isClosable: true,
         });
 
-        // Remove from local state
-        setStaffMembers(staffMembers.filter(staff => staff.address !== staffAddress));
+        // Staff list will be updated automatically via events
       }
     } catch (error) {
       toast({
@@ -213,13 +183,8 @@ const StaffManagementPage: React.FC = () => {
     }
   };
 
-  const getRoleBadgeColor = (role: number) => {
-    switch (role) {
-      case 1: return "blue";    // SCANNER
-      case 2: return "green";   // CHECKIN
-      case 3: return "purple";  // MANAGER
-      default: return "gray";
-    }
+  const getRoleBadgeColor = () => {
+    return "blue"; // All staff are SCANNER role
   };
 
   if (!isOrganizerVerified) {
@@ -267,36 +232,54 @@ const StaffManagementPage: React.FC = () => {
         <Alert status="info" borderRadius="lg">
           <AlertIcon />
           <Box>
-            <AlertTitle>Staff Roles:</AlertTitle>
+            <AlertTitle>Staff Access:</AlertTitle>
             <AlertDescription>
-              <strong>SCANNER:</strong> Can scan QR codes and validate tickets • 
-              <strong>CHECKIN:</strong> Can perform bulk check-ins • 
-              <strong>MANAGER:</strong> Can assign and manage other staff
+              Staff members can scan QR codes and validate tickets at your event. All staff get the same scanning permissions.
             </AlertDescription>
           </Box>
         </Alert>
 
         {/* Staff Table */}
         <Box bg="white" borderRadius="lg" overflow="hidden" border="1px solid" borderColor="gray.200">
-          {staffMembers.length === 0 ? (
+          {staffEventsLoading ? (
+            <Flex direction="column" align="center" justify="center" py={12}>
+              <Spinner size="lg" color="purple.500" />
+              <Text color="gray.500" mt={4}>Loading staff events...</Text>
+            </Flex>
+          ) : staffEventsError ? (
+            <Flex direction="column" align="center" justify="center" py={12}>
+              <Text color="red.500" fontSize="lg">❌ Error loading staff</Text>
+              <Text color="gray.400" fontSize="sm" mt={2}>
+                {staffEventsError}
+              </Text>
+              <Button mt={4} size="sm" onClick={refreshStaffEvents} colorScheme="blue">
+                Try Again
+              </Button>
+            </Flex>
+          ) : eventBasedStaffList.length === 0 ? (
             <Flex direction="column" align="center" justify="center" py={12}>
               <Text color="gray.500" fontSize="lg">No staff members added yet</Text>
               <Text color="gray.400" fontSize="sm" mt={2}>
                 Add staff members to help manage your event
               </Text>
+              {staffEventsListening && (
+                <Badge colorScheme="green" size="sm" mt={3}>
+                  🟢 Real-time updates enabled
+                </Badge>
+              )}
             </Flex>
           ) : (
             <Table variant="simple">
               <Thead bg="gray.50">
                 <Tr>
                   <Th>Wallet Address</Th>
-                  <Th>Role</Th>
+                  <Th>Access Level</Th>
                   <Th>Added</Th>
                   <Th>Actions</Th>
                 </Tr>
               </Thead>
               <Tbody>
-                {staffMembers.map((staff) => (
+                {eventBasedStaffList.map((staff) => (
                   <Tr key={staff.address}>
                     <Td>
                       <Text fontFamily="mono" fontSize="sm">
@@ -304,13 +287,15 @@ const StaffManagementPage: React.FC = () => {
                       </Text>
                     </Td>
                     <Td>
-                      <Badge colorScheme={getRoleBadgeColor(staff.role)}>
-                        {roleNames[staff.role]}
+                      <Badge colorScheme={getRoleBadgeColor()}>
+                        Scanner Access
                       </Badge>
                     </Td>
                     <Td>
                       <Text fontSize="sm" color="gray.600">
-                        {new Date(staff.addedAt).toLocaleDateString()}
+                        {staff.assignedDate instanceof Date 
+                          ? staff.assignedDate.toLocaleDateString() 
+                          : new Date(staff.assignedDate).toLocaleDateString()}
                       </Text>
                     </Td>
                     <Td>
@@ -347,17 +332,12 @@ const StaffManagementPage: React.FC = () => {
                     fontFamily="mono"
                   />
                 </FormControl>
-                <FormControl>
-                  <FormLabel>Role</FormLabel>
-                  <Select
-                    value={newStaffRole}
-                    onChange={(e) => setNewStaffRole(Number(e.target.value))}
-                  >
-                    <option value={1}>SCANNER - Can scan QR codes</option>
-                    <option value={2}>CHECKIN - Can perform bulk check-ins</option>
-                    <option value={3}>MANAGER - Can manage other staff</option>
-                  </Select>
-                </FormControl>
+                <Alert status="info" borderRadius="md">
+                  <AlertIcon />
+                  <AlertDescription fontSize="sm">
+                    Staff members will be able to scan QR codes and validate tickets at your event.
+                  </AlertDescription>
+                </Alert>
               </VStack>
             </ModalBody>
             <ModalFooter>
