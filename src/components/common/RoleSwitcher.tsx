@@ -10,7 +10,6 @@ import {
   Badge,
   HStack,
   VStack,
-  Divider,
   useColorModeValue,
 } from '@chakra-ui/react';
 import { ChevronDownIcon } from '@chakra-ui/icons';
@@ -77,11 +76,6 @@ const RoleSwitcher: React.FC = () => {
     navigate(defaultPath);
   };
 
-  const handleAutoDetectedRoleChange = () => {
-    if (detectedRoles?.recommendedRole) {
-      handleRoleChange(detectedRoles.recommendedRole);
-    }
-  };
 
   const roles: { value: UserRole; label: string; icon: React.ElementType; color: string }[] = [
     { value: 'customer', label: 'Customer', icon: FaUser, color: 'blue' },
@@ -118,90 +112,49 @@ const RoleSwitcher: React.FC = () => {
         minW="200px"
         py={2}
       >
-        {/* Auto-detected roles section */}
-        {detectedRoles?.hasAnyRole && (
-          <>
-            <VStack align="start" px={4} py={2} spacing={1}>
-              <Text fontSize="xs" fontWeight="semibold" color="green.600" textTransform="uppercase">
-                🔍 Detected Roles
-              </Text>
-              {detectedRoles.isOrganizer && (
-                <HStack spacing={2}>
-                  <Icon as={FaUserTie} color="purple.500" boxSize={3} />
-                  <Text fontSize="sm" color="purple.600">Organizer</Text>
-                </HStack>
-              )}
-              {detectedRoles.staffRole >= 1 && (
-                <HStack spacing={2}>
-                  <Icon as={FaUserCheck} color="green.500" boxSize={3} />
-                  <Text fontSize="sm" color="green.600">
-                    Staff ({detectedRoles.staffRole >= 3 ? 'MANAGER' : 
-                           detectedRoles.staffRole >= 2 ? 'CHECKIN' : 'SCANNER'})
-                  </Text>
-                </HStack>
-              )}
-              {detectedRoles.recommendedRole !== 'customer' && role !== detectedRoles.recommendedRole && (
-                <MenuItem
-                  onClick={handleAutoDetectedRoleChange}
-                  bg="green.50"
-                  _hover={{ bg: "green.100" }}
-                  borderRadius="md"
-                  mx={-2}
-                  mt={1}
-                >
-                  <HStack spacing={2}>
-                    <Icon as={FaRobot} color="green.500" boxSize={3} />
-                    <Text fontSize="sm" color="green.700">
-                      Switch to {detectedRoles.recommendedRole}
-                    </Text>
-                  </HStack>
-                </MenuItem>
-              )}
-            </VStack>
-            <Divider my={2} />
-          </>
-        )}
-
-        {/* Manual role selection */}
-        <VStack align="start" px={2} spacing={0}>
-          <Text fontSize="xs" fontWeight="semibold" color="gray.500" textTransform="uppercase" px={2} mb={1}>
-            Manual Selection
-          </Text>
+        {/* Role selection */}
+        <VStack align="stretch" spacing={1} px={2} py={1}>
           {roles.map((roleOption) => (
             <MenuItem
               key={roleOption.value}
               onClick={() => handleRoleChange(roleOption.value)}
               bg={role === roleOption.value ? `${roleOption.color}.50` : 'transparent'}
               _hover={{
-                bg: `${roleOption.color}.50`,
+                bg: role === roleOption.value ? `${roleOption.color}.100` : `${roleOption.color}.50`,
               }}
-              py={3}
-              px={4}
+              _active={{
+                bg: `${roleOption.color}.100`,
+              }}
+              py={2.5}
+              px={3}
               borderRadius="md"
-              mx={2}
-              my={0.5}
+              minH="auto"
             >
-              <HStack spacing={3} width="100%">
-                <Icon as={roleOption.icon} color={`${roleOption.color}.500`} boxSize={4} />
-                <Text fontWeight={role === roleOption.value ? 'semibold' : 'normal'}>
-                  {roleOption.label}
-                </Text>
-                {role === roleOption.value && (
-                  <Badge colorScheme={roleOption.color} size="sm" ml="auto">
-                    Active
-                  </Badge>
-                )}
-                {/* Show if role is available based on detection */}
-                {detectedRoles && (
-                  <>
-                    {roleOption.value === 'organizer' && detectedRoles.isOrganizer && (
-                      <Icon as={FaRobot} color="green.400" boxSize={3} ml="auto" />
-                    )}
-                    {roleOption.value === 'staff' && detectedRoles.staffRole >= 1 && (
-                      <Icon as={FaRobot} color="green.400" boxSize={3} ml="auto" />
-                    )}
-                  </>
-                )}
+              <HStack spacing={3} justify="space-between" width="100%">
+                <HStack spacing={3}>
+                  <Icon as={roleOption.icon} color={`${roleOption.color}.500`} boxSize={4} />
+                  <Text fontWeight={role === roleOption.value ? 'semibold' : 'normal'} fontSize="sm">
+                    {roleOption.label}
+                  </Text>
+                </HStack>
+                <HStack spacing={2}>
+                  {/* Show if role is available based on detection */}
+                  {detectedRoles && (
+                    <>
+                      {roleOption.value === 'organizer' && detectedRoles.isOrganizer && (
+                        <Icon as={FaRobot} color="green.400" boxSize={3} />
+                      )}
+                      {roleOption.value === 'staff' && detectedRoles.staffRole >= 1 && (
+                        <Icon as={FaRobot} color="green.400" boxSize={3} />
+                      )}
+                    </>
+                  )}
+                  {role === roleOption.value && (
+                    <Badge colorScheme={roleOption.color} size="sm" fontSize="xs">
+                      Active
+                    </Badge>
+                  )}
+                </HStack>
               </HStack>
             </MenuItem>
           ))}

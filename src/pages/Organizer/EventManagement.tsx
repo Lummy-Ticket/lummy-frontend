@@ -174,7 +174,7 @@ const EventManagement: React.FC = () => {
   const toast = useToast();
   const cancelRef = React.useRef<HTMLButtonElement>(null!);
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const { getEventInfo, getTicketTiers, addStaff, removeStaff, getResaleRules, setResaleRules } = useSmartContract();
+  const { getEventInfo, getTicketTiers, addTicketTier, addStaff, removeStaff, getResaleRules, setResaleRules, getAllEventAttendees } = useSmartContract();
   
   // Event-based staff management
   const {
@@ -211,6 +211,7 @@ const EventManagement: React.FC = () => {
   // State and handler for ticket tier modal form (contract supports updateTicketTier)
   const [editingTier, setEditingTier] = useState<EditableTier | null>(null);
   const [isNewTier, setIsNewTier] = useState(false);
+  const [tierSaving, setTierSaving] = useState(false);
   const {
     isOpen: isTierModalOpen,
     onOpen: openTierModal,
@@ -389,11 +390,9 @@ const EventManagement: React.FC = () => {
     
     setAttendeeLoading(true);
     try {
-      // Simulate loading enhanced attendee data
-      const [attendeeData, analytics] = await Promise.all([
-        AttendeeService.getAllEventAttendees(),
-        AttendeeService.getEventAnalytics(),
-      ]);
+      // Load enhanced attendee data (real blockchain integration)
+      const attendeeData = await AttendeeService.getAllEventAttendees(getAllEventAttendees);
+      const analytics = await AttendeeService.getEventAnalytics(attendeeData);
       
       setEnhancedAttendees(attendeeData);
       setEventAnalytics(analytics);
@@ -478,6 +477,10 @@ const EventManagement: React.FC = () => {
         // Refresh analytics
         const newAnalytics = await AttendeeService.getEventAnalytics();
         setEventAnalytics(newAnalytics);
+        
+        // Trigger real-time refresh of attendee data from blockchain
+        console.log("🔄 Triggering attendee data refresh after check-in...");
+        await loadEnhancedAttendeeData();
         
         toast({
           title: "Attendee checked in",
@@ -869,28 +872,91 @@ const EventManagement: React.FC = () => {
     }
   };
 
-  // Handler to save changes - uses contract updateTicketTier()
-  const handleSaveTier = async () => {
-    if (!editingTier || !event) return;
+  // Validate tier form before saving
+  const validateTierForm = (tier: EditableTier): string[] => {
+    const errors: string[] = [];
 
+    if (!tier.name.trim()) {
+      errors.push("Tier name is required");
+    }
+
+    if (tier.price <= 0) {
+      errors.push("Price must be greater than 0");
+    }
+
+    if (tier.available <= 0) {
+      errors.push("Available quantity must be greater than 0");
+    }
+
+    if (tier.maxPerPurchase <= 0) {
+      errors.push("Max per purchase must be at least 1");
+    }
+
+    if (tier.maxPerPurchase > tier.available) {
+      errors.push("Max per purchase cannot exceed available quantity");
+    }
+
+    return errors;
+  };
+
+  // Handler to save changes - uses contract addTicketTier()
+  const handleSaveTier = async () => {
+    if (!editingTier || !event || tierSaving) return;
+
+    // Validate form before proceeding
+    const validationErrors = validateTierForm(editingTier);
+    if (validationErrors.length > 0) {
+      toast({
+        title: "Validation Error",
+        description: validationErrors.join(", "),
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    setTierSaving(true);
     try {
       if (DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN) {
         if (isNewTier) {
-          // Call addTicketTier() for new tier
-          // TODO: Implement real blockchain addTicketTier() call
-          toast({
-            title: "Add Tier",
-            description: "New tier creation requires addTicketTier() integration",
-            status: "info",
-            duration: 5000,
-            isClosable: true,
-          });
+          // Real blockchain integration for new tier
+          console.log("🎫 Adding new tier via blockchain:", editingTier);
+          
+          const result = await addTicketTier(
+            editingTier.name,
+            editingTier.price,
+            editingTier.available,
+            editingTier.maxPerPurchase
+          );
+          
+          if (result) {
+            toast({
+              title: "Tier Added Successfully",
+              description: `"${editingTier.name}" has been added to the blockchain. Transaction: ${result.slice(0, 10)}...`,
+              status: "success",
+              duration: 5000,
+              isClosable: true,
+            });
+            
+            // Close modal and clear editing state
+            closeTierModal();
+            setEditingTier(null);
+            setIsNewTier(false);
+            
+            // Refresh event data to show new tier (better than full page reload)
+            setTimeout(() => {
+              window.location.reload();
+            }, 1000);
+            
+          } else {
+            throw new Error("Failed to add tier to blockchain");
+          }
         } else {
-          // Call updateTicketTier() for existing tier
-          // TODO: Implement real blockchain updateTicketTier() call
+          // Update existing tier (not yet implemented in contract)
           toast({
             title: "Update Tier", 
-            description: "Tier update requires updateTicketTier() integration",
+            description: "Tier update functionality coming in Phase 2",
             status: "info",
             duration: 5000,
             isClosable: true,
@@ -968,6 +1034,8 @@ const EventManagement: React.FC = () => {
         duration: 5000,
         isClosable: true,
       });
+    } finally {
+      setTierSaving(false);
     }
   };
 
@@ -1619,7 +1687,12 @@ const EventManagement: React.FC = () => {
             <Button variant="ghost" mr={3} onClick={closeTierModal}>
               Cancel
             </Button>
-            <Button colorScheme="purple" onClick={handleSaveTier}>
+            <Button 
+              colorScheme="purple" 
+              onClick={handleSaveTier}
+              isLoading={tierSaving}
+              loadingText={isNewTier ? "Adding..." : "Saving..."}
+            >
               {isNewTier ? "Add Tier" : "Save Changes"}
             </Button>
           </ModalFooter>

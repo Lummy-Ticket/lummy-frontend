@@ -17,15 +17,6 @@ export interface StaffMember {
   transactionHash?: string;
 }
 
-/**
- * Staff events cache structure
- */
-interface StaffEventsCache {
-  staffList: StaffMember[];
-  lastSyncBlock: number; // Store as number for JSON serialization
-  organizer: string;
-  timestamp: number;
-}
 
 /**
  * Hook for real-time staff management using contract events
@@ -43,53 +34,7 @@ export const useStaffEventListener = () => {
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Cache key for localStorage
-  const getCacheKey = useCallback((organizer: string) => {
-    return `staff_events_cache_${organizer}_${CONTRACT_ADDRESSES.DiamondLummy}`;
-  }, []);
 
-  /**
-   * Load cached staff events from localStorage
-   */
-  const loadCachedStaffEvents = useCallback((organizer: string): StaffEventsCache | null => {
-    try {
-      const cacheKey = getCacheKey(organizer);
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        const parsed = JSON.parse(cached) as StaffEventsCache;
-        // Check if cache is recent (less than 1 hour old)
-        const isRecent = Date.now() - parsed.timestamp < 60 * 60 * 1000;
-        if (isRecent && parsed.organizer === organizer) {
-          return parsed;
-        }
-      }
-      return null;
-    } catch (error) {
-      console.warn("Failed to load cached staff events:", error);
-      return null;
-    }
-  }, [getCacheKey]);
-
-  /**
-   * Save staff events to localStorage
-   */
-  const saveCachedStaffEvents = useCallback((organizer: string, staffList: StaffMember[], lastBlock: bigint) => {
-    try {
-      const cacheKey = getCacheKey(organizer);
-      const cache: StaffEventsCache = {
-        staffList: staffList.map(staff => ({
-          ...staff,
-          blockNumber: undefined, // Remove blockNumber for serialization
-        })),
-        lastSyncBlock: Number(lastBlock), // Convert BigInt to number
-        organizer,
-        timestamp: Date.now(),
-      };
-      localStorage.setItem(cacheKey, JSON.stringify(cache));
-    } catch (error) {
-      console.warn("Failed to save staff events cache:", error);
-    }
-  }, [getCacheKey]);
 
   /**
    * Load historical staff events from blockchain
@@ -103,45 +48,72 @@ export const useStaffEventListener = () => {
       console.log(`📅 Loading historical staff events for organizer ${organizer}...`);
 
       try {
-        // Get current block for reference
+        // Get current block for reference and use appropriate range
         const currentBlock = await publicClient.getBlockNumber();
-        const searchFromBlock = fromBlock > 0n ? fromBlock : currentBlock - 10000n;
+        
+        // Use a much larger range to ensure we capture all events
+        // If no fromBlock specified, search from last 100k blocks or contract deployment
+        let searchFromBlock: bigint;
+        if (fromBlock > 0n) {
+          searchFromBlock = fromBlock;
+        } else {
+          // Use larger range to ensure we don't miss events
+          searchFromBlock = currentBlock > 100000n ? currentBlock - 100000n : 0n;
+        }
 
-        // Fetch StaffAdded events
-        const addedEvents = await publicClient.getLogs({
-          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
-          event: {
-            type: 'event',
-            name: 'StaffAdded',
-            inputs: [
-              { name: 'staff', type: 'address', indexed: true },
-              { name: 'organizer', type: 'address', indexed: true }
-            ],
-          },
-          args: {
-            organizer: organizer as `0x${string}`,
-          },
-          fromBlock: searchFromBlock,
-          toBlock: 'latest',
-        });
+        console.log(`🔍 Searching staff events from block ${searchFromBlock} to latest (current: ${currentBlock})`);
 
-        // Fetch StaffRemoved events
-        const removedEvents = await publicClient.getLogs({
-          address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
-          event: {
-            type: 'event',
-            name: 'StaffRemoved',
-            inputs: [
-              { name: 'staff', type: 'address', indexed: true },
-              { name: 'organizer', type: 'address', indexed: true }
-            ],
-          },
-          args: {
-            organizer: organizer as `0x${string}`,
-          },
-          fromBlock: searchFromBlock,
-          toBlock: 'latest',
-        });
+        // Add timeout wrapper for event fetching
+        const fetchWithTimeout = async <T>(promise: Promise<T>, timeoutMs: number = 30000): Promise<T> => {
+          return Promise.race([
+            promise,
+            new Promise<T>((_, reject) => 
+              setTimeout(() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)), timeoutMs)
+            )
+          ]);
+        };
+
+        // Fetch StaffAdded events with timeout
+        const addedEvents = await fetchWithTimeout(
+          publicClient.getLogs({
+            address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+            event: {
+              type: 'event',
+              name: 'StaffAdded',
+              inputs: [
+                { name: 'staff', type: 'address', indexed: true },
+                { name: 'organizer', type: 'address', indexed: true }
+              ],
+            },
+            args: {
+              organizer: organizer as `0x${string}`,
+            },
+            fromBlock: searchFromBlock,
+            toBlock: 'latest',
+          }),
+          15000 // 15 second timeout for each call
+        );
+
+        // Fetch StaffRemoved events with timeout
+        const removedEvents = await fetchWithTimeout(
+          publicClient.getLogs({
+            address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+            event: {
+              type: 'event',
+              name: 'StaffRemoved',
+              inputs: [
+                { name: 'staff', type: 'address', indexed: true },
+                { name: 'organizer', type: 'address', indexed: true }
+              ],
+            },
+            args: {
+              organizer: organizer as `0x${string}`,
+            },
+            fromBlock: searchFromBlock,
+            toBlock: 'latest',
+          }),
+          15000 // 15 second timeout for each call
+        );
 
         if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
           console.log(`📊 Found ${addedEvents.length} StaffAdded and ${removedEvents.length} StaffRemoved events`);
@@ -244,8 +216,6 @@ export const useStaffEventListener = () => {
 
                 setStaffList(prev => {
                   const updated = [...prev.filter(s => s.address.toLowerCase() !== staffAddress.toLowerCase()), newStaff];
-                  // Update cache
-                  saveCachedStaffEvents(organizer, updated, log.blockNumber);
                   return updated;
                 });
               }
@@ -273,10 +243,7 @@ export const useStaffEventListener = () => {
               const staffAddress = log.args?.staff;
               if (staffAddress) {
                 setStaffList(prev => {
-                  const updated = prev.filter(s => s.address.toLowerCase() !== staffAddress.toLowerCase());
-                  // Update cache
-                  saveCachedStaffEvents(organizer, updated, log.blockNumber);
-                  return updated;
+                  return prev.filter(s => s.address.toLowerCase() !== staffAddress.toLowerCase());
                 });
               }
             }
@@ -296,96 +263,135 @@ export const useStaffEventListener = () => {
         setIsListening(false);
       }
     },
-    [publicClient, isListening, saveCachedStaffEvents]
+    [publicClient, isListening]
   );
 
-  /**
-   * Initialize staff event system
-   */
-  const initializeStaffEvents = useCallback(async () => {
-    if (!address || !publicClient) {
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      setError(null);
-      setIsLoading(true);
-
-      // Check if current user is organizer
-      const isOrganizer = await isEventOrganizer();
-      if (!isOrganizer) {
-        console.log("👤 User is not organizer, skipping staff event loading");
-        setStaffList([]);
-        setIsLoading(false);
-        return;
-      }
-
-      const organizer = address;
-
-      // 1. Try to load from cache first
-      const cached = loadCachedStaffEvents(organizer);
-      if (cached) {
-        console.log("📦 Loaded staff list from cache:", cached.staffList.length, "members");
-        setStaffList(cached.staffList);
-        setLastSyncBlock(BigInt(cached.lastSyncBlock));
-      }
-
-      // 2. Load recent events (from last sync or recent blocks)  
-      const fromBlock = cached?.lastSyncBlock ? BigInt(cached.lastSyncBlock) : 0n;
-      const historicalStaff = await loadHistoricalStaffEvents(organizer, fromBlock);
-      
-      // 3. Use cached data if fresh events are empty (smart merge)
-      const finalStaffList = historicalStaff.length > 0 ? historicalStaff : (cached?.staffList || []);
-      setStaffList(finalStaffList);
-      console.log(`🔄 Updated staff list: ${finalStaffList.length} members (${historicalStaff.length} from blockchain, ${cached?.staffList.length || 0} from cache)`);
-      
-      // Get the actual last sync block from the loading process
-      const currentBlock = await publicClient?.getBlockNumber() || 0n;
-      setLastSyncBlock(currentBlock);
-      saveCachedStaffEvents(organizer, finalStaffList, currentBlock);
-
-      // 4. Start real-time listening
-      const unsubscribe = await startEventListening(organizer);
-
-      // Cleanup function
-      return unsubscribe;
-
-    } catch (error) {
-      console.error("❌ Error initializing staff events:", error);
-      setError(error instanceof Error ? error.message : "Failed to initialize staff events");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [address, publicClient, isEventOrganizer, loadCachedStaffEvents, loadHistoricalStaffEvents, saveCachedStaffEvents, startEventListening]);
 
   /**
    * Manual refresh of staff events
    */
   const refreshStaffEvents = useCallback(async () => {
-    if (!address) return;
+    if (!address || !publicClient) return;
 
     try {
       setError(null);
+      setIsLoading(true);
+      
       const isOrganizer = await isEventOrganizer();
-      if (!isOrganizer) return;
+      if (!isOrganizer) {
+        setStaffList([]);
+        return;
+      }
 
-      const historicalStaff = await loadHistoricalStaffEvents(address, 0n);
+      const currentBlock = await publicClient.getBlockNumber();
+      const fromBlock = currentBlock > 50000n ? currentBlock - 50000n : 0n;
+      
+      const historicalStaff = await loadHistoricalStaffEvents(address, fromBlock);
       setStaffList(historicalStaff);
-      const currentBlock = await publicClient?.getBlockNumber() || 0n;
-      saveCachedStaffEvents(address, historicalStaff, currentBlock);
+      setLastSyncBlock(currentBlock);
+      
+      // Update cache
+      const cacheKey = `staff_events_cache_${address}_${CONTRACT_ADDRESSES.DiamondLummy}`;
+      const cache = {
+        staffList: historicalStaff.map(staff => ({ ...staff, blockNumber: undefined })),
+        lastSyncBlock: Number(currentBlock),
+        organizer: address,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem(cacheKey, JSON.stringify(cache));
+      
+      console.log(`🔄 Refreshed staff list: ${historicalStaff.length} members`);
     } catch (error) {
+      console.error("Error refreshing staff events:", error);
       setError(error instanceof Error ? error.message : "Failed to refresh staff events");
+    } finally {
+      setIsLoading(false);
     }
-  }, [address, isEventOrganizer, loadHistoricalStaffEvents, saveCachedStaffEvents, publicClient]);
+  }, [address, publicClient]);
 
-  // Initialize when component mounts or address changes
+
+  // Initialize when component mounts or address changes - fixed dependencies
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
 
-    initializeStaffEvents().then((cleanup) => {
-      unsubscribe = cleanup;
-    });
+    const initialize = async () => {
+      if (!address || !publicClient) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setError(null);
+        setIsLoading(true);
+
+        // Check if current user is organizer
+        const isOrganizer = await isEventOrganizer();
+        if (!isOrganizer) {
+          console.log("👤 User is not organizer, skipping staff event loading");
+          setStaffList([]);
+          setIsLoading(false);
+          return;
+        }
+
+        const organizer = address;
+        console.log("🔄 Loading staff events for organizer:", organizer);
+
+        // Load historical events from larger block range
+        const currentBlock = await publicClient.getBlockNumber();
+        const fromBlock = currentBlock > 50000n ? currentBlock - 50000n : 0n;
+        
+        const historicalStaff = await loadHistoricalStaffEvents(organizer, fromBlock);
+        console.log(`✅ Loaded ${historicalStaff.length} staff members from blockchain`);
+        
+        setStaffList(historicalStaff);
+        setLastSyncBlock(currentBlock);
+        
+        // Save to cache inline to avoid dependency issues
+        try {
+          const cacheKey = `staff_events_cache_${organizer}_${CONTRACT_ADDRESSES.DiamondLummy}`;
+          const cache = {
+            staffList: historicalStaff.map(staff => ({ ...staff, blockNumber: undefined })),
+            lastSyncBlock: Number(currentBlock),
+            organizer,
+            timestamp: Date.now(),
+          };
+          localStorage.setItem(cacheKey, JSON.stringify(cache));
+        } catch (cacheError) {
+          console.warn("Failed to save staff cache:", cacheError);
+        }
+
+        // Start real-time listening
+        const cleanup = await startEventListening(organizer);
+        unsubscribe = cleanup;
+
+      } catch (error) {
+        console.error("❌ Error initializing staff events:", error);
+        setError(error instanceof Error ? error.message : "Failed to initialize staff events");
+        
+        // Try to load from cache as fallback
+        if (address) {
+          try {
+            const cacheKey = `staff_events_cache_${address}_${CONTRACT_ADDRESSES.DiamondLummy}`;
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              const isRecent = Date.now() - parsed.timestamp < 60 * 60 * 1000;
+              if (isRecent && parsed.organizer === address) {
+                console.log("📦 Using cached staff data as fallback");
+                setStaffList(parsed.staffList);
+                setLastSyncBlock(BigInt(parsed.lastSyncBlock));
+              }
+            }
+          } catch (cacheError) {
+            console.warn("Failed to load cached staff events:", cacheError);
+          }
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initialize();
 
     // Cleanup on unmount
     return () => {
@@ -393,7 +399,7 @@ export const useStaffEventListener = () => {
         unsubscribe();
       }
     };
-  }, [initializeStaffEvents]);
+  }, [address, publicClient]); // Only depend on address and publicClient to prevent loops
 
   return {
     // State
@@ -405,8 +411,5 @@ export const useStaffEventListener = () => {
 
     // Actions
     refreshStaffEvents,
-    
-    // Utilities
-    getCacheKey: () => address ? getCacheKey(address) : '',
   };
 };

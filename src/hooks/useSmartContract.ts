@@ -2217,6 +2217,259 @@ export const useSmartContract = () => {
   }, []);
 
   /**
+   * Get all event attendees with complete metadata (Real blockchain integration)
+   * @returns Array of attendee data with blockchain and mock email data
+   */
+  const getAllEventAttendees = useCallback(async () => {
+    if (!publicClient) {
+      setError("Provider not available");
+      return [];
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log("🎯 Loading real attendee data from blockchain...");
+
+      // Get total supply of NFTs (total tickets sold)
+      const totalSupply = await publicClient.readContract({
+        address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+        abi: TICKET_NFT_ABI,
+        functionName: "totalSupply",
+      }) as bigint;
+
+      console.log(`📊 Total tickets sold: ${totalSupply.toString()}`);
+
+      if (totalSupply === 0n) {
+        console.log("No tickets sold yet");
+        return [];
+      }
+
+      // Get all token IDs using enumerable interface
+      const attendeeDataList: any[] = [];
+      
+      for (let i = 0; i < Number(totalSupply); i++) {
+        try {
+          // Get token ID by index
+          const tokenId = await publicClient.readContract({
+            address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+            abi: TICKET_NFT_ABI,
+            functionName: "tokenByIndex",
+            args: [BigInt(i)],
+          }) as bigint;
+
+          // Get token owner
+          const ownerAddress = await publicClient.readContract({
+            address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+            abi: TICKET_NFT_ABI,
+            functionName: "ownerOf",
+            args: [tokenId],
+          }) as string;
+
+          // Get ticket metadata (struct format)
+          const metadata = await publicClient.readContract({
+            address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+            abi: TICKET_NFT_ABI,
+            functionName: "getTicketMetadata",
+            args: [tokenId],
+          }) as {
+            eventId: bigint;
+            tierId: bigint;
+            originalPrice: bigint;
+            used: boolean;
+            purchaseDate: bigint;
+            eventName: string;
+            eventVenue: string;
+            eventDate: bigint;
+            tierName: string;
+            organizerName: string;
+            serialNumber: bigint;
+            status: string;
+          };
+
+          // Validate metadata structure
+          if (!metadata || typeof metadata !== 'object') {
+            console.warn(`⚠️ Token ${tokenId.toString()} has invalid metadata structure:`, metadata);
+            continue; // Skip this token
+          }
+
+          // Get ticket status
+          const status = await publicClient.readContract({
+            address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+            abi: TICKET_NFT_ABI,
+            functionName: "getTicketStatus",
+            args: [tokenId],
+          }) as string;
+
+          // Validate status
+          if (!status) {
+            console.warn(`⚠️ Token ${tokenId.toString()} has undefined status`);
+          }
+
+          // Debug logging for blockchain status with detailed analysis
+          const isUsedFromContract = metadata.used === true;
+          const isRefundedFromContract = status === "refunded" || metadata.status === "refunded";
+          
+          console.log(`🔍 Token ${tokenId.toString()} Status Debug:`, {
+            ownerAddress: ownerAddress.slice(0, 10) + "...",
+            rawMetadata: metadata,
+            metadata_eventId: metadata.eventId?.toString() || "undefined",
+            metadata_tierId: metadata.tierId?.toString() || "undefined", 
+            metadata_originalPrice: metadata.originalPrice?.toString() || "undefined",
+            metadata_used: metadata.used ?? "undefined",
+            metadata_status: metadata.status || "undefined",
+            metadata_tierName: metadata.tierName || "undefined",
+            contractStatus: status,
+            // Status analysis
+            isUsedFromContract,
+            isRefundedFromContract,
+            // Final status determination
+            calculatedDisplayStatus: isUsedFromContract ? "Checked In" : 
+                                  isRefundedFromContract ? "Refunded" : "Valid"
+          });
+
+          // Parse tier information from token ID (Algorithm 1)
+          const tokenIdNumber = Number(tokenId);
+          const remaining = tokenIdNumber - 1000000000;
+          const remainingAfterEvent = remaining % 1000000;
+          const actualTierCode = Math.floor(remainingAfterEvent / 100000);
+          const serialNumber = remainingAfterEvent % 100000;
+
+          // Get tier details with enhanced error handling and multiple fallback strategies
+          let tierName = metadata.tierName || "Unknown Tier";
+          let originalPrice = Number(metadata.originalPrice) / 1e18; // Convert from Wei to IDRX
+          const tierIdFromToken = Number(metadata.tierId); // Use tierId from metadata
+          const serialNumberFromMetadata = Number(metadata.serialNumber);
+          
+          console.log(`🎫 Processing token ${tokenId.toString()} - Tier analysis:`, {
+            tokenIdNumber,
+            remaining,
+            actualTierCode,
+            tierIdFromMetadata: tierIdFromToken,
+            serialNumberFromAlgorithm: serialNumber,
+            serialNumberFromMetadata: serialNumberFromMetadata,
+            metadataOriginalPrice: metadata.originalPrice?.toString() || "undefined",
+            metadataTierId: metadata.tierId?.toString() || "undefined",
+            metadataTierName: metadata.tierName || "undefined"
+          });
+          
+          // Validate metadata values and use fallbacks if needed
+          if (!tierName || tierName === "") {
+            // Try to construct tier name from tier ID
+            const tierNames = ["General", "VIP", "Premium", "Ultimate", "Exclusive"];
+            if (tierIdFromToken >= 0 && tierIdFromToken < tierNames.length) {
+              tierName = tierNames[tierIdFromToken];
+            } else {
+              tierName = `Tier ${tierIdFromToken + 1}`;
+            }
+            console.log(`🔄 Using constructed tier name:`, tierName);
+          }
+          
+          if (!originalPrice || originalPrice === 0) {
+            originalPrice = 50000; // Default price in IDRX
+            console.log(`🔄 Using default price:`, originalPrice, "IDRX");
+          }
+          
+          // Use metadata serial number if available, otherwise use algorithm calculation
+          const finalSerialNumber = serialNumberFromMetadata || serialNumber;
+          
+          console.log(`✅ Final tier data:`, {
+            tierName,
+            originalPrice,
+            tierId: tierIdFromToken,
+            serialNumber: finalSerialNumber
+          });
+
+          // Generate mock email data (70% have email, 80% verified)
+          const hasEmail = Math.random() < 0.7;
+          const isEmailVerified = hasEmail && Math.random() < 0.8;
+
+          // Create attendee data matching AttendeeData interface
+          const attendeeData = {
+            // Smart Contract Data
+            tokenId: tokenId.toString(),
+            walletAddress: ownerAddress,
+            tierName: tierName,
+            tierId: tierIdFromToken,
+            originalPrice: originalPrice,
+            purchaseDate: new Date(Number(metadata.purchaseDate) * 1000), // Convert timestamp to Date
+            serialNumber: finalSerialNumber,
+            used: metadata.used === true, // Ensure boolean from contract
+            status: (metadata.status || status || "valid") as "valid" | "used" | "refunded" | "invalid",
+            transferCount: 0, // TODO: Get from contract if available
+
+            // Mock Database Data (Email System)
+            email: hasEmail ? `attendee${finalSerialNumber}@example.com` : undefined,
+            emailVerified: isEmailVerified,
+            notificationPrefs: hasEmail ? {
+              ticket_purchase: true,
+              event_reminders: Math.random() < 0.8,
+              price_alerts: Math.random() < 0.6,
+            } : undefined,
+
+            // Check-in Data (if used)
+            checkInData: isUsedFromContract ? {
+              timestamp: new Date(), // Mock timestamp - TODO: Get real check-in timestamp
+              staffAddress: `0x${Math.random().toString(16).substring(2, 42)}`,
+              staffRole: "SCANNER" as const,
+            } : undefined,
+
+            // Computed Properties
+            isCurrentOwner: true, // Assume current owner since we got it from ownerOf
+            canCheckIn: !isUsedFromContract && !isRefundedFromContract,
+            canReceiveEmails: hasEmail && isEmailVerified,
+            displayStatus: (isUsedFromContract ? "Checked In" : 
+                          isRefundedFromContract ? "Refunded" : "Valid") as "Valid" | "Checked In" | "Transferred" | "Refunded",
+          };
+
+          attendeeDataList.push(attendeeData);
+          
+        } catch (tokenError) {
+          console.error(`Error processing token at index ${i}:`, tokenError);
+          // Continue with next token
+        }
+      }
+
+      // Summary logging for verification  
+      const checkedInCount = attendeeDataList.filter(a => a.used === true).length;
+      const validCount = attendeeDataList.filter(a => a.displayStatus === "Valid").length;
+      const checkedInDisplayCount = attendeeDataList.filter(a => a.displayStatus === "Checked In").length;
+      const transferredCount = attendeeDataList.filter(a => a.displayStatus === "Transferred").length;
+      const refundedCount = attendeeDataList.filter(a => a.displayStatus === "Refunded").length;
+      
+      console.log(`✅ Successfully loaded ${attendeeDataList.length} real attendees from blockchain`);
+      console.log(`📊 Status Summary:`, {
+        total: attendeeDataList.length,
+        blockchain_used_true: checkedInCount,
+        display_checked_in: checkedInDisplayCount,
+        display_valid: validCount,
+        display_transferred: transferredCount,
+        display_refunded: refundedCount,
+        mapping_check: checkedInCount === checkedInDisplayCount ? "✅ CORRECT" : "❌ MISMATCH"
+      });
+      console.log(`📋 Full attendee status mapping:`, attendeeDataList.map(a => ({
+        tokenId: a.tokenId,
+        walletAddress: a.walletAddress.slice(0, 10) + '...',
+        blockchain_used: a.used,
+        displayStatus: a.displayStatus,
+        tierName: a.tierName,
+        originalPrice: a.originalPrice,
+        statusMapping: `${a.used} → ${a.displayStatus}`
+      })));
+      
+      return attendeeDataList;
+
+    } catch (err) {
+      console.error("Error getting real attendee data:", err);
+      setError(parseContractError(err));
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, [publicClient]);
+
+  /**
    * Get comprehensive event analytics (Phase 1.3 - ORGANIZER DASHBOARD)
    * @returns Event analytics for organizer dashboard
    */
@@ -2278,6 +2531,7 @@ export const useSmartContract = () => {
     
     // Phase 1.3: Efficient attendee management functions (REPLACES 5000+ CALLS!)
     getAllAttendees, // Get all event attendees (1 call vs manual iteration)
+    getAllEventAttendees, // Get all event attendees with complete metadata (Real blockchain integration)
     getAttendeeStats, // Get attendee statistics (1 call vs multiple calculations)
     isEventAttendee, // Check if address is attendee (O(1) vs O(n) lookup)
     getEventAnalytics, // Get comprehensive event analytics for organizer dashboard

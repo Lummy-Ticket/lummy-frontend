@@ -97,7 +97,7 @@ const EventsPage: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [events, setEvents] = useState(mockEvents);
   
-  const { getEventInfo, getTicketTiers, addTicketTier } = useSmartContract();
+  const { getEventInfo, getTicketTiers } = useSmartContract();
   const cardBg = "white";
 
   // Load blockchain event if enabled
@@ -256,34 +256,6 @@ const EventsPage: React.FC = () => {
 
           {/* Actions */}
           <HStack spacing={2} pt={2}>
-            {event.eventId === "blockchain-1" && (
-              <Button
-                colorScheme="green"
-                size="sm"
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  
-                  const tierName = prompt("Tier name:", "VIP");
-                  const tierPrice = prompt("Price (IDRX):", "100");
-                  const tierAvailable = prompt("Available tickets:", "50");
-                  const tierMax = prompt("Max per purchase:", "5");
-                  
-                  if (tierName && tierPrice && tierAvailable && tierMax) {
-                    console.log("🎫 Adding tier via My Events...");
-                    const result = await addTicketTier(tierName, parseInt(tierPrice), parseInt(tierAvailable), parseInt(tierMax));
-                    if (result) {
-                      alert("✅ Tier added! Check console for transaction hash");
-                      loadBlockchainEvent(); // Refresh data
-                    } else {
-                      alert("❌ Failed to add tier - check console for errors");
-                    }
-                  }
-                }}
-                flex="1"
-              >
-                + Add Tier
-              </Button>
-            )}
             <Button
               colorScheme="blue"
               variant="outline"

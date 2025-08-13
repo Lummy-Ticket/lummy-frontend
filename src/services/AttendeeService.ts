@@ -1,14 +1,30 @@
 import { AttendeeData, CheckInData } from "../components/organizer/AttendeeList";
 import { EventAnalytics } from "../components/organizer/EnhancedAttendeeList";
+import { DEVELOPMENT_CONFIG } from "../constants";
 
-// Mock contract functions - these simulate what should be available in the smart contract
+// Enhanced AttendeeService - supports both mock and real blockchain data
 export class AttendeeService {
   
   /**
-   * Mock function: Get all attendees for an event
-   * In real implementation: Contract function getAllEventAttendees(eventId)
+   * Get all attendees for an event (Real blockchain integration or Mock)
+   * @param blockchainFunction Optional blockchain function for real data
+   * @returns Array of attendee data
    */
-  static async getAllEventAttendees(): Promise<AttendeeData[]> {
+  static async getAllEventAttendees(blockchainFunction?: () => Promise<AttendeeData[]>): Promise<AttendeeData[]> {
+    // Use real blockchain data if available and enabled
+    if (DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN && blockchainFunction) {
+      try {
+        console.log("🎯 Using real blockchain attendee data...");
+        const realAttendees = await blockchainFunction();
+        console.log(`✅ Loaded ${realAttendees.length} real attendees from blockchain`);
+        return realAttendees;
+      } catch (error) {
+        console.error("❌ Blockchain attendee loading failed, falling back to mock:", error);
+        // Fall through to mock data
+      }
+    }
+    
+    console.log("🎭 Using mock attendee data (blockchain disabled or function not provided)");
     // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 1000));
     
@@ -125,20 +141,37 @@ export class AttendeeService {
   }
   
   /**
-   * Mock function: Get real-time event analytics
-   * In real implementation: Contract function getEventAnalytics(eventId)
+   * Get event analytics (Real blockchain integration or Mock)
+   * @param attendees Array of attendee data to calculate analytics from
+   * @returns Event analytics
    */
-  static async getEventAnalytics(): Promise<EventAnalytics> {
-    const attendees = await this.getAllEventAttendees();
+  static async getEventAnalytics(attendees?: AttendeeData[]): Promise<EventAnalytics> {
+    // Use provided attendees or fetch them
+    let attendeeData = attendees;
+    if (!attendeeData) {
+      attendeeData = await this.getAllEventAttendees();
+    }
     
-    const totalTickets = attendees.length;
-    const checkedIn = attendees.filter(a => a.used).length;
+    const totalTickets = attendeeData.length;
+    const checkedIn = attendeeData.filter(a => a.used).length;
     const remaining = totalTickets - checkedIn;
     const checkInRate = totalTickets > 0 ? Math.round((checkedIn / totalTickets) * 100) : 0;
     
+    console.log("📊 Analytics Debug:", {
+      totalAttendees: totalTickets,
+      checkedInFromUsedFlag: checkedIn,
+      remaining: remaining,
+      checkInRate: `${checkInRate}%`,
+      attendeesWithUsedTrue: attendeeData.filter(a => a.used === true).map(a => ({
+        tokenId: a.tokenId,
+        displayStatus: a.displayStatus,
+        used: a.used
+      }))
+    });
+    
     // Calculate tier breakdown
     const tierMap = new Map<string, { total: number; checkedIn: number }>();
-    attendees.forEach(attendee => {
+    attendeeData.forEach(attendee => {
       const existing = tierMap.get(attendee.tierName) || { total: 0, checkedIn: 0 };
       existing.total++;
       if (attendee.used) existing.checkedIn++;

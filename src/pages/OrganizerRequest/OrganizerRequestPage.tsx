@@ -313,10 +313,10 @@ const OrganizerRequestPage: React.FC = () => {
       <VStack spacing={8} align="stretch">
         {/* Header */}
         <Box textAlign="center">
-          <Heading size="xl" mb={3}>
+          <Heading>
             Become an Event Organizer
           </Heading>
-          <Text color="gray.600" fontSize="lg">
+          <Text color="gray.600">
             Join Lummy's network of verified event organizers with our streamlined application process.
           </Text>
         </Box>

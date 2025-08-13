@@ -502,7 +502,7 @@ const EnhancedAdminOrganizerRequests: React.FC = () => {
       <VStack spacing={8} align="stretch">
         {/* Header */}
         <Box>
-          <Heading size="lg" mb={2}>
+          <Heading size="lg">
             Organizer Requests Management
           </Heading>
           <Text color="gray.600">

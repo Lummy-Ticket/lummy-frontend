@@ -180,10 +180,9 @@ const StaffEventSelection: React.FC = () => {
   return (
     <Container maxW="container.xl" py={8}>
       <VStack spacing={8} align="stretch">
-        <Box textAlign="center">
-          <Heading size="lg" mb={2}>
-            Staff Dashboard
-          </Heading>
+        {/* Header Section - Left aligned like customer pages */}
+        <Box>
+          <Heading size="lg">Staff Dashboard</Heading>
           <Text color="gray.600" fontSize="lg">
             Select an event to manage check-ins and attendee verification
           </Text>

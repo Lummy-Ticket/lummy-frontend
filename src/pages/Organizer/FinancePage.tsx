@@ -307,7 +307,7 @@ const FinancePage: React.FC = () => {
     <Container maxW="container.xl" py={8}>
       {/* Header */}
       <Box mb={8}>
-        <Heading size="lg" mb={2}>Finance Dashboard</Heading>
+        <Heading size="lg">Finance Dashboard</Heading>
         <Text color="gray.600">Track your revenue, withdrawals, and financial performance</Text>
       </Box>
 
