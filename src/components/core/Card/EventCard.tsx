@@ -3,6 +3,7 @@ import { Box, Image, Text, Flex, Badge, VStack } from "@chakra-ui/react";
 import { Event } from "../../../types/Event";
 import { Card } from "./Card";
 import { getIPFSUrl, isValidIPFSHash } from "../../../services/IPFSService";
+import { getPosterImageUrl } from "../../../utils/ipfsMetadata";
 
 // Simple formatter for dates
 const formatDate = (dateString: string): string => {
@@ -23,14 +24,20 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
   const { title, date, location, imageUrl, price, category, status, currency } =
     event;
 
-  // Handle IPFS image URLs
+  // Phase 2: Handle JSON metadata and poster image URLs
   const getImageUrl = () => {
     if (!imageUrl) {
       // Default placeholder image jika tidak ada image
       return "/api/placeholder/400/200";
     }
     
-    // Jika imageUrl adalah IPFS hash, convert ke full URL
+    // Phase 2: Try to get poster image from JSON metadata first
+    const posterUrl = getPosterImageUrl(imageUrl);
+    if (posterUrl) {
+      return posterUrl;
+    }
+    
+    // Fallback: Legacy format - direct IPFS hash
     if (isValidIPFSHash(imageUrl)) {
       return getIPFSUrl(imageUrl);
     }

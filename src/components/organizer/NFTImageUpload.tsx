@@ -14,11 +14,14 @@ import {
   useToast,
   Progress,
   Flex,
-  Badge
+  Badge,
+  useDisclosure
 } from '@chakra-ui/react';
 import { AttachmentIcon, DeleteIcon, ViewIcon } from '@chakra-ui/icons';
-import { mockNFTImageService, NFTImageData } from '../../services/MockNFTImageService';
+import { uploadToIPFS } from '../../services/IPFSService';
 import { DEVELOPMENT_CONFIG, UI_CONFIG } from '../../constants';
+import ImageCropModal from '../common/ImageCropModal';
+import { formatFileSize } from '../../utils/ipfsMetadata';
 
 interface NFTImageUploadProps {
   tierId: string;
@@ -39,91 +42,111 @@ const NFTImageUpload: React.FC<NFTImageUploadProps> = ({
   currentImage: _currentImage,
   currentImageUrl,
   onImageChange,
-  onMetadataReady,
+  onMetadataReady: _onMetadataReady,
   isRequired = false,
   label = "NFT Background Image"
 }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string>('');
-  const [imageData, setImageData] = useState<NFTImageData | null>(null);
+  const [ipfsHash, setIpfsHash] = useState<string>('');
   const [previewUrl, setPreviewUrl] = useState<string>(currentImageUrl || '');
+  
+  // Image crop modal state
+  const { isOpen: isCropModalOpen, onOpen: onCropModalOpen, onClose: onCropModalClose } = useDisclosure();
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle file selection - opens crop modal instead of direct upload
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    // Basic file validation
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Invalid File',
+        description: 'File must be an image',
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    if (file.size > UI_CONFIG.MAX_IMAGE_SIZE) {
+      toast({
+        title: 'File Too Large',
+        description: `File size (${formatFileSize(file.size)}) exceeds maximum ${formatFileSize(UI_CONFIG.MAX_IMAGE_SIZE)}`,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    // Open crop modal
+    setPendingImageFile(file);
+    onCropModalOpen();
+  };
+
+  // Handle cropped image from modal - Auto-upload to Real IPFS
+  const handleCroppedImage = async (croppedFile: File) => {
+    console.log(`📤 NFT Background cropped for ${tierName}:`, croppedFile.name, formatFileSize(croppedFile.size));
 
     setError('');
     setIsUploading(true);
     setUploadProgress(0);
 
     try {
-      // Mock progress updates
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => Math.min(prev + 10, 90));
-      }, 200);
-
-      // Process the image
-      const result = await mockNFTImageService.processNFTImage(
-        file,
-        eventTitle || 'Event',
-        tierName || 'Ticket',
-        `NFT background for ${tierName} tier`
-      );
-
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-
-      if (result.success && result.imageData) {
-        setImageData(result.imageData);
-        setPreviewUrl(result.imageData.preview);
-        onImageChange(file, result.imageData.ipfsUrl);
-
-        // Notify parent about metadata URL if needed
-        if (result.metadataUrl && onMetadataReady) {
-          onMetadataReady(result.metadataUrl);
-        }
+      // Auto-upload to Real IPFS immediately after crop
+      console.log(`🚀 Auto-uploading NFT Background for ${tierName} to IPFS...`);
+      
+      const uploadResult = await uploadToIPFS(croppedFile);
+      
+      if (uploadResult.success && uploadResult.hash) {
+        setIpfsHash(uploadResult.hash);
+        
+        // Create preview URL from cropped file
+        const previewUrl = URL.createObjectURL(croppedFile);
+        setPreviewUrl(previewUrl);
+        
+        // Notify parent with file and IPFS hash
+        const ipfsUrl = `https://gateway.pinata.cloud/ipfs/${uploadResult.hash}`;
+        onImageChange(croppedFile, ipfsUrl);
 
         toast({
-          title: "Image uploaded successfully",
-          description: DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN 
-            ? "Image uploaded to IPFS" 
-            : "Mock upload completed (development mode)",
+          title: "NFT Background Uploaded!",
+          description: `${tierName} tier background successfully uploaded to IPFS`,
           status: "success",
           duration: 3000,
           isClosable: true,
         });
 
         if (DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS) {
-          console.log('🎨 NFT Image Upload Success:', {
+          console.log('🎨 NFT Real IPFS Upload Success:', {
             tierId,
             tierName,
             eventTitle,
-            imageData: result.imageData,
-            metadataUrl: result.metadataUrl
+            originalSize: pendingImageFile?.size,
+            croppedSize: croppedFile.size,
+            ipfsHash: uploadResult.hash,
+            ipfsUrl: ipfsUrl
           });
         }
 
       } else {
-        setError(result.error || 'Upload failed');
-        toast({
-          title: "Upload failed",
-          description: result.error,
-          status: "error",
-          duration: 5000,
-          isClosable: true,
-        });
+        throw new Error(uploadResult.error || 'IPFS upload failed');
       }
 
     } catch (err) {
-      console.error('Image upload error:', err);
-      setError('Failed to upload image');
+      console.error('NFT Image Real IPFS upload error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to upload to IPFS');
       toast({
-        title: "Upload error",
-        description: "An unexpected error occurred",
+        title: "NFT Upload Failed",
+        description: err instanceof Error ? err.message : "Failed to upload to IPFS",
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -135,11 +158,12 @@ const NFTImageUpload: React.FC<NFTImageUploadProps> = ({
   };
 
   const handleRemoveImage = () => {
-    if (imageData?.preview) {
-      mockNFTImageService.cleanupPreview(imageData.preview);
+    // Cleanup preview URL if it's a blob URL
+    if (previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl);
     }
     
-    setImageData(null);
+    setIpfsHash('');
     setPreviewUrl('');
     setError('');
     onImageChange(null);
@@ -214,11 +238,21 @@ const NFTImageUpload: React.FC<NFTImageUploadProps> = ({
                 border="1px solid"
                 borderColor="gray.200"
               />
-              <HStack>
+              <VStack spacing={2}>
                 <Badge colorScheme="green" variant="subtle">
-                  {imageData?.ipfsHash ? 'IPFS' : 'Mock'} Upload Ready
+                  ✅ IPFS Upload Complete
                 </Badge>
-              </HStack>
+                {ipfsHash && (
+                  <HStack spacing={2}>
+                    <Badge colorScheme="purple" size="xs">IPFS</Badge>
+                    <Text fontSize="xs" color="blue.600" as="a" 
+                          href={`https://gateway.pinata.cloud/ipfs/${ipfsHash}`}
+                          target="_blank" _hover={{ textDecoration: 'underline' }}>
+                      {ipfsHash.substring(0, 12)}...
+                    </Text>
+                  </HStack>
+                )}
+              </VStack>
               <HStack spacing={2}>
                 <IconButton
                   aria-label="View full image"
@@ -266,8 +300,9 @@ const NFTImageUpload: React.FC<NFTImageUploadProps> = ({
         {/* Help text and development notice */}
         <VStack spacing={2} align="stretch">
           <FormHelperText>
-            Recommended: {UI_CONFIG.NFT_IMAGE_DIMENSIONS.RECOMMENDED.width}x{UI_CONFIG.NFT_IMAGE_DIMENSIONS.RECOMMENDED.height}px, 
-            Max size: {UI_CONFIG.MAX_IMAGE_SIZE / (1024 * 1024)}MB
+            Square aspect ratio (1:1). Recommended: {UI_CONFIG.NFT_IMAGE_DIMENSIONS.RECOMMENDED.width}x{UI_CONFIG.NFT_IMAGE_DIMENSIONS.RECOMMENDED.height}px, 
+            Max size: {UI_CONFIG.MAX_IMAGE_SIZE / (1024 * 1024)}MB. 
+            Images will be cropped to 1:1 ratio automatically.
           </FormHelperText>
           
           {DEVELOPMENT_CONFIG.SHOW_DEV_NOTICES && (
@@ -288,6 +323,15 @@ const NFTImageUpload: React.FC<NFTImageUploadProps> = ({
 
         {error && <FormErrorMessage>{error}</FormErrorMessage>}
       </VStack>
+
+      {/* Image Crop Modal for NFT Background */}
+      <ImageCropModal
+        isOpen={isCropModalOpen}
+        onClose={onCropModalClose}
+        imageFile={pendingImageFile}
+        imageType="NFT_BACKGROUND"
+        onCropComplete={handleCroppedImage}
+      />
     </FormControl>
   );
 };

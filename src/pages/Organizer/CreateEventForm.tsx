@@ -20,6 +20,7 @@ import {
   Badge,
   Alert,
   AlertIcon,
+  useDisclosure,
 } from "@chakra-ui/react";
 import { ArrowBackIcon } from "@chakra-ui/icons";
 import { useNavigate } from "react-router-dom";
@@ -29,12 +30,20 @@ import TicketTierCreator, {
 import ResellSettings, {
   ResellSettingsData,
 } from "../../components/organizer/ResellSettings";
+import ImageCropModal from "../../components/common/ImageCropModal";
 import { useSmartContract } from "../../hooks/useSmartContract";
-import { uploadToIPFS, getIPFSUrl } from "../../services/IPFSService";
+import { uploadToIPFS } from "../../services/IPFSService";
+import { TwoImageUploadState, ImageType, IMAGE_SPECS } from "../../types/IPFSMetadata";
+import { formatFileSize } from "../../utils/ipfsMetadata";
 
 const CreateEventForm: React.FC = () => {
   const navigate = useNavigate();
   const toast = useToast();
+  
+  // Image crop modal state
+  const { isOpen: isCropModalOpen, onOpen: onCropModalOpen, onClose: onCropModalClose } = useDisclosure();
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+  const [pendingImageType, setPendingImageType] = useState<ImageType>('POSTER');
 
   const cardBg = "white";
 
@@ -47,16 +56,24 @@ const CreateEventForm: React.FC = () => {
     time: "",
     endTime: "",
     category: "",
-    eventImage: null as File | null,
-    eventImageHash: "", // IPFS hash untuk event image
+    eventImageHash: "", // Final IPFS metadata hash for contract
   });
 
-  // Upload state
-  const [uploadStatus, setUploadStatus] = useState({
-    uploading: false,
-    uploaded: false,
-    error: null as string | null,
+  // Phase 2.1: 2-image upload state with IPFS hash tracking
+  const [imageUploads, setImageUploads] = useState<TwoImageUploadState>({
+    posterImage: null,
+    bannerImage: null,
   });
+
+  // Individual IPFS upload results for immediate preview
+  const [ipfsResults, setIpfsResults] = useState<{
+    posterHash?: string;
+    bannerHash?: string;
+  }>({});
+
+  // Note: Tier NFT uploads are handled directly by TicketTierCreator component
+
+  // Note: Individual auto-uploads replaced batch upload state
 
   // Ticket tiers state
   const [ticketTiers, setTicketTiers] = useState<TicketTierInput[]>([
@@ -88,65 +105,127 @@ const CreateEventForm: React.FC = () => {
     });
   };
 
-  // Handle file uploads
-  const handleFileChange = (
-    field: string,
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    if (e.target.files && e.target.files[0]) {
-      handleInputChange(field, e.target.files[0]);
+  // Handle file selection - opens crop modal instead of direct upload
+  const handleImageSelection = (imageType: ImageType, file: File) => {
+    // Basic file validation
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: `Invalid ${IMAGE_SPECS[imageType].name}`,
+        description: 'File must be an image',
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
     }
+
+    if (file.size > IMAGE_SPECS[imageType].maxSize) {
+      toast({
+        title: `File Too Large`,
+        description: `File size (${formatFileSize(file.size)}) exceeds maximum ${formatFileSize(IMAGE_SPECS[imageType].maxSize)}`,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    // Open crop modal
+    setPendingImageFile(file);
+    setPendingImageType(imageType);
+    onCropModalOpen();
   };
 
-  // Handle event image upload ke IPFS
-  const handleEventImageUpload = async (file: File) => {
-    setUploadStatus({
-      uploading: true,
-      uploaded: false,
-      error: null,
-    });
+  // Handle cropped image from modal - Auto-upload after crop
+  const handleCroppedImage = async (croppedFile: File) => {
+    console.log(`📤 ${IMAGE_SPECS[pendingImageType].name} cropped:`, croppedFile.name, formatFileSize(croppedFile.size));
+
+    // Only POSTER and BANNER supported for event images
+    if (pendingImageType !== 'POSTER' && pendingImageType !== 'BANNER') {
+      toast({
+        title: "Unsupported Image Type",
+        description: `${pendingImageType} is not supported for event images`,
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+    
+    const imageKey = pendingImageType === 'POSTER' ? 'posterImage' : 'bannerImage';
+    
+    // Set uploading state
+    setImageUploads(prev => ({
+      ...prev,
+      [imageKey]: {
+        file: croppedFile,
+        uploaded: false,
+        uploading: true,
+        error: undefined
+      }
+    }));
 
     try {
-      console.log("📤 Uploading event image to IPFS...");
-      const result = await uploadToIPFS(file, `event-${Date.now()}.${file.name.split('.').pop()}`);
+      // Auto-upload to IPFS immediately after crop
+      console.log(`🚀 Auto-uploading ${IMAGE_SPECS[pendingImageType].name} to IPFS...`);
       
-      if (result.success && result.hash) {
-        setEventData(prev => ({
+      const uploadResult = await uploadToIPFS(croppedFile);
+      
+      if (uploadResult.success && uploadResult.hash) {
+        // Update upload state with success
+        setImageUploads(prev => ({
           ...prev,
-          eventImage: file,
-          eventImageHash: result.hash!
+          [imageKey]: {
+            file: croppedFile,
+            uploaded: true,
+            uploading: false,
+            error: undefined
+          }
         }));
-        
-        setUploadStatus({
-          uploading: false,
-          uploaded: true,
-          error: null,
-        });
 
+        // Store IPFS hash for preview
+        setIpfsResults(prev => ({
+          ...prev,
+          [pendingImageType === 'POSTER' ? 'posterHash' : 'bannerHash']: uploadResult.hash
+        }));
+
+        const ipfsUrl = `https://gateway.pinata.cloud/ipfs/${uploadResult.hash}`;
+        
         toast({
-          title: "Image uploaded successfully!",
-          description: `Event image uploaded to IPFS: ${result.hash}`,
+          title: `${IMAGE_SPECS[pendingImageType].name} Uploaded!`,
+          description: `Successfully uploaded to IPFS. Click to view: ${uploadResult.hash.substring(0, 8)}...`,
           status: "success",
-          duration: 3000,
+          duration: 5000,
           isClosable: true,
         });
 
-        console.log("✅ Event image uploaded:", result.hash);
+        console.log(`✅ ${IMAGE_SPECS[pendingImageType].name} auto-upload successful:`, {
+          hash: uploadResult.hash,
+          url: ipfsUrl,
+          fileSize: formatFileSize(croppedFile.size)
+        });
+
       } else {
-        throw new Error(result.error || "Upload failed");
+        throw new Error(uploadResult.error || 'Upload failed');
       }
+
     } catch (error) {
-      console.error("❌ Image upload failed:", error);
+      console.error(`❌ Auto-upload failed for ${IMAGE_SPECS[pendingImageType].name}:`, error);
       
-      setUploadStatus({
-        uploading: false,
-        uploaded: false,
-        error: error instanceof Error ? error.message : "Upload failed",
-      });
+      // Update upload state with error
+      setImageUploads(prev => ({
+        ...prev,
+        [imageKey]: {
+          file: croppedFile,
+          uploaded: false,
+          uploading: false,
+          error: error instanceof Error ? error.message : 'Upload failed'
+        }
+      }));
 
       toast({
-        title: "Image upload failed",
-        description: error instanceof Error ? error.message : "Failed to upload image",
+        title: `${IMAGE_SPECS[pendingImageType].name} Upload Failed`,
+        description: error instanceof Error ? error.message : "Failed to upload to IPFS",
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -154,13 +233,15 @@ const CreateEventForm: React.FC = () => {
     }
   };
 
+  // Note: Individual auto-uploads now handle IPFS uploads
+
   const { initializeEvent, addTicketTier, setResaleRules, clearTiers, loading, error } = useSmartContract();
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Form validation
+    // Phase 2: Enhanced form validation with image requirements
     if (
       !eventData.title ||
       !eventData.date ||
@@ -172,6 +253,31 @@ const CreateEventForm: React.FC = () => {
         description: "Please fill in all required fields",
         status: "error",
         duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    // Phase 2.1: Validate that event images are uploaded (auto-uploaded)
+    if (!ipfsResults.posterHash || !ipfsResults.bannerHash) {
+      toast({
+        title: "Images Required",
+        description: "Please upload and crop both Event Poster and Event Banner before creating the event",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    // Check if all tiers have NFT images
+    const tiersWithoutNFT = ticketTiers.filter(tier => !tier.nftImage);
+    if (tiersWithoutNFT.length > 0) {
+      toast({
+        title: "Missing Tier NFT Backgrounds",
+        description: `Please add NFT background images for: ${tiersWithoutNFT.map(t => t.name).join(', ')}`,
+        status: "error",
+        duration: 4000,
         isClosable: true,
       });
       return;
@@ -199,7 +305,7 @@ const CreateEventForm: React.FC = () => {
         eventData.description,
         eventDate,
         eventData.venue,
-        eventData.eventImageHash, // Pass IPFS hash ke contract
+        ipfsResults.posterHash || '', // Pass IPFS poster hash ke contract
         eventData.category // Pass category ke contract
       );
 
@@ -361,69 +467,134 @@ const CreateEventForm: React.FC = () => {
               </Select>
             </FormControl>
 
-            {/* Event Image Upload */}
+            {/* Phase 2.1: Event Images (2 Required) - NFT Backgrounds moved to Tier Creator */}
             <FormControl>
-              <FormLabel>Event Poster Image</FormLabel>
-              <VStack spacing={3} align="stretch">
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={async (e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      await handleEventImageUpload(e.target.files[0]);
-                    }
-                  }}
-                  disabled={uploadStatus.uploading}
-                />
-                <FormHelperText>
-                  Upload event poster image (PNG, JPG, etc.). Max 10MB.
-                </FormHelperText>
-                
-                {uploadStatus.uploading && (
-                  <Alert status="info">
-                    <AlertIcon />
-                    Uploading to IPFS...
-                  </Alert>
-                )}
-                
-                {uploadStatus.uploaded && eventData.eventImageHash && (
-                  <Alert status="success">
-                    <AlertIcon />
-                    <VStack align="start" spacing={1}>
-                      <Text>Image uploaded successfully!</Text>
-                      <Text fontSize="sm" color="gray.600">
-                        IPFS Hash: {eventData.eventImageHash}
-                      </Text>
-                      <Text fontSize="sm" color="blue.600">
-                        URL: {getIPFSUrl(eventData.eventImageHash)}
-                      </Text>
+              <FormLabel>Event Images (2 Required)</FormLabel>
+              <VStack spacing={4} align="stretch">
+                <Text fontSize="sm" color="gray.600" mb={2}>
+                  Upload 2 event images. NFT backgrounds are configured per-tier in the ticket section below:
+                </Text>
+
+                {/* Poster Image - 16:9 */}
+                <Box border="1px solid" borderColor="gray.200" borderRadius="md" p={4}>
+                  <FormLabel fontSize="sm" fontWeight="semibold" color="blue.600">
+                    1. Event Poster (16:9 ratio)
+                  </FormLabel>
+                  <Text fontSize="xs" color="gray.500" mb={2}>
+                    Used in event cards and listings. Recommended: 1200×675px
+                  </Text>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handleImageSelection('POSTER', e.target.files[0]);
+                      }
+                    }}
+                    disabled={false}
+                    size="sm"
+                  />
+                  {imageUploads.posterImage?.file && (
+                    <VStack mt={2} spacing={2} align="stretch">
+                      <HStack spacing={2}>
+                        <Badge colorScheme={imageUploads.posterImage.uploaded ? "green" : imageUploads.posterImage.uploading ? "yellow" : "gray"} size="sm">
+                          {imageUploads.posterImage.uploading ? "Uploading..." : 
+                           imageUploads.posterImage.uploaded ? "✅ Uploaded" : 
+                           imageUploads.posterImage.file.name}
+                        </Badge>
+                        <Text fontSize="xs" color="gray.500">
+                          {formatFileSize(imageUploads.posterImage.file.size)}
+                        </Text>
+                      </HStack>
+                      {ipfsResults.posterHash && (
+                        <HStack spacing={2}>
+                          <Badge colorScheme="purple" size="xs">IPFS</Badge>
+                          <Text fontSize="xs" color="blue.600" as="a" 
+                                href={`https://gateway.pinata.cloud/ipfs/${ipfsResults.posterHash}`}
+                                target="_blank" _hover={{ textDecoration: 'underline' }}>
+                            {ipfsResults.posterHash.substring(0, 12)}...
+                          </Text>
+                        </HStack>
+                      )}
+                      {imageUploads.posterImage.error && (
+                        <Text fontSize="xs" color="red.500">
+                          ❌ {imageUploads.posterImage.error}
+                        </Text>
+                      )}
                     </VStack>
-                  </Alert>
-                )}
-                
-                {uploadStatus.error && (
-                  <Alert status="error">
-                    <AlertIcon />
-                    Upload failed: {uploadStatus.error}
-                  </Alert>
-                )}
-                
-                {/* Image preview */}
-                {eventData.eventImage && (
-                  <Box>
-                    <Text fontSize="sm" mb={2}>Preview:</Text>
-                    <img
-                      src={URL.createObjectURL(eventData.eventImage)}
-                      alt="Event preview"
-                      style={{
-                        maxWidth: "200px",
-                        maxHeight: "150px",
-                        borderRadius: "8px",
-                        border: "1px solid #e2e8f0"
-                      }}
-                    />
-                  </Box>
-                )}
+                  )}
+                </Box>
+
+                {/* Banner Image - 21:9 */}
+                <Box border="1px solid" borderColor="gray.200" borderRadius="md" p={4}>
+                  <FormLabel fontSize="sm" fontWeight="semibold" color="green.600">
+                    2. Event Banner (21:9 ratio)
+                  </FormLabel>
+                  <Text fontSize="xs" color="gray.500" mb={2}>
+                    Used as hero image on event detail pages. Recommended: 1920×823px
+                  </Text>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handleImageSelection('BANNER', e.target.files[0]);
+                      }
+                    }}
+                    disabled={false}
+                    size="sm"
+                  />
+                  {imageUploads.bannerImage?.file && (
+                    <VStack mt={2} spacing={2} align="stretch">
+                      <HStack spacing={2}>
+                        <Badge colorScheme={imageUploads.bannerImage.uploaded ? "green" : imageUploads.bannerImage.uploading ? "yellow" : "gray"} size="sm">
+                          {imageUploads.bannerImage.uploading ? "Uploading..." : 
+                           imageUploads.bannerImage.uploaded ? "✅ Uploaded" : 
+                           imageUploads.bannerImage.file.name}
+                        </Badge>
+                        <Text fontSize="xs" color="gray.500">
+                          {formatFileSize(imageUploads.bannerImage.file.size)}
+                        </Text>
+                      </HStack>
+                      {ipfsResults.bannerHash && (
+                        <HStack spacing={2}>
+                          <Badge colorScheme="purple" size="xs">IPFS</Badge>
+                          <Text fontSize="xs" color="blue.600" as="a" 
+                                href={`https://gateway.pinata.cloud/ipfs/${ipfsResults.bannerHash}`}
+                                target="_blank" _hover={{ textDecoration: 'underline' }}>
+                            {ipfsResults.bannerHash.substring(0, 12)}...
+                          </Text>
+                        </HStack>
+                      )}
+                      {imageUploads.bannerImage.error && (
+                        <Text fontSize="xs" color="red.500">
+                          ❌ {imageUploads.bannerImage.error}
+                        </Text>
+                      )}
+                    </VStack>
+                  )}
+                </Box>
+
+                {/* Auto-upload Status Info */}
+                <Alert status="info" variant="subtle">
+                  <AlertIcon />
+                  <VStack align="start" spacing={1}>
+                    <Text fontWeight="medium">Auto-Upload Enabled</Text>
+                    <Text fontSize="sm">
+                      Images automatically upload to IPFS after cropping. 
+                      Check individual IPFS links above for verification.
+                    </Text>
+                    {ipfsResults.posterHash && ipfsResults.bannerHash && (
+                      <Badge colorScheme="green" mt={1}>
+                        ✅ Event images ready for deployment
+                      </Badge>
+                    )}
+                  </VStack>
+                </Alert>
+
+                <FormHelperText>
+                  Upload event images first, then configure NFT backgrounds per tier below. All images will be combined into final metadata.
+                </FormHelperText>
               </VStack>
             </FormControl>
           </VStack>
@@ -546,57 +717,7 @@ const CreateEventForm: React.FC = () => {
           </FormControl>
         </Box>
 
-        {/* Event Image */}
-        <Box
-          bg={cardBg}
-          p={6}
-          borderRadius="lg"
-          border="1px"
-          borderColor="gray.300"
-        >
-          <Heading size="md" mb={4}>
-            Event Image
-          </Heading>
-          <FormControl>
-            <FormLabel>Event Image</FormLabel>
-            <Input
-              type="file"
-              accept="image/*"
-              onChange={(e) => handleFileChange("eventImage", e)}
-            />
-            <FormHelperText>
-              Upload high quality image (minimum 1200x800px). Will be automatically resized for different displays - banners, thumbnails, and event cards.
-            </FormHelperText>
-          </FormControl>
-          
-          {/* Image Preview */}
-          {eventData.eventImage && (
-            <Box mt={4}>
-              <Text fontSize="sm" fontWeight="medium" mb={2} color="gray.700">
-                Preview:
-              </Text>
-              <Box
-                borderWidth="1px"
-                borderRadius="md"
-                overflow="hidden"
-                maxW="400px"
-              >
-                <img
-                  src={URL.createObjectURL(eventData.eventImage)}
-                  alt="Event preview"
-                  style={{
-                    width: "100%",
-                    height: "200px",
-                    objectFit: "cover"
-                  }}
-                />
-              </Box>
-              <Text fontSize="xs" color="gray.500" mt={2}>
-                ✓ This image will be used for event banners, thumbnails, and cards
-              </Text>
-            </Box>
-          )}
-        </Box>
+{/* Phase 2: Event Image section removed - now handled by 3-image upload system above */}
 
         {/* Tickets */}
         <Box
@@ -654,6 +775,15 @@ const CreateEventForm: React.FC = () => {
             </HStack>
           </Flex>
         </form>
+
+        {/* Image Crop Modal */}
+        <ImageCropModal
+          isOpen={isCropModalOpen}
+          onClose={onCropModalClose}
+          imageFile={pendingImageFile}
+          imageType={pendingImageType}
+          onCropComplete={handleCroppedImage}
+        />
       </VStack>
     </Container>
   );

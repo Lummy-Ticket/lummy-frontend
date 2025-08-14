@@ -50,6 +50,7 @@ import { Event, TicketTier } from "../../types/Event";
 import { CountdownTimer } from "../../components/core/CountdownTimer";
 import { TicketTierCard } from "../../components/composite/TicketTierCard";
 import { useSmartContract } from "../../hooks/useSmartContract";
+import { getBannerImageUrl } from "../../utils/ipfsMetadata";
 
 // Helper function to format date
 const formatDate = (dateString: string): string => {
@@ -175,10 +176,10 @@ export const EventDetailPage: React.FC = () => {
               ),
               location: details.venue,
               venue: details.venue,
-              imageUrl:
-                "https://images.unsplash.com/photo-1459865264687-595d652de67e", // Default image
-              bannerUrl:
-                "https://images.unsplash.com/photo-1459865264687-595d652de67e", // Default banner
+              imageUrl: details.ipfsMetadata || 
+                "https://images.unsplash.com/photo-1459865264687-595d652de67e", // IPFS metadata or fallback
+              bannerUrl: details.ipfsMetadata ||
+                "https://images.unsplash.com/photo-1459865264687-595d652de67e", // IPFS metadata or fallback
               price: 0, // Will be updated from ticket tiers
               currency: "IDRX",
               category: "Event", // Default category
@@ -434,7 +435,7 @@ export const EventDetailPage: React.FC = () => {
       {/* Hero Section with Event Banner */}
       <Box position="relative" height="400px" overflow="hidden">
         <Image
-          src={event.bannerUrl || event.imageUrl}
+          src={getBannerImageUrl(event.bannerUrl || event.imageUrl) || event.bannerUrl || event.imageUrl}
           alt={event.title}
           width="100%"
           height="100%"

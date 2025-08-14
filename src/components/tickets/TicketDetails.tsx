@@ -28,6 +28,7 @@ import { QRCode } from "./QRCode";
 import { TransferTicket } from "./TransferTicket";
 import { ResellTicket } from "./ResellTicket";
 import { Ticket } from "./TicketCard";
+import { getNFTBackgroundUrl } from "../../utils/ipfsMetadata";
 
 interface TicketDetailsProps {
   ticket: Ticket;
@@ -217,11 +218,17 @@ export const TicketDetails: React.FC<TicketDetailsProps> = ({ ticket }) => {
                 maxW="300px"
               >
                 <Image
-                  src="/assets/images/nft-preview.png"
-                  alt={`NFT for ${ticket.eventName}`}
+                  src={
+                    getNFTBackgroundUrl(
+                      ticket.nftImageUrl || ticket.eventImageUrl || '', 
+                      ticket.ticketType // Use ticket type as tierId
+                    ) || "/assets/images/nft-preview.png"
+                  }
+                  alt={`NFT for ${ticket.eventName} - ${ticket.ticketType}`}
                   width="100%"
                   height="200px"
                   objectFit="cover"
+                  fallbackSrc="/assets/images/nft-preview.png"
                 />
               </Box>
 

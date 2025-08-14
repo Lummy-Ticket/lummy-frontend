@@ -1,16 +1,18 @@
 // src/services/IPFSService.ts
 /**
  * IPFS Service untuk upload file ke IPFS menggunakan Pinata
- * Simple implementation untuk event image upload
+ * Enhanced for Phase 2 - Real Pinata integration with JSON metadata support
  */
 
-// Untuk demo purposes, kita gunakan public Pinata endpoint
-// Dalam production, sebaiknya pakai backend proxy untuk hide API key
-// const PINATA_API_URL = 'https://api.pinata.cloud/pinning/pinFileToIPFS';
-const PINATA_GATEWAY = 'https://gateway.pinata.cloud/ipfs/';
+import { DEVELOPMENT_CONFIG, IPFS_CONFIG } from '../constants';
+import { IPFSImageMetadata, IPFSMetadataUploadResult } from '../types/IPFSMetadata';
 
-// Demo JWT - dalam production sebaiknya dari environment variable
-// const PINATA_JWT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIxMjM0NSIsImVtYWlsIjoiZGVtb0BsdW1teS5pbyIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJwaW5fcG9saWN5Ijp7InJlZ2lvbnMiOlt7ImlkIjoiRlJBMSIsImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxfV0sInZlcnNpb24iOjF9LCJtZmFfZW5hYmxlZCI6ZmFsc2UsInN0YXR1cyI6IkFDVElWRSJ9.fakeJWTTokenForDemo';
+// Pinata configuration
+const PINATA_API_URL = IPFS_CONFIG.API_URL;
+const PINATA_GATEWAY = IPFS_CONFIG.GATEWAY_URL;
+
+// Get Pinata credentials from environment
+const PINATA_JWT = import.meta.env.VITE_PINATA_JWT;
 
 export interface IPFSUploadResult {
   success: boolean;
@@ -68,41 +70,52 @@ export const uploadToIPFS = async (
     });
     formData.append('pinataOptions', options);
     
-    // For demo purposes, kita simulasi upload berhasil
-    // Dalam production, uncomment kode di bawah untuk real upload
-    
-    /*
-    const response = await fetch(PINATA_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${PINATA_JWT}`,
-      },
-      body: formData
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Upload failed: ${response.statusText}`);
+    // Check if real IPFS is enabled
+    if (DEVELOPMENT_CONFIG.ENABLE_REAL_IPFS && PINATA_JWT) {
+      // Real Pinata upload
+      const response = await fetch(PINATA_API_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${PINATA_JWT}`,
+        },
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(`Upload failed: ${response.statusText} - ${errorData}`);
+      }
+      
+      const result = await response.json();
+      const hash = result.IpfsHash;
+      
+      console.log('✅ Real IPFS upload successful!', hash);
+      
+      const url = `${PINATA_GATEWAY}${hash}`;
+      
+      return {
+        success: true,
+        hash,
+        url
+      };
+    } else {
+      // Demo simulation - generate fake hash
+      console.log('🧪 Mock IPFS upload (ENABLE_REAL_IPFS=false or missing credentials)');
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate upload delay
+      const hash = `Qm${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
+      
+      const url = `${PINATA_GATEWAY}${hash}`;
+      
+      console.log('✅ Mock IPFS upload successful!');
+      console.log('Hash:', hash);
+      console.log('URL:', url);
+      
+      return {
+        success: true,
+        hash,
+        url
+      };
     }
-    
-    const result = await response.json();
-    const hash = result.IpfsHash;
-    */
-    
-    // Demo simulation - generate fake hash
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate upload delay
-    const hash = `Qm${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
-    
-    const url = `${PINATA_GATEWAY}${hash}`;
-    
-    console.log('✅ IPFS upload successful!');
-    console.log('Hash:', hash);
-    console.log('URL:', url);
-    
-    return {
-      success: true,
-      hash,
-      url
-    };
     
   } catch (error) {
     console.error('❌ IPFS upload failed:', error);
@@ -236,4 +249,206 @@ export const resizeImage = async (
     
     img.src = URL.createObjectURL(file);
   });
+};
+
+/**
+ * Upload JSON metadata to IPFS
+ * @param metadata JSON metadata object
+ * @param name Optional name for the metadata file
+ * @returns Promise with upload result
+ */
+export const uploadJSONMetadata = async (
+  metadata: IPFSImageMetadata,
+  name?: string
+): Promise<IPFSMetadataUploadResult> => {
+  try {
+    console.log('📤 Uploading JSON metadata to IPFS...', metadata);
+    
+    // Convert metadata to JSON blob
+    const jsonString = JSON.stringify(metadata, null, 2);
+    const jsonBlob = new Blob([jsonString], { type: 'application/json' });
+    const jsonFile = new File([jsonBlob], name || `event-metadata-${Date.now()}.json`, {
+      type: 'application/json',
+      lastModified: Date.now()
+    });
+    
+    // Check if real IPFS is enabled
+    if (DEVELOPMENT_CONFIG.ENABLE_REAL_IPFS && PINATA_JWT) {
+      // Real Pinata upload for JSON metadata
+      const formData = new FormData();
+      formData.append('file', jsonFile);
+      
+      // Add metadata (simplified for Pinata compliance)
+      const pinataMetadata = JSON.stringify({
+        name: name || `Event Metadata ${Date.now()}`,
+        keyvalues: {
+          type: 'event-metadata',
+          version: '2.1',
+          uploadedAt: new Date().toISOString(),
+          hasImages: 'true'
+        }
+      });
+      formData.append('pinataMetadata', pinataMetadata);
+      
+      // Add options
+      const options = JSON.stringify({
+        cidVersion: 1,
+      });
+      formData.append('pinataOptions', options);
+      
+      const response = await fetch(PINATA_API_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${PINATA_JWT}`,
+        },
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(`Metadata upload failed: ${response.statusText} - ${errorData}`);
+      }
+      
+      const result = await response.json();
+      const metadataHash = result.IpfsHash;
+      
+      console.log('✅ Real JSON metadata upload successful!', metadataHash);
+      
+      return {
+        success: true,
+        metadataHash,
+        metadataUrl: `${PINATA_GATEWAY}${metadataHash}`
+      };
+    } else {
+      // Mock simulation for JSON metadata
+      console.log('🧪 Mock JSON metadata upload (ENABLE_REAL_IPFS=false or missing credentials)');
+      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate shorter delay for JSON
+      const metadataHash = `Qm${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}JSON`;
+      
+      console.log('✅ Mock JSON metadata upload successful!', metadataHash);
+      
+      return {
+        success: true,
+        metadataHash,
+        metadataUrl: `${PINATA_GATEWAY}${metadataHash}`
+      };
+    }
+  } catch (error) {
+    console.error('❌ JSON metadata upload failed:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'JSON metadata upload failed'
+    };
+  }
+};
+
+/**
+ * Upload event images + tier NFT backgrounds and create JSON metadata - Phase 2.1 workflow
+ * @param posterFile Event poster image (16:9)
+ * @param bannerFile Event banner image (21:9) 
+ * @param tierNFTFiles Object with tier NFT background files { "tier-1": File, "tier-2": File }
+ * @param additionalMetadata Optional additional metadata
+ * @returns Promise with final metadata hash for contract storage
+ */
+export const uploadEventWithTierBackgrounds = async (
+  posterFile: File,
+  bannerFile: File,
+  tierNFTFiles: Record<string, File>,
+  additionalMetadata?: Partial<IPFSImageMetadata['eventMetadata']>
+): Promise<IPFSMetadataUploadResult> => {
+  try {
+    console.log('🚀 Starting event + tier NFT upload workflow...');
+    console.log('Tier NFT files:', Object.keys(tierNFTFiles));
+    
+    // Step 1: Upload event images (poster + banner)
+    const [posterResult, bannerResult] = await Promise.all([
+      uploadToIPFS(posterFile, `event-poster-${Date.now()}.${posterFile.name.split('.').pop()}`),
+      uploadToIPFS(bannerFile, `event-banner-${Date.now()}.${bannerFile.name.split('.').pop()}`)
+    ]);
+    
+    // Check if event images uploaded successfully
+    if (!posterResult.success || !bannerResult.success) {
+      const errors = [
+        !posterResult.success ? `Poster: ${posterResult.error}` : null,
+        !bannerResult.success ? `Banner: ${bannerResult.error}` : null
+      ].filter(Boolean).join(', ');
+      
+      throw new Error(`Event image upload failed: ${errors}`);
+    }
+    
+    console.log('✅ Event images uploaded successfully!');
+    console.log('Poster:', posterResult.hash);
+    console.log('Banner:', bannerResult.hash);
+    
+    // Step 2: Upload tier NFT backgrounds
+    const tierUploadPromises = Object.entries(tierNFTFiles).map(async ([tierId, file]) => {
+      const result = await uploadToIPFS(file, `nft-tier-${tierId}-${Date.now()}.${file.name.split('.').pop()}`);
+      return { tierId, result };
+    });
+    
+    const tierResults = await Promise.all(tierUploadPromises);
+    
+    // Check if all tier uploads succeeded
+    const failedTiers = tierResults.filter(({ result }) => !result.success);
+    if (failedTiers.length > 0) {
+      const errors = failedTiers.map(({ tierId, result }) => `${tierId}: ${result.error}`).join(', ');
+      throw new Error(`Tier NFT upload failed: ${errors}`);
+    }
+    
+    // Create tierBackgrounds mapping
+    const tierBackgrounds: Record<string, string> = {};
+    tierResults.forEach(({ tierId, result }) => {
+      tierBackgrounds[tierId] = result.hash!;
+    });
+    
+    console.log('✅ All tier NFT backgrounds uploaded!');
+    console.log('Tier backgrounds:', tierBackgrounds);
+    
+    // Step 3: Create JSON metadata
+    const metadata: IPFSImageMetadata = {
+      posterImage: posterResult.hash!,
+      bannerImage: bannerResult.hash!,
+      tierBackgrounds: tierBackgrounds,
+      eventMetadata: {
+        ...additionalMetadata,
+        createdAt: new Date().toISOString(),
+        version: '2.1', // Phase 2.1 - Per-tier NFT backgrounds
+        uploadedBy: 'lummy-platform'
+      }
+    };
+    
+    // Step 4: Upload JSON metadata
+    const metadataResult = await uploadJSONMetadata(metadata, `event-metadata-${Date.now()}`);
+    
+    if (!metadataResult.success) {
+      throw new Error(`Metadata upload failed: ${metadataResult.error}`);
+    }
+    
+    console.log('🎉 Complete event + tier upload workflow successful!');
+    console.log('Final metadata hash:', metadataResult.metadataHash);
+    
+    return metadataResult;
+    
+  } catch (error) {
+    console.error('❌ Event + tier upload workflow failed:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Complete workflow failed'
+    };
+  }
+};
+
+/**
+ * Legacy: Upload 3 images and create JSON metadata - Complete workflow for Phase 2 (DEPRECATED)
+ * @deprecated Use uploadEventWithTierBackgrounds instead
+ */
+export const uploadThreeImagesWithMetadata = async (
+  posterFile: File,
+  bannerFile: File,
+  nftBackgroundFile: File,
+  additionalMetadata?: Partial<IPFSImageMetadata['eventMetadata']>
+): Promise<IPFSMetadataUploadResult> => {
+  // Convert to new format for backward compatibility
+  const tierNFTFiles = { 'default': nftBackgroundFile };
+  return uploadEventWithTierBackgrounds(posterFile, bannerFile, tierNFTFiles, additionalMetadata);
 };

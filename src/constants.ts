@@ -30,7 +30,7 @@ export const IDRX_DECIMALS = 18;
 export const DEVELOPMENT_CONFIG = {
   // Feature flags for hybrid development
   ENABLE_BLOCKCHAIN: true, // Toggle untuk development vs production
-  ENABLE_REAL_IPFS: false,  // Toggle untuk IPFS vs mock storage
+  ENABLE_REAL_IPFS: true,   // ✅ Phase 2: Enable real IPFS integration
   ENABLE_CONTRACT_DEPLOYMENT: false, // Toggle untuk contract calls
   
   // Organizer system flags

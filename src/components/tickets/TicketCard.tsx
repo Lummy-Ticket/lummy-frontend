@@ -36,6 +36,8 @@ export interface Ticket {
   purchaseDate: string;
   tokenId?: string;
   ownerAddress?: string;
+  nftImageUrl?: string;
+  eventImageUrl?: string;
 }
 
 interface TicketCardProps {
