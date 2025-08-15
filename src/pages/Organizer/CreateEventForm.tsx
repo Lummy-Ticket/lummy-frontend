@@ -32,9 +32,9 @@ import ResellSettings, {
 } from "../../components/organizer/ResellSettings";
 import ImageCropModal from "../../components/common/ImageCropModal";
 import { useSmartContract } from "../../hooks/useSmartContract";
-import { uploadToIPFS } from "../../services/IPFSService";
+import { uploadToIPFS, uploadJSONMetadata } from "../../services/IPFSService";
 import { TwoImageUploadState, ImageType, IMAGE_SPECS } from "../../types/IPFSMetadata";
-import { formatFileSize } from "../../utils/ipfsMetadata";
+import { formatFileSize, createIPFSMetadata } from "../../utils/ipfsMetadata";
 
 const CreateEventForm: React.FC = () => {
   const navigate = useNavigate();
@@ -241,6 +241,9 @@ const CreateEventForm: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Small delay to ensure state is fully updated from recent NFT uploads
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     // Phase 2: Enhanced form validation with image requirements
     if (
       !eventData.title ||
@@ -271,8 +274,18 @@ const CreateEventForm: React.FC = () => {
     }
 
     // Check if all tiers have NFT images
-    const tiersWithoutNFT = ticketTiers.filter(tier => !tier.nftImage);
+    console.log('🔍 Debug - All tiers before validation:', ticketTiers.map(t => ({ 
+      id: t.id, 
+      name: t.name, 
+      hasNFTImage: !!t.nftImage,
+      hasNFTImageUrl: !!t.nftImageUrl,
+      nftImageType: typeof t.nftImage
+    })));
+    
+    // Check for either nftImage (File) or nftImageUrl (string) as fallback
+    const tiersWithoutNFT = ticketTiers.filter(tier => !tier.nftImage && !tier.nftImageUrl);
     if (tiersWithoutNFT.length > 0) {
+      console.log('❌ Tiers without NFT:', tiersWithoutNFT.map(t => ({ id: t.id, name: t.name })));
       toast({
         title: "Missing Tier NFT Backgrounds",
         description: `Please add NFT background images for: ${tiersWithoutNFT.map(t => t.name).join(', ')}`,
@@ -298,14 +311,64 @@ const CreateEventForm: React.FC = () => {
         console.log("✅ Tiers cleared successfully:", clearResult);
       }
 
-      // Step 1: Initialize the event
-      console.log("🚀 Step 1: Initializing event...");
+      // Step 1: Create final JSON metadata combining all IPFS images
+      console.log("📦 Step 1: Creating final JSON metadata...");
+      
+      // Validate that we have required event images
+      if (!ipfsResults.posterHash || !ipfsResults.bannerHash) {
+        throw new Error('Missing required event images. Please ensure both Event Poster and Event Banner are uploaded.');
+      }
+      
+      // Collect tier NFT background URLs from ticketTiers state
+      const tierBackgrounds: Record<string, string> = {};
+      ticketTiers.forEach(tier => {
+        if (tier.nftImageUrl) {
+          // Extract hash from full IPFS URL
+          const hashMatch = tier.nftImageUrl.match(/\/ipfs\/(.+)$/);
+          if (hashMatch) {
+            tierBackgrounds[tier.id] = hashMatch[1];
+          }
+        }
+      });
+      
+      console.log('🎯 Collected IPFS data:', {
+        posterHash: ipfsResults.posterHash,
+        bannerHash: ipfsResults.bannerHash,
+        tierBackgrounds: Object.keys(tierBackgrounds),
+        totalImages: 2 + Object.keys(tierBackgrounds).length
+      });
+      
+      // Create JSON metadata object
+      const jsonMetadata = createIPFSMetadata(
+        ipfsResults.posterHash || '',
+        ipfsResults.bannerHash || '',
+        tierBackgrounds,
+        {
+          eventTitle: eventData.title,
+          description: eventData.description,
+          createdBy: 'organizer-dashboard',
+          tierCount: String(ticketTiers.length)
+        }
+      );
+      
+      // Upload JSON metadata to IPFS
+      console.log("📤 Uploading final JSON metadata to IPFS...");
+      const metadataResult = await uploadJSONMetadata(jsonMetadata, `${eventData.title}-metadata-${Date.now()}.json`);
+      
+      if (!metadataResult.success || !metadataResult.metadataHash) {
+        throw new Error(`JSON metadata upload failed: ${metadataResult.error}`);
+      }
+      
+      console.log("✅ Final JSON metadata uploaded successfully:", metadataResult.metadataHash);
+      
+      // Step 2: Initialize the event with JSON metadata hash
+      console.log("🚀 Step 2: Initializing event with JSON metadata...");
       const eventResult = await initializeEvent(
         eventData.title,
         eventData.description,
         eventDate,
         eventData.venue,
-        ipfsResults.posterHash || '', // Pass IPFS poster hash ke contract
+        metadataResult.metadataHash, // Pass JSON metadata hash ke contract
         eventData.category // Pass category ke contract
       );
 
@@ -315,8 +378,8 @@ const CreateEventForm: React.FC = () => {
 
       console.log("✅ Event initialized successfully:", eventResult);
 
-      // Step 2: Create ticket tiers
-      console.log("🎫 Step 2: Creating ticket tiers...");
+      // Step 3: Create ticket tiers
+      console.log("🎫 Step 3: Creating ticket tiers...");
       let successfulTiers = 0;
       
       for (const tier of ticketTiers) {
@@ -742,7 +805,15 @@ const CreateEventForm: React.FC = () => {
             
             <TicketTierCreator
               tiers={ticketTiers}
-              onChange={setTicketTiers}
+              onChange={(newTiers) => {
+                console.log('🔄 TicketTiers updated in CreateEventForm:', newTiers.map(t => ({ 
+                  id: t.id, 
+                  name: t.name, 
+                  hasNFTImage: !!t.nftImage, 
+                  hasNFTImageUrl: !!t.nftImageUrl 
+                })));
+                setTicketTiers(newTiers);
+              }}
               currency="IDRX"
             />
           </VStack>

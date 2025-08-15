@@ -50,7 +50,7 @@ import { Event, TicketTier } from "../../types/Event";
 import { CountdownTimer } from "../../components/core/CountdownTimer";
 import { TicketTierCard } from "../../components/composite/TicketTierCard";
 import { useSmartContract } from "../../hooks/useSmartContract";
-import { getBannerImageUrl } from "../../utils/ipfsMetadata";
+import { getBannerImageUrl, getNFTBackgroundUrl } from "../../utils/ipfsMetadata";
 
 // Helper function to format date
 const formatDate = (dateString: string): string => {
@@ -120,6 +120,7 @@ export const EventDetailPage: React.FC = () => {
 
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [bannerImageUrl, setBannerImageUrl] = useState<string>("");
   const [selectedTier, setSelectedTier] = useState<{
     id: string;
     quantity: number;
@@ -241,8 +242,74 @@ export const EventDetailPage: React.FC = () => {
                   available: Number(available) - Number(sold),
                   maxPerPurchase: Number(maxPerPurchase),
                   benefits,
+                  // TODO: Add nftImageUrl - need async processing
+                  nftImageUrl: undefined, // Will be populated separately
                 };
               });
+
+              // Populate NFT background URLs for each tier
+              if (details.ipfsMetadata) {
+                console.log("🎨 Populating NFT backgrounds from IPFS metadata...");
+                
+                // First, get all available tier IDs from JSON metadata
+                let availableTierIds: string[] = [];
+                try {
+                  const { parseIPFSMetadata } = await import("../../utils/ipfsMetadata");
+                  const metadata = await parseIPFSMetadata(details.ipfsMetadata);
+                  if (metadata && metadata.tierBackgrounds) {
+                    availableTierIds = Object.keys(metadata.tierBackgrounds);
+                    console.log("🎯 Available tier IDs from JSON:", availableTierIds);
+                  }
+                } catch (error) {
+                  console.log("Error parsing metadata for tier IDs:", error);
+                }
+                
+                for (let i = 0; i < formattedTiers.length; i++) {
+                  try {
+                    let nftUrl: string | undefined;
+                    let matchedTierId: string | undefined;
+                    
+                    // Use exact tier ID from JSON if available
+                    if (availableTierIds.length > i) {
+                      const exactTierId = availableTierIds[i];
+                      console.log(`🔍 Using exact tierId: ${exactTierId} for tier ${i} (${formattedTiers[i].name})`);
+                      
+                      nftUrl = await getNFTBackgroundUrl(details.ipfsMetadata, exactTierId);
+                      if (nftUrl) {
+                        matchedTierId = exactTierId;
+                      }
+                    }
+                    
+                    // Fallback: try common patterns if exact match failed
+                    if (!nftUrl) {
+                      const fallbackTierIds = [
+                        "tier-1",
+                        `tier-${i + 1}`,
+                        "tier-1755245976024",
+                        "tier-1755246023387",
+                      ];
+                      
+                      for (const tierId of fallbackTierIds) {
+                        console.log(`🔄 Fallback trying tierId: ${tierId} for tier ${i}`);
+                        nftUrl = await getNFTBackgroundUrl(details.ipfsMetadata, tierId);
+                        if (nftUrl) {
+                          matchedTierId = tierId;
+                          break;
+                        }
+                      }
+                    }
+                    
+                    if (nftUrl && matchedTierId) {
+                      formattedTiers[i].nftImageUrl = nftUrl;
+                      console.log(`✅ NFT background set for ${formattedTiers[i].name} using tierId ${matchedTierId}: ${nftUrl}`);
+                    } else {
+                      console.log(`❌ No NFT background found for tier ${i} (${formattedTiers[i].name})`);
+                    }
+                  } catch (error) {
+                    console.error(`Error getting NFT background for tier ${i}:`, error);
+                  }
+                }
+              }
 
               // Update event with tiers and lowest price
               blockchainEvent.ticketTiers = formattedTiers;
@@ -297,6 +364,32 @@ export const EventDetailPage: React.FC = () => {
 
     fetchEventDetails();
   }, [id, getEventInfo, getTicketTiers, contractError]);
+
+  // Load banner image when event data is available
+  useEffect(() => {
+    const loadBannerImage = async () => {
+      if (!event || !event.bannerUrl) {
+        setBannerImageUrl(event?.imageUrl || "https://images.unsplash.com/photo-1459865264687-595d652de67e");
+        return;
+      }
+
+      try {
+        // Try to get banner image from JSON metadata
+        const bannerUrl = await getBannerImageUrl(event.bannerUrl);
+        if (bannerUrl) {
+          setBannerImageUrl(bannerUrl);
+        } else {
+          // Fallback to original URL
+          setBannerImageUrl(event.bannerUrl);
+        }
+      } catch (error) {
+        console.error('Error loading banner image:', error);
+        setBannerImageUrl(event.bannerUrl || event.imageUrl || "https://images.unsplash.com/photo-1459865264687-595d652de67e");
+      }
+    };
+
+    loadBannerImage();
+  }, [event]);
 
   // Add scroll listener for sticky button
   useEffect(() => {
@@ -435,7 +528,7 @@ export const EventDetailPage: React.FC = () => {
       {/* Hero Section with Event Banner */}
       <Box position="relative" height="400px" overflow="hidden">
         <Image
-          src={getBannerImageUrl(event.bannerUrl || event.imageUrl) || event.bannerUrl || event.imageUrl}
+          src={bannerImageUrl || event.bannerUrl || event.imageUrl}
           alt={event.title}
           width="100%"
           height="100%"

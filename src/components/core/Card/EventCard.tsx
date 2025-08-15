@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Box, Image, Text, Flex, Badge, VStack } from "@chakra-ui/react";
 import { Event } from "../../../types/Event";
 import { Card } from "./Card";
@@ -24,27 +24,41 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
   const { title, date, location, imageUrl, price, category, status, currency } =
     event;
 
-  // Phase 2: Handle JSON metadata and poster image URLs
-  const getImageUrl = () => {
-    if (!imageUrl) {
-      // Default placeholder image jika tidak ada image
-      return "/api/placeholder/400/200";
-    }
-    
-    // Phase 2: Try to get poster image from JSON metadata first
-    const posterUrl = getPosterImageUrl(imageUrl);
-    if (posterUrl) {
-      return posterUrl;
-    }
-    
-    // Fallback: Legacy format - direct IPFS hash
-    if (isValidIPFSHash(imageUrl)) {
-      return getIPFSUrl(imageUrl);
-    }
-    
-    // Jika sudah full URL, return as is
-    return imageUrl;
-  };
+  const [posterImageUrl, setPosterImageUrl] = useState<string>("/api/placeholder/400/200");
+
+  // Phase 2: Handle JSON metadata and poster image URLs with async loading
+  useEffect(() => {
+    const loadPosterImage = async () => {
+      if (!imageUrl) {
+        setPosterImageUrl("/api/placeholder/400/200");
+        return;
+      }
+
+      try {
+        // Phase 2: Try to get poster image from JSON metadata first
+        const posterUrl = await getPosterImageUrl(imageUrl);
+        if (posterUrl) {
+          setPosterImageUrl(posterUrl);
+          return;
+        }
+        
+        // Fallback: Legacy format - direct IPFS hash
+        if (isValidIPFSHash(imageUrl)) {
+          setPosterImageUrl(getIPFSUrl(imageUrl));
+          return;
+        }
+        
+        // Jika sudah full URL, return as is
+        setPosterImageUrl(imageUrl);
+        
+      } catch (error) {
+        console.error('Error loading poster image:', error);
+        setPosterImageUrl("/api/placeholder/400/200");
+      }
+    };
+
+    loadPosterImage();
+  }, [imageUrl]);
 
   return (
     <Card
@@ -67,7 +81,7 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onClick }) => {
     >
       <Box position="relative">
         <Image
-          src={getImageUrl()}
+          src={posterImageUrl}
           alt={title}
           height="200px"
           width="100%"

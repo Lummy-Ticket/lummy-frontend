@@ -138,9 +138,24 @@ const TicketTierCreator: React.FC<TicketTierCreatorProps> = ({
     field: keyof TicketTierInput,
     value: any
   ) => {
+    console.log(`🔄 Tier change: ${id} - ${field}:`, value);
+    
     const updatedTiers = tiers.map((tier) => {
       if (tier.id === id) {
-        return { ...tier, [field]: value };
+        const updatedTier = { ...tier, [field]: value };
+        
+        // Debug log for NFT image changes
+        if (field === 'nftImage' || field === 'nftImageUrl') {
+          console.log(`📸 NFT update for ${tier.name}:`, {
+            field,
+            valueType: typeof value,
+            hasFile: field === 'nftImage' ? !!value : undefined,
+            url: field === 'nftImageUrl' ? value : undefined,
+            updatedTier: { nftImage: updatedTier.nftImage, nftImageUrl: updatedTier.nftImageUrl }
+          });
+        }
+        
+        return updatedTier;
       }
       return tier;
     });
@@ -156,6 +171,13 @@ const TicketTierCreator: React.FC<TicketTierCreatorProps> = ({
     }
     
     onChange(updatedTiers);
+    
+    // Debug: log final state after change for NFT updates
+    if (field === 'nftImage' || field === 'nftImageUrl') {
+      setTimeout(() => {
+        console.log('🎯 Final updated tier:', updatedTiers.find(t => t.id === id));
+      }, 100);
+    }
   };
 
   const handleAddBenefit = (id: string) => {

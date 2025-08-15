@@ -77,7 +77,7 @@ const EventsPage: React.FC = () => {
               location: eventInfo.venue,
               price: 0, // Will be updated when tiers are loaded
               currency: "IDRX", // Add currency for price display
-              imageUrl: "/api/placeholder/300/200", // Placeholder image
+              imageUrl: eventInfo.ipfsMetadata || "/api/placeholder/300/200", // IPFS JSON metadata or fallback
               category: eventInfo.category || "Event",
               status: eventInfo.cancelled ? "soldout" : "available",
               organizer: {

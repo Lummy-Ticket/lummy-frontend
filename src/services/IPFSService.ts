@@ -148,6 +148,72 @@ export const getIPFSUrl = (hash: string): string => {
 };
 
 /**
+ * Fetch JSON content from IPFS hash
+ * @param hash IPFS hash containing JSON data
+ * @returns Promise dengan JSON content
+ */
+export const fetchIPFSJson = async (hash: string): Promise<any> => {
+  if (!hash) {
+    throw new Error('IPFS hash is required');
+  }
+
+  const url = getIPFSUrl(hash);
+  console.log('🌐 Fetching JSON from IPFS:', url);
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      mode: 'cors',
+      headers: {
+        'Accept': 'application/json,text/plain,*/*',
+        'Content-Type': 'application/json',
+      },
+      credentials: 'omit', // Don't send credentials for CORS
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const contentType = response.headers.get('content-type');
+    console.log('📄 Response Content-Type:', contentType);
+
+    const jsonData = await response.json();
+    console.log('✅ IPFS JSON fetched successfully:', jsonData);
+    
+    return jsonData;
+  } catch (error) {
+    console.error('❌ Failed to fetch IPFS JSON:', error);
+    
+    // Try alternative gateway if Pinata fails
+    if (url.includes('gateway.pinata.cloud')) {
+      console.log('🔄 Trying alternative IPFS gateway...');
+      const altUrl = `https://ipfs.io/ipfs/${hash}`;
+      
+      try {
+        const altResponse = await fetch(altUrl, {
+          method: 'GET',
+          mode: 'cors',
+          headers: {
+            'Accept': 'application/json,text/plain,*/*',
+          },
+        });
+
+        if (altResponse.ok) {
+          const altJsonData = await altResponse.json();
+          console.log('✅ Alternative gateway success:', altJsonData);
+          return altJsonData;
+        }
+      } catch (altError) {
+        console.error('❌ Alternative gateway also failed:', altError);
+      }
+    }
+    
+    throw error;
+  }
+};
+
+/**
  * Validate IPFS hash format
  * @param hash IPFS hash to validate
  * @returns boolean

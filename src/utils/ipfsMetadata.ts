@@ -5,28 +5,45 @@
  */
 
 import { IPFSImageMetadata, ImageValidationResult, ImageType, IMAGE_SPECS } from '../types/IPFSMetadata';
-import { getIPFSUrl } from '../services/IPFSService';
+import { getIPFSUrl, fetchIPFSJson } from '../services/IPFSService';
 
 /**
  * Parse IPFS metadata from contract storage
  * Supports both old format (direct hash) and new format (JSON metadata)
  */
-export const parseIPFSMetadata = (ipfsMetadata: string): IPFSImageMetadata | null => {
+export const parseIPFSMetadata = async (ipfsMetadata: string): Promise<IPFSImageMetadata | null> => {
   if (!ipfsMetadata) return null;
   
+  console.log('🔍 parseIPFSMetadata - Input:', ipfsMetadata);
+  
   try {
-    // Try to parse as JSON (new format)
-    const metadata = JSON.parse(ipfsMetadata) as IPFSImageMetadata;
-    
-    // Validate required fields (posterImage and bannerImage required, tierBackgrounds optional)
-    if (metadata.posterImage && metadata.bannerImage) {
-      return metadata;
+    // First try to parse as direct JSON string (if already JSON)
+    if (ipfsMetadata.startsWith('{') && ipfsMetadata.endsWith('}')) {
+      console.log('📄 Parsing as direct JSON string');
+      const metadata = JSON.parse(ipfsMetadata) as IPFSImageMetadata;
+      
+      if (metadata.posterImage && metadata.bannerImage) {
+        console.log('✅ Direct JSON parsed successfully');
+        return metadata;
+      }
     }
     
-    // If missing required fields, treat as legacy format
-    throw new Error('Invalid JSON structure');
+    // Try to fetch as IPFS hash containing JSON
+    if (ipfsMetadata.startsWith('Qm') || ipfsMetadata.startsWith('ba')) {
+      console.log('🌐 Fetching JSON from IPFS hash');
+      const metadata = await fetchIPFSJson(ipfsMetadata) as IPFSImageMetadata;
+      
+      if (metadata && metadata.posterImage && metadata.bannerImage) {
+        console.log('✅ IPFS JSON fetched and parsed successfully');
+        return metadata;
+      }
+    }
     
-  } catch {
+    // If neither worked, treat as legacy format
+    throw new Error('Not valid JSON metadata');
+    
+  } catch (error) {
+    console.log('🔄 Falling back to legacy format:', error);
     // Legacy format: direct IPFS hash
     // Use the same hash for all image types for backward compatibility
     return {
@@ -43,21 +60,33 @@ export const parseIPFSMetadata = (ipfsMetadata: string): IPFSImageMetadata | nul
 /**
  * Get poster image URL from metadata (for EventCard)
  */
-export const getPosterImageUrl = (ipfsMetadata: string): string => {
-  const metadata = parseIPFSMetadata(ipfsMetadata);
-  if (!metadata) return '';
+export const getPosterImageUrl = async (ipfsMetadata: string): Promise<string> => {
+  console.log('🖼️ getPosterImageUrl - Input ipfsMetadata:', ipfsMetadata);
+  const metadata = await parseIPFSMetadata(ipfsMetadata);
+  if (!metadata) {
+    console.log('❌ getPosterImageUrl - Failed to parse metadata');
+    return '';
+  }
   
-  return getIPFSUrl(metadata.posterImage);
+  const posterUrl = getIPFSUrl(metadata.posterImage);
+  console.log('✅ getPosterImageUrl - Result:', posterUrl);
+  return posterUrl;
 };
 
 /**
  * Get banner image URL from metadata (for EventDetailPage)
  */
-export const getBannerImageUrl = (ipfsMetadata: string): string => {
-  const metadata = parseIPFSMetadata(ipfsMetadata);
-  if (!metadata) return '';
+export const getBannerImageUrl = async (ipfsMetadata: string): Promise<string> => {
+  console.log('🎨 getBannerImageUrl - Input ipfsMetadata:', ipfsMetadata);
+  const metadata = await parseIPFSMetadata(ipfsMetadata);
+  if (!metadata) {
+    console.log('❌ getBannerImageUrl - Failed to parse metadata');
+    return '';
+  }
   
-  return getIPFSUrl(metadata.bannerImage);
+  const bannerUrl = getIPFSUrl(metadata.bannerImage);
+  console.log('✅ getBannerImageUrl - Result:', bannerUrl);
+  return bannerUrl;
 };
 
 /**
@@ -65,13 +94,22 @@ export const getBannerImageUrl = (ipfsMetadata: string): string => {
  * @param ipfsMetadata IPFS metadata hash
  * @param tierId Tier ID (e.g., "tier-1", "vip", "regular")
  */
-export const getNFTBackgroundUrl = (ipfsMetadata: string, tierId?: string): string => {
-  const metadata = parseIPFSMetadata(ipfsMetadata);
-  if (!metadata) return '';
+export const getNFTBackgroundUrl = async (ipfsMetadata: string, tierId?: string): Promise<string> => {
+  console.log('🎯 getNFTBackgroundUrl - Input ipfsMetadata:', ipfsMetadata, 'tierId:', tierId);
+  const metadata = await parseIPFSMetadata(ipfsMetadata);
+  if (!metadata) {
+    console.log('❌ getNFTBackgroundUrl - Failed to parse metadata');
+    return '';
+  }
+  
+  console.log('🎯 getNFTBackgroundUrl - Parsed metadata tierBackgrounds:', metadata.tierBackgrounds);
+  console.log('🎯 Available tier IDs:', Object.keys(metadata.tierBackgrounds || {}));
   
   // If tierId provided and tier background exists, use it
   if (tierId && metadata.tierBackgrounds && metadata.tierBackgrounds[tierId]) {
-    return getIPFSUrl(metadata.tierBackgrounds[tierId]);
+    const nftUrl = getIPFSUrl(metadata.tierBackgrounds[tierId]);
+    console.log('✅ getNFTBackgroundUrl - Found tier background:', nftUrl);
+    return nftUrl;
   }
   
   // Fallback: use default tier background (first available)

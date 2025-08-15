@@ -111,7 +111,7 @@ const mockSalesData = {
 const OrganizerDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [selectedEvent, setSelectedEvent] = useState<string>("all");
-  
+
   // No longer need smart contract setup since TicketNFT is auto-configured
 
   const filteredSalesData =
@@ -120,7 +120,6 @@ const OrganizerDashboard: React.FC = () => {
   const handleCreateEvent = () => {
     navigate("/organizer/events/create");
   };
-
 
   return (
     <Container maxW="container.xl" py={8}>
@@ -132,7 +131,6 @@ const OrganizerDashboard: React.FC = () => {
         <HStack spacing={3}>
           <Button
             colorScheme="blue"
-            leftIcon={<AddIcon />}
             onClick={() => navigate("/organizer/events")}
           >
             📋 My Events

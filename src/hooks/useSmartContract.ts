@@ -167,6 +167,15 @@ export const useSmartContract = () => {
         functionName: "getEventStatus",
       }) as [boolean, boolean];
 
+      // Get IPFS metadata from contract
+      const ipfsMetadata = await publicClient.readContract({
+        address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+        abi: EVENT_CORE_FACET_ABI,
+        functionName: "getIPFSMetadata",
+      }) as string;
+
+      console.log("🔍 getEventInfo - IPFS Metadata from contract:", ipfsMetadata);
+
       return {
         eventId: BigInt(0), // Diamond uses single event instance
         name: eventInfo[0],
@@ -177,7 +186,7 @@ export const useSmartContract = () => {
         organizer: eventInfo[5], // Index berubah karena ada category
         cancelled,
         completed,
-        ipfsMetadata: "", // Need to get from storage
+        ipfsMetadata: ipfsMetadata, // Real IPFS metadata from contract ✅
       } as EventData;
     } catch (err) {
       console.error("Error getting event info:", err);

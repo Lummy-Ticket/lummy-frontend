@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   VStack,
@@ -47,6 +47,8 @@ export const TicketDetails: React.FC<TicketDetailsProps> = ({ ticket }) => {
     onClose: onResellClose,
   } = useDisclosure();
 
+  const [nftImageUrl, setNftImageUrl] = useState<string>("/assets/images/nft-preview.png");
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       weekday: "long",
@@ -62,6 +64,32 @@ export const TicketDetails: React.FC<TicketDetailsProps> = ({ ticket }) => {
       minute: "2-digit",
     });
   };
+
+  // Load NFT background image when ticket data is available
+  useEffect(() => {
+    const loadNftImage = async () => {
+      try {
+        const metadataSource = ticket.nftImageUrl || ticket.eventImageUrl || '';
+        const tierId = ticket.ticketType; // Use ticket type as tierId
+        
+        if (metadataSource) {
+          const nftUrl = await getNFTBackgroundUrl(metadataSource, tierId);
+          if (nftUrl) {
+            setNftImageUrl(nftUrl);
+          } else {
+            setNftImageUrl("/assets/images/nft-preview.png");
+          }
+        } else {
+          setNftImageUrl("/assets/images/nft-preview.png");
+        }
+      } catch (error) {
+        console.error('Error loading NFT image:', error);
+        setNftImageUrl("/assets/images/nft-preview.png");
+      }
+    };
+
+    loadNftImage();
+  }, [ticket.nftImageUrl, ticket.eventImageUrl, ticket.ticketType]);
 
   const getStatusColor = (status: Ticket["status"]) => {
     switch (status) {
@@ -218,12 +246,7 @@ export const TicketDetails: React.FC<TicketDetailsProps> = ({ ticket }) => {
                 maxW="300px"
               >
                 <Image
-                  src={
-                    getNFTBackgroundUrl(
-                      ticket.nftImageUrl || ticket.eventImageUrl || '', 
-                      ticket.ticketType // Use ticket type as tierId
-                    ) || "/assets/images/nft-preview.png"
-                  }
+                  src={nftImageUrl}
                   alt={`NFT for ${ticket.eventName} - ${ticket.ticketType}`}
                   width="100%"
                   height="200px"
