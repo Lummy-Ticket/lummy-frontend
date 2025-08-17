@@ -235,7 +235,7 @@ const CreateEventForm: React.FC = () => {
 
   // Note: Individual auto-uploads now handle IPFS uploads
 
-  const { initializeEvent, addTicketTier, setResaleRules, clearTiers, loading, error } = useSmartContract();
+  const { initializeEvent, addTicketTier, setResaleRules, setTierImages, clearTiers, loading, error } = useSmartContract();
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -430,12 +430,67 @@ const CreateEventForm: React.FC = () => {
         // Don't fail the entire event creation if resale rules fail
       }
 
+      // Step 5: Set tier images automatically
+      console.log("🎨 Step 5: Setting tier NFT images...");
+      console.log("🔍 Debug - Current ticket tiers:", ticketTiers.map(t => ({
+        name: t.name,
+        nftImageUrl: t.nftImageUrl,
+        hasNftImage: !!t.nftImageUrl
+      })));
+      
+      let tierImageHashes: string[] = [];
+      try {
+        // Extract IPFS hashes from tier nftImageUrl
+        
+        for (let i = 0; i < ticketTiers.length; i++) {
+          const tier = ticketTiers[i];
+          console.log(`🔍 Processing tier ${i} (${tier.name}):`, tier.nftImageUrl);
+          
+          if (tier.nftImageUrl && tier.nftImageUrl.includes('ipfs/')) {
+            // Extract hash from URL like: https://gateway.pinata.cloud/ipfs/QmXxXxXx...
+            const hash = tier.nftImageUrl.split('ipfs/')[1];
+            tierImageHashes.push(hash);
+            console.log(`✅ Tier ${i} (${tier.name}) image hash: ${hash}`);
+          } else {
+            // Use placeholder if no image
+            tierImageHashes.push('');
+            console.log(`⚠️ Tier ${i} (${tier.name}) has no NFT image, URL: ${tier.nftImageUrl || 'undefined'}`);
+          }
+        }
+
+        console.log("🔍 Extracted tier image hashes:", tierImageHashes);
+        console.log("🔍 Has valid hashes?", tierImageHashes.some(hash => hash.length > 0));
+        
+        if (tierImageHashes.some(hash => hash.length > 0)) {
+          console.log("🚀 Calling setTierImages with:", tierImageHashes);
+          const tierImagesResult = await setTierImages(tierImageHashes);
+          
+          if (tierImagesResult) {
+            console.log("✅ Tier images set successfully! Tx hash:", tierImagesResult);
+          } else {
+            console.warn("⚠️ Tier images setup failed, but event creation succeeded");
+          }
+        } else {
+          console.log("ℹ️ No tier images to set - skipping step");
+        }
+      } catch (tierImagesError) {
+        console.error("Error setting tier images:", tierImagesError);
+        // Don't fail the entire event creation if tier images fail
+      }
+
       if (successfulTiers > 0) {
+        const tierImagesCount = tierImageHashes?.filter(hash => hash.length > 0).length || 0;
         toast({
-          title: "Event created successfully!",
-          description: `Event initialized with ${successfulTiers}/${ticketTiers.length} ticket tiers created`,
+          title: "🎉 Event created successfully!",
+          description: (
+            <div>
+              <div>✅ Event initialized with {successfulTiers}/{ticketTiers.length} ticket tiers</div>
+              <div>🎨 {tierImagesCount} NFT backgrounds configured</div>
+              <div>🎫 Ready for ticket sales!</div>
+            </div>
+          ),
           status: "success",
-          duration: 5000,
+          duration: 7000,
           isClosable: true,
         });
 

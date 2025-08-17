@@ -70,7 +70,8 @@ export const ResellTicket: React.FC<ResellTicketProps> = ({
   });
   
   const toast = useToast();
-  const { getResaleRules, createResaleListing } = useSmartContract();
+  const { getResaleRules, createResaleListing, getNFTImageFromTokenId } = useSmartContract();
+  const [nftImageUrl, setNftImageUrl] = useState<string>("/assets/images/nft-preview.png");
 
   // Dynamic max resell percentage based on organizer settings
   const maxResellPercentage = 100 + resaleRules.maxMarkupPercentage;
@@ -142,6 +143,26 @@ export const ResellTicket: React.FC<ResellTicketProps> = ({
       calculateFees(ticket.price);
     }
   }, [isOpen, getResaleRules, toast, onClose, ticket.price]);
+
+  // Load NFT image when modal opens
+  useEffect(() => {
+    const loadNftImage = async () => {
+      try {
+        if (ticket.tokenId && isOpen) {
+          const tokenIdNum = typeof ticket.tokenId === 'string' ? parseInt(ticket.tokenId) : ticket.tokenId;
+          const imageUrl = await getNFTImageFromTokenId(tokenIdNum);
+          if (imageUrl) {
+            setNftImageUrl(imageUrl);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading NFT image:', error);
+        setNftImageUrl("/assets/images/nft-preview.png");
+      }
+    };
+
+    loadNftImage();
+  }, [ticket.tokenId, isOpen, getNFTImageFromTokenId]);
 
   const handlePercentageChange = (val: number) => {
     setResellPercentage(val);
@@ -290,7 +311,7 @@ export const ResellTicket: React.FC<ResellTicketProps> = ({
                   borderColor="gray.200"
                 >
                   <Image
-                    src="/assets/images/nft-preview.png"
+                    src={nftImageUrl}
                     alt={`NFT for ${ticket.eventName}`}
                     width="100%"
                     height="100%"
@@ -476,7 +497,7 @@ export const ResellTicket: React.FC<ResellTicketProps> = ({
                   <HStack spacing={3}>
                     <Box width="60px" height="60px" borderRadius="md" overflow="hidden">
                       <Image
-                        src="/assets/images/nft-preview.png"
+                        src={nftImageUrl}
                         alt="NFT Preview"
                         width="100%"
                         height="100%"

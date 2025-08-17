@@ -30,7 +30,8 @@ import { Event, TicketTier } from "../../types/Event";
 import { useWallet } from "../../hooks/useWallet";
 import { TokenBalance } from "../../components/wallet";
 import { useSmartContract } from "../../hooks/useSmartContract";
-import { DEVELOPMENT_CONFIG } from "../../constants";
+import { DEVELOPMENT_CONFIG, CONTRACT_ADDRESSES } from "../../constants";
+import { useBalance, useAccount } from "wagmi";
 
 // Fetch event from blockchain or mock data
 const fetchEventById = async (id: string): Promise<Event | undefined> => {
@@ -97,6 +98,13 @@ export const CheckoutPage: React.FC = () => {
 
   // Wallet integration - using only what we need and removing unused variables
   const { isConnected, wallet } = useWallet();
+  const { address } = useAccount();
+  
+  // Get real wallet balance for payment checking
+  const { data: balanceData } = useBalance({
+    address,
+    token: CONTRACT_ADDRESSES.MockIDRX as `0x${string}`,
+  });
   
   // Smart contract integration for blockchain events
   const { getEventInfo, getTicketTiers, approveIDRX, purchaseTickets } = useSmartContract();
@@ -440,6 +448,7 @@ export const CheckoutPage: React.FC = () => {
                   onPay={handlePayment}
                   isProcessing={isProcessingPayment}
                   onBack={handleBackToReview}
+                  walletBalance={balanceData ? parseFloat(balanceData.formatted) : 0}
                 />
               )}
             </Box>

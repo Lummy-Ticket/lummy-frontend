@@ -57,6 +57,13 @@ export const EVENT_CORE_FACET_ABI = [
   },
   {
     type: "function",
+    name: "getAllTierImageHashes",
+    inputs: [],
+    outputs: [{ name: "", type: "string[]", internalType: "string[]" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "getAttendeeStats",
     inputs: [],
     outputs: [
@@ -233,6 +240,20 @@ export const EVENT_CORE_FACET_ABI = [
   },
   {
     type: "function",
+    name: "getTierImageCount",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getTierImageHash",
+    inputs: [{ name: "tierIndex", type: "uint256", internalType: "uint256" }],
+    outputs: [{ name: "", type: "string", internalType: "string" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "initialize",
     inputs: [
       { name: "_organizer", type: "address", internalType: "address" },
@@ -312,6 +333,29 @@ export const EVENT_CORE_FACET_ABI = [
         name: "_platformFeeReceiver",
         type: "address",
         internalType: "address",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "setTierImageHash",
+    inputs: [
+      { name: "tierIndex", type: "uint256", internalType: "uint256" },
+      { name: "imageHash", type: "string", internalType: "string" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "setTierImages",
+    inputs: [
+      {
+        name: "tierImageHashes",
+        type: "string[]",
+        internalType: "string[]",
       },
     ],
     outputs: [],
@@ -486,6 +530,38 @@ export const EVENT_CORE_FACET_ABI = [
       },
       {
         name: "available",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "TierImageUpdated",
+    inputs: [
+      {
+        name: "tierIndex",
+        type: "uint256",
+        indexed: true,
+        internalType: "uint256",
+      },
+      {
+        name: "imageHash",
+        type: "string",
+        indexed: false,
+        internalType: "string",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "TierImagesUpdated",
+    inputs: [
+      {
+        name: "tierImageCount",
         type: "uint256",
         indexed: false,
         internalType: "uint256",

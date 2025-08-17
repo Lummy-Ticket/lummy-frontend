@@ -23,6 +23,7 @@ interface PaymentMethodProps {
   onPay: () => void;
   isProcessing: boolean;
   onBack: () => void;
+  walletBalance?: number; // Real balance from smart contract
 }
 
 export const PaymentMethod: React.FC<PaymentMethodProps> = ({
@@ -31,13 +32,14 @@ export const PaymentMethod: React.FC<PaymentMethodProps> = ({
   onPay,
   isProcessing,
   onBack,
+  walletBalance: propWalletBalance,
 }) => {
   const [paymentMethod, setPaymentMethod] = useState<string>("idrx");
   const bgColor = "white";
   const borderColor = "gray.200";
 
-  // Mock wallet balance
-  const walletBalance = 1000; // IDRX
+  // Use real wallet balance from props, fallback to 0 if not provided
+  const walletBalance = propWalletBalance ?? 0;
 
   return (
     <VStack

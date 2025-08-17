@@ -29,12 +29,15 @@ import { TransferTicket } from "./TransferTicket";
 import { ResellTicket } from "./ResellTicket";
 import { Ticket } from "./TicketCard";
 import { getNFTBackgroundUrl } from "../../utils/ipfsMetadata";
+import { useSmartContract } from "../../hooks/useSmartContract";
 
 interface TicketDetailsProps {
   ticket: Ticket;
 }
 
 export const TicketDetails: React.FC<TicketDetailsProps> = ({ ticket }) => {
+  const { getNFTImageFromTokenId } = useSmartContract();
+  
   const {
     isOpen: isTransferOpen,
     onOpen: onTransferOpen,
@@ -65,22 +68,34 @@ export const TicketDetails: React.FC<TicketDetailsProps> = ({ ticket }) => {
     });
   };
 
-  // Load NFT background image when ticket data is available
+  // Load NFT background image from contract tier images
   useEffect(() => {
     const loadNftImage = async () => {
       try {
-        const metadataSource = ticket.nftImageUrl || ticket.eventImageUrl || '';
-        const tierId = ticket.ticketType; // Use ticket type as tierId
-        
-        if (metadataSource) {
-          const nftUrl = await getNFTBackgroundUrl(metadataSource, tierId);
-          if (nftUrl) {
-            setNftImageUrl(nftUrl);
+        if (ticket.tokenId) {
+          // Use new contract-based approach
+          const tokenIdNum = typeof ticket.tokenId === 'string' ? parseInt(ticket.tokenId) : ticket.tokenId;
+          const imageUrl = await getNFTImageFromTokenId(tokenIdNum);
+          if (imageUrl) {
+            setNftImageUrl(imageUrl);
           } else {
             setNftImageUrl("/assets/images/nft-preview.png");
           }
         } else {
-          setNftImageUrl("/assets/images/nft-preview.png");
+          // Fallback to old approach if no tokenId
+          const metadataSource = ticket.nftImageUrl || ticket.eventImageUrl || '';
+          const tierId = ticket.ticketType;
+          
+          if (metadataSource) {
+            const nftUrl = await getNFTBackgroundUrl(metadataSource, tierId);
+            if (nftUrl) {
+              setNftImageUrl(nftUrl);
+            } else {
+              setNftImageUrl("/assets/images/nft-preview.png");
+            }
+          } else {
+            setNftImageUrl("/assets/images/nft-preview.png");
+          }
         }
       } catch (error) {
         console.error('Error loading NFT image:', error);
@@ -89,7 +104,7 @@ export const TicketDetails: React.FC<TicketDetailsProps> = ({ ticket }) => {
     };
 
     loadNftImage();
-  }, [ticket.nftImageUrl, ticket.eventImageUrl, ticket.ticketType]);
+  }, [ticket.tokenId, ticket.nftImageUrl, ticket.eventImageUrl, ticket.ticketType, getNFTImageFromTokenId]);
 
   const getStatusColor = (status: Ticket["status"]) => {
     switch (status) {

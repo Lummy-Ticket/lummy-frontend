@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Modal,
   ModalOverlay,
@@ -54,7 +54,8 @@ export const BuyResaleTicket: React.FC<BuyResaleTicketProps> = ({
   
   const toast = useToast();
   const { address } = useAccount();
-  const { purchaseResaleTicket } = useSmartContract();
+  const { purchaseResaleTicket, getNFTImageFromTokenId } = useSmartContract();
+  const [nftImageUrl, setNftImageUrl] = useState<string>("/assets/images/nft-preview.png");
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -64,6 +65,26 @@ export const BuyResaleTicket: React.FC<BuyResaleTicketProps> = ({
       year: "numeric",
     });
   };
+
+  // Load NFT image when modal opens
+  useEffect(() => {
+    const loadNftImage = async () => {
+      try {
+        if (ticket.tokenId && isOpen) {
+          const tokenIdNum = typeof ticket.tokenId === 'string' ? parseInt(ticket.tokenId) : ticket.tokenId;
+          const imageUrl = await getNFTImageFromTokenId(tokenIdNum);
+          if (imageUrl) {
+            setNftImageUrl(imageUrl);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading NFT image:', error);
+        setNftImageUrl("/assets/images/nft-preview.png");
+      }
+    };
+
+    loadNftImage();
+  }, [ticket.tokenId, isOpen, getNFTImageFromTokenId]);
 
   const handleBuyTicket = async () => {
     if (!address) {
@@ -183,7 +204,7 @@ export const BuyResaleTicket: React.FC<BuyResaleTicketProps> = ({
                       borderColor="gray.200"
                     >
                       <Image
-                        src="/assets/images/nft-preview.png"
+                        src={nftImageUrl}
                         alt={`NFT for ${ticket.eventName}`}
                         width="100%"
                         height="100%"

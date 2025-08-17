@@ -40,11 +40,13 @@ export const PublicNFTPage: React.FC = () => {
   const { 
     getEventInfo,
     getTicketTiers,
+    getNFTImageFromTokenId,
     } = useSmartContract();
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [nftImageUrl, setNftImageUrl] = useState<string>("/assets/images/nft-preview.png");
 
   useEffect(() => {
     const loadNFTData = async () => {
@@ -99,6 +101,15 @@ export const PublicNFTPage: React.FC = () => {
 
         setTicket(ticketData);
         
+        // Load NFT image
+        if (tokenId) {
+          const tokenIdNum = parseInt(tokenId);
+          const imageUrl = await getNFTImageFromTokenId(tokenIdNum);
+          if (imageUrl) {
+            setNftImageUrl(imageUrl);
+          }
+        }
+        
       } catch (err) {
         console.error("Error loading NFT data:", err);
         setError("Failed to load NFT information");
@@ -108,7 +119,7 @@ export const PublicNFTPage: React.FC = () => {
     };
 
     loadNFTData();
-  }, [tokenId, getEventInfo, getTicketTiers]);
+  }, [tokenId, getEventInfo, getTicketTiers, getNFTImageFromTokenId]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -329,11 +340,12 @@ export const PublicNFTPage: React.FC = () => {
                   aspectRatio="1/1"
                 >
                   <Image
-                    src="/assets/images/nft-preview.png"
+                    src={nftImageUrl}
                     alt={`NFT for ${ticket.eventName}`}
                     width="100%"
                     height="100%"
                     objectFit="cover"
+                    fallbackSrc="/assets/images/nft-preview.png"
                   />
                 </Box>
 

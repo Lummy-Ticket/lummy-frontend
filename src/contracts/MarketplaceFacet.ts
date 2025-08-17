@@ -261,7 +261,7 @@ export const MARKETPLACE_FACET_ABI = [
   { type: "error", name: "PaymentFailed", inputs: [] },
   { type: "error", name: "PlatformFeeTransferFailed", inputs: [] },
   { type: "error", name: "PriceExceedsMaxAllowed", inputs: [] },
-  { type: "error", name: "ReentrancyGuardReentrantCall", inputs: [] },
+  { type: "error", name: "ReentrancyGuardReentrantCall", inputs: [] },  
   { type: "error", name: "ResaleNotAllowed", inputs: [] },
   { type: "error", name: "SellerPaymentFailed", inputs: [] },
   { type: "error", name: "TicketNotListedForResale", inputs: [] },

@@ -2513,6 +2513,199 @@ export const useSmartContract = () => {
     }
   }, [publicClient]);
 
+  // ========== TIER IMAGE FUNCTIONS (Phase 2) ==========
+
+  /**
+   * Sets tier-specific NFT background images for the event
+   * @param tierImageHashes Array of IPFS hashes for tier backgrounds
+   * @returns Transaction hash if successful
+   */
+  const setTierImages = useCallback(async (tierImageHashes: string[]) => {
+    if (!walletClient || !address) {
+      setError("Wallet not connected");
+      return null;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log("Setting tier images:", tierImageHashes);
+
+      const hash = await walletClient.writeContract({
+        address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+        abi: EVENT_CORE_FACET_ABI,
+        functionName: "setTierImages",
+        args: [tierImageHashes],
+      });
+
+      await publicClient?.waitForTransactionReceipt({ hash });
+      console.log("✅ Tier images set successfully:", hash);
+      return hash;
+    } catch (err) {
+      console.error("Error setting tier images:", err);
+      setError(parseContractError(err));
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [walletClient, address, publicClient]);
+
+  /**
+   * Gets tier-specific NFT background image hash
+   * @param tierIndex Index of the tier (0-based)
+   * @returns IPFS hash of the tier background image
+   */
+  const getTierImageHash = useCallback(async (tierIndex: number) => {
+    if (!publicClient) {
+      setError("Provider not available");
+      return null;
+    }
+
+    try {
+      const imageHash = await publicClient.readContract({
+        address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+        abi: EVENT_CORE_FACET_ABI,
+        functionName: "getTierImageHash",
+        args: [BigInt(tierIndex)],
+      }) as string;
+
+      return imageHash;
+    } catch (err) {
+      console.error("Error getting tier image hash:", err);
+      setError(parseContractError(err));
+      return null;
+    }
+  }, [publicClient]);
+
+  /**
+   * Gets all tier image hashes for the event
+   * @returns Array of IPFS hashes for all tier backgrounds
+   */
+  const getAllTierImageHashes = useCallback(async () => {
+    if (!publicClient) {
+      setError("Provider not available");
+      return null;
+    }
+
+    try {
+      const imageHashes = await publicClient.readContract({
+        address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+        abi: EVENT_CORE_FACET_ABI,
+        functionName: "getAllTierImageHashes",
+      }) as string[];
+
+      return imageHashes;
+    } catch (err) {
+      console.error("Error getting all tier image hashes:", err);
+      setError(parseContractError(err));
+      return null;
+    }
+  }, [publicClient]);
+
+  /**
+   * Sets a single tier image hash
+   * @param tierIndex Index of the tier (0-based)
+   * @param imageHash IPFS hash of the tier background image
+   * @returns Transaction hash if successful
+   */
+  const setTierImageHash = useCallback(async (tierIndex: number, imageHash: string) => {
+    if (!walletClient || !address) {
+      setError("Wallet not connected");
+      return null;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log(`Setting tier ${tierIndex} image:`, imageHash);
+
+      const hash = await walletClient.writeContract({
+        address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+        abi: EVENT_CORE_FACET_ABI,
+        functionName: "setTierImageHash",
+        args: [BigInt(tierIndex), imageHash],
+      });
+
+      await publicClient?.waitForTransactionReceipt({ hash });
+      console.log(`✅ Tier ${tierIndex} image set successfully:`, hash);
+      return hash;
+    } catch (err) {
+      console.error(`Error setting tier ${tierIndex} image:`, err);
+      setError(parseContractError(err));
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [walletClient, address, publicClient]);
+
+  /**
+   * Gets the number of tier images stored
+   * @returns Number of tier images
+   */
+  const getTierImageCount = useCallback(async () => {
+    if (!publicClient) {
+      setError("Provider not available");
+      return null;
+    }
+
+    try {
+      const count = await publicClient.readContract({
+        address: CONTRACT_ADDRESSES.DiamondLummy as `0x${string}`,
+        abi: EVENT_CORE_FACET_ABI,
+        functionName: "getTierImageCount",
+      }) as bigint;
+
+      return Number(count);
+    } catch (err) {
+      console.error("Error getting tier image count:", err);
+      setError(parseContractError(err));
+      return null;
+    }
+  }, [publicClient]);
+
+  /**
+   * Extracts tier index from token ID using Algorithm 1 format
+   * Token ID format: 1EEETTTSSSSS (Algorithm=1, Event=3digits, Tier=3digits, Sequential=5digits)
+   * @param tokenId Token ID to extract tier from
+   * @returns Tier index (0-based)
+   */
+  const extractTierIndexFromTokenId = useCallback((tokenId: bigint | number) => {
+    const tokenIdNumber = typeof tokenId === 'bigint' ? Number(tokenId) : tokenId;
+    
+    // Extract tier code from position 4-6 (3 digits) and convert to 0-based index
+    const tierCode = Math.floor(tokenIdNumber / 100000) % 1000;
+    
+    // Convert from 1-based tier code to 0-based tier index
+    return tierCode > 0 ? tierCode - 1 : 0;
+  }, []);
+
+  /**
+   * Gets tier-specific NFT image URL from token ID
+   * @param tokenId Token ID to get image for
+   * @returns IPFS image URL for the tier
+   */
+  const getNFTImageFromTokenId = useCallback(async (tokenId: bigint | number) => {
+    try {
+      // Extract tier index from token ID
+      const tierIndex = extractTierIndexFromTokenId(tokenId);
+      
+      // Get tier image hash from contract
+      const imageHash = await getTierImageHash(tierIndex);
+      
+      if (imageHash && imageHash.length > 0) {
+        return `https://gateway.pinata.cloud/ipfs/${imageHash}`;
+      }
+      
+      // Fallback to placeholder
+      return "/assets/images/nft-preview.png";
+    } catch (error) {
+      console.error("Error getting NFT image from token ID:", error);
+      return "/assets/images/nft-preview.png";
+    }
+  }, [extractTierIndexFromTokenId, getTierImageHash]);
+
   return {
     // Event management (Diamond pattern)
     initializeEvent,
@@ -2563,6 +2756,15 @@ export const useSmartContract = () => {
     removeStaffRole, // Remove staff role (legacy)
     getStaffRoleNames, // Get role name labels
     burnTicketForQR,
+    
+    // Phase 2: Tier Image Functions
+    setTierImages, // Set all tier images at once
+    getTierImageHash, // Get specific tier image hash
+    getAllTierImageHashes, // Get all tier image hashes
+    setTierImageHash, // Set single tier image hash
+    getTierImageCount, // Get number of tier images
+    extractTierIndexFromTokenId, // Extract tier index from token ID
+    getNFTImageFromTokenId, // Get NFT image URL from token ID
     
     // State
     loading,

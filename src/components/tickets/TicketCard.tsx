@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Flex,
@@ -22,6 +22,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { TransferTicket } from "./TransferTicket";
 import { ResellTicket } from "./ResellTicket";
+import { useSmartContract } from "../../hooks/useSmartContract";
 
 export interface Ticket {
   id: string;
@@ -50,6 +51,9 @@ export const TicketCard: React.FC<TicketCardProps> = ({
   onShowDetails,
 }) => {
   const navigate = useNavigate();
+  const { getNFTImageFromTokenId } = useSmartContract();
+  const [nftImageUrl, setNftImageUrl] = useState<string>("/assets/images/nft-preview.png");
+  
   const {
     isOpen: isTransferOpen,
     onOpen: onTransferOpen,
@@ -61,6 +65,26 @@ export const TicketCard: React.FC<TicketCardProps> = ({
     onOpen: onResellOpen,
     onClose: onResellClose,
   } = useDisclosure();
+
+  // Load NFT image when component mounts or tokenId changes
+  useEffect(() => {
+    const loadNftImage = async () => {
+      try {
+        if (ticket.tokenId) {
+          const tokenIdNum = typeof ticket.tokenId === 'string' ? parseInt(ticket.tokenId) : ticket.tokenId;
+          const imageUrl = await getNFTImageFromTokenId(tokenIdNum);
+          if (imageUrl) {
+            setNftImageUrl(imageUrl);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading NFT image:', error);
+        setNftImageUrl("/assets/images/nft-preview.png");
+      }
+    };
+
+    loadNftImage();
+  }, [ticket.tokenId, getNFTImageFromTokenId]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -191,12 +215,13 @@ export const TicketCard: React.FC<TicketCardProps> = ({
               height="150px"
             >
               <Image
-                src="/assets/images/nft-preview.png"
-                alt={`NFT for ${ticket.eventName}`}
+                src={nftImageUrl}
+                alt={`NFT for ${ticket.eventName} - ${ticket.ticketType}`}
                 width="100%"
                 height="100%"
                 objectFit="cover"
                 borderRadius="md"
+                fallbackSrc="/assets/images/nft-preview.png"
               />
               {!isActive && (
                 <Box

@@ -115,8 +115,18 @@ export const IDRX_TOKEN_ABI = [
     type: "event",
     name: "Transfer",
     inputs: [
-      { name: "from", type: "address", indexed: true, internalType: "address" },
-      { name: "to", type: "address", indexed: true, internalType: "address" },
+      {
+        name: "from",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "to",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
       {
         name: "value",
         type: "uint256",
