@@ -410,7 +410,7 @@ export const MyTicketsPage: React.FC = () => {
       </VStack>
 
       {/* Ticket Details Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="xl">
+      <Modal isOpen={isOpen} onClose={onClose} size="2xl">
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Ticket Details</ModalHeader>

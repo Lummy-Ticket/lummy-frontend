@@ -40,6 +40,9 @@ interface AttendeeData {
   walletAddress: string;
   status: "valid" | "used" | "invalid" | "checked-in";
   checkInTime?: string;
+  // Additional fields for enhanced display
+  transferCount?: number;
+  purchaseDate?: string;
 }
 
 interface AttendeeVerificationProps {
@@ -231,15 +234,32 @@ const AttendeeVerification: React.FC<AttendeeVerificationProps> = ({
             </HStack>
 
             <HStack>
-              <Icon as={FaUser} color="purple.500" />
-              <Text fontWeight="medium">Wallet Address</Text>
-              <Text flex="1" fontFamily="monospace" fontSize="sm">
-                {attendee.walletAddress.substring(0, 8)}...
-                {attendee.walletAddress.substring(
-                  attendee.walletAddress.length - 8
-                )}
+              <Icon as={FaTicketAlt} color="purple.500" />
+              <Text fontWeight="medium">Tier</Text>
+              <Text flex="1" fontSize="sm">
+                {attendee.ticketType}
               </Text>
             </HStack>
+            
+            {attendee.purchaseDate && (
+              <HStack>
+                <Icon as={FaCalendarAlt} color="purple.500" />
+                <Text fontWeight="medium">Purchase Date</Text>
+                <Text flex="1" fontSize="sm">
+                  {new Date(attendee.purchaseDate).toLocaleDateString()}
+                </Text>
+              </HStack>
+            )}
+            
+            {attendee.transferCount !== undefined && (
+              <HStack>
+                <Icon as={FaUser} color="purple.500" />
+                <Text fontWeight="medium">Transfers</Text>
+                <Text flex="1" fontSize="sm">
+                  {attendee.transferCount} times
+                </Text>
+              </HStack>
+            )}
           </VStack>
 
           {attendee.status === "valid" ? (

@@ -129,10 +129,10 @@ export const TicketDetails: React.FC<TicketDetailsProps> = ({ ticket }) => {
     <>
       <Box
         borderWidth="1px"
+        borderColor="gray.200"
         borderRadius="lg"
         overflow="hidden"
         bg="white"
-        boxShadow="md"
       >
         <Box bg="lummy.purple.500" color="white" py={3} px={6}>
           <HStack justify="space-between">
@@ -257,14 +257,15 @@ export const TicketDetails: React.FC<TicketDetailsProps> = ({ ticket }) => {
                 borderWidth="1px"
                 borderRadius="lg"
                 overflow="hidden"
-                width="100%"
-                maxW="300px"
+                width="200px"
+                height="200px"
+                flexShrink={0}
               >
                 <Image
                   src={nftImageUrl}
                   alt={`NFT for ${ticket.eventName} - ${ticket.ticketType}`}
                   width="100%"
-                  height="200px"
+                  height="100%"
                   objectFit="cover"
                   fallbackSrc="/assets/images/nft-preview.png"
                 />

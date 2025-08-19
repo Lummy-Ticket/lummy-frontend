@@ -34,6 +34,7 @@ import {
 import { useParams, useNavigate } from "react-router-dom";
 import { useSmartContract } from "../../hooks/useSmartContract";
 import { useAccount } from "wagmi";
+import { useEmailService } from "../../hooks/useEmailService";
 
 interface TicketMetadata {
   tokenId: string;
@@ -43,6 +44,8 @@ interface TicketMetadata {
   tierName: string;
   organizerName: string;
   ownerAddress: string;
+  ownerEmail: string | null;
+  ownerEmailVerified: boolean;
   status: string;
   originalPrice: string;
   serialNumber: string;
@@ -62,6 +65,8 @@ export const StaffScanPage: React.FC = () => {
     updateTicketStatus,
     hasStaffRole,
   } = useSmartContract();
+  
+  const { getUserEmailByWallet } = useEmailService();
 
   // Cleanup ref on unmount
   useEffect(() => {
@@ -191,6 +196,23 @@ export const StaffScanPage: React.FC = () => {
           }
           
           if (validation && typeof validation === 'object') {
+            // Get email for the ticket owner
+            const ownerAddress = validation.owner || "Unknown Owner";
+            let ownerEmail = null;
+            let ownerEmailVerified = false;
+            
+            if (ownerAddress && ownerAddress !== "Unknown Owner") {
+              try {
+                const emailData = await getUserEmailByWallet(ownerAddress);
+                if (emailData) {
+                  ownerEmail = emailData.email;
+                  ownerEmailVerified = emailData.isVerified;
+                }
+              } catch (error) {
+                console.warn('Failed to fetch email for owner:', ownerAddress, error);
+              }
+            }
+            
             const ticketInfo: TicketMetadata = {
               tokenId: cleanTokenId,
               eventName: validation.eventName || "Unknown Event",
@@ -198,7 +220,9 @@ export const StaffScanPage: React.FC = () => {
               eventDate: "Event Date Available Soon", // Not available from validateTicketAsStaff
               tierName: validation.tierName || "Unknown Tier",
               organizerName: "Event Organizer", // Not available from validateTicketAsStaff
-              ownerAddress: validation.owner || "Unknown Owner",
+              ownerAddress: ownerAddress,
+              ownerEmail: ownerEmail,
+              ownerEmailVerified: ownerEmailVerified,
               status: validation.status || "unknown",
               originalPrice: validation.originalPrice ? `${Number(validation.originalPrice) / 1e18} IDRX` : "Unknown",
               serialNumber: validation.transferCount?.toString() || "Unknown",
@@ -553,11 +577,26 @@ export const StaffScanPage: React.FC = () => {
                     <HStack>
                       <Icon as={FaUser} color="gray.500" />
                       <Box>
-                        <Text fontWeight="medium">Owner</Text>
-                        <Text color="gray.700" fontFamily="mono" fontSize="sm">
-                          {ticketData?.ownerAddress.substring(0, 8)}...
-                          {ticketData?.ownerAddress.substring(ticketData?.ownerAddress.length - 6)}
+                        <Text fontWeight="medium">Ticket Holder</Text>
+                        <Text color="gray.700" fontFamily="mono" fontSize="sm" mb={1}>
+                          {ticketData?.ownerAddress && ticketData?.ownerAddress !== "Unknown Owner" 
+                            ? `${ticketData?.ownerAddress.substring(0, 8)}...${ticketData?.ownerAddress.substring(ticketData?.ownerAddress.length - 6)}`
+                            : "Unknown Owner"}
                         </Text>
+                        {ticketData?.ownerEmail ? (
+                          <Text color="blue.600" fontSize="sm">
+                            📧 {ticketData.ownerEmail} 
+                            {ticketData.ownerEmailVerified ? (
+                              <Badge colorScheme="green" size="sm" ml={1}>✓</Badge>
+                            ) : (
+                              <Badge colorScheme="orange" size="sm" ml={1}>unverified</Badge>
+                            )}
+                          </Text>
+                        ) : (
+                          <Text color="gray.500" fontSize="sm" fontStyle="italic">
+                            📧 No email registered
+                          </Text>
+                        )}
                       </Box>
                     </HStack>
                   </VStack>

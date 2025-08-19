@@ -166,21 +166,21 @@ export const EventDetailPage: React.FC = () => {
               id,
               title: details.name,
               description: details.description,
-              longDescription: details.description, // Use same description for now
-              date: new Date(Number(details.date) * 1000).toISOString(),
-              time: new Date(Number(details.date) * 1000).toLocaleTimeString(
-                [],
-                {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                }
-              ),
-              location: details.venue,
-              venue: details.venue,
-              imageUrl: details.ipfsMetadata || 
-                "https://images.unsplash.com/photo-1459865264687-595d652de67e", // IPFS metadata or fallback
-              bannerUrl: details.ipfsMetadata ||
-                "https://images.unsplash.com/photo-1459865264687-595d652de67e", // IPFS metadata or fallback
+               // Use same description for now
+                      date: new Date(Number(details.date) * 1000).toISOString(),
+                      time: new Date(Number(details.date) * 1000).toLocaleTimeString(
+                      [],
+                      {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }
+                      ),
+                      location: details.venue,
+                      venue: details.venue,
+                      imageUrl: details.ipfsMetadata || 
+                      "/assets/images/Event-Banner.png", // Local image fallback
+                      bannerUrl: details.ipfsMetadata ||
+                      "/assets/images/Event-Poster.png", // Local image fallback
               price: 0, // Will be updated from ticket tiers
               currency: "IDRX",
               category: "Event", // Default category
@@ -369,7 +369,7 @@ export const EventDetailPage: React.FC = () => {
   useEffect(() => {
     const loadBannerImage = async () => {
       if (!event || !event.bannerUrl) {
-        setBannerImageUrl(event?.imageUrl || "https://images.unsplash.com/photo-1459865264687-595d652de67e");
+        setBannerImageUrl(event?.imageUrl || "/assets/images/Event-Banner.png");
         return;
       }
 
@@ -384,7 +384,7 @@ export const EventDetailPage: React.FC = () => {
         }
       } catch (error) {
         console.error('Error loading banner image:', error);
-        setBannerImageUrl(event.bannerUrl || event.imageUrl || "https://images.unsplash.com/photo-1459865264687-595d652de67e");
+        setBannerImageUrl(event.bannerUrl || event.imageUrl || "/assets/images/Event-Poster.png");
       }
     };
 

@@ -34,6 +34,7 @@ export interface UseEmailServiceReturn {
   
   // Utility
   resendVerificationCode: () => Promise<boolean>;
+  getUserEmailByWallet: (walletAddress: string) => Promise<{ email: string; isVerified: boolean } | null>;
 }
 
 export const useEmailService = (): UseEmailServiceReturn => {
@@ -451,6 +452,60 @@ export const useEmailService = (): UseEmailServiceReturn => {
     }
   }, [address, userEmail]);
 
+  // Get user email by wallet address (for staff scanner)
+  const getUserEmailByWallet = useCallback(async (walletAddress: string): Promise<{ email: string; isVerified: boolean } | null> => {
+    if (!walletAddress) {
+      return null;
+    }
+
+    try {
+      // Check if Supabase is available
+      if (!isSupabaseAvailable()) {
+        console.log('🔄 Supabase not available, checking localStorage for wallet:', walletAddress);
+        
+        // Fall back to localStorage in development
+        const localData = localStorage.getItem(`email_${walletAddress.toLowerCase()}`);
+        if (localData) {
+          try {
+            const data = JSON.parse(localData);
+            return {
+              email: data.email,
+              isVerified: data.email_verified || false
+            };
+          } catch (e) {
+            console.warn('Failed to parse localStorage email data for wallet:', walletAddress);
+          }
+        }
+        
+        return null;
+      }
+
+      // Query Supabase for email mapping
+      const { data, error: supabaseError } = await supabase!
+        .from('user_email_mapping')
+        .select('email, email_verified')
+        .eq('wallet_address', walletAddress.toLowerCase())
+        .single();
+
+      if (supabaseError && supabaseError.code !== 'PGRST116') { // PGRST116 is "not found"
+        console.error('Error fetching email for wallet:', walletAddress, supabaseError);
+        return null;
+      }
+
+      if (!data) {
+        return null;
+      }
+
+      return {
+        email: data.email,
+        isVerified: data.email_verified || false
+      };
+    } catch (err) {
+      console.error('Error in getUserEmailByWallet:', err);
+      return null;
+    }
+  }, []);
+
   // Send ticket purchase notification
   const sendTicketPurchaseNotification = useCallback(async (data: {
     eventName: string;
@@ -527,5 +582,6 @@ export const useEmailService = (): UseEmailServiceReturn => {
     
     // Utility
     resendVerificationCode,
+    getUserEmailByWallet,
   };
 };

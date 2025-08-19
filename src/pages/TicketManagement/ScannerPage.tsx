@@ -22,6 +22,7 @@ import QrScanner from "../../components/ticketManagement/QrScanner";
 import RealQrScanner from "../../components/ticketManagement/RealQrScanner";
 import AttendeeVerification from "../../components/ticketManagement/AttendeeVerification";
 import { useSmartContract } from "../../hooks/useSmartContract";
+import { useEmailService } from "../../hooks/useEmailService";
 
 // Mock data for ticket verification result
 interface MockAttendeeData {
@@ -35,6 +36,9 @@ interface MockAttendeeData {
   walletAddress: string;
   status: "valid" | "invalid" | "checked-in";
   checkInTime?: string;
+  // Additional fields for enhanced display
+  transferCount?: number;
+  purchaseDate?: string;
 }
 
 
@@ -57,6 +61,9 @@ interface ScanResult {
   walletAddress?: string;
   ownerAddress?: string;
   status?: string;
+  // Additional fields from validation
+  transferCount?: number;
+  purchaseDate?: string;
 }
 
 const ScannerPage: React.FC = () => {
@@ -65,6 +72,7 @@ const ScannerPage: React.FC = () => {
   const location = useLocation();
   const toast = useToast();
   const { getEventInfo, updateTicketStatus, validateTicketAsStaff } = useSmartContract();
+  const { getUserEmailByWallet } = useEmailService();
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [attendeeData, setAttendeeData] = useState<MockAttendeeData | null>(
@@ -265,23 +273,43 @@ const ScannerPage: React.FC = () => {
     }
   };
 
-  const handleScan = (result: ScanResult) => {
+  const handleScan = async (result: ScanResult) => {
     console.log(`📥 handleScan received:`, result);
     setIsLoading(true);
 
     // Use real data from QR scanner result
-    setTimeout(() => {
+    try {
       if (result.valid) {
+        // Get email for the ticket owner
+        const ownerAddress = result.walletAddress || result.ownerAddress;
+        let ownerEmail = "holder@example.com";
+        let displayName = "Ticket Holder";
+        
+        if (ownerAddress && ownerAddress !== "Unknown") {
+          try {
+            const emailData = await getUserEmailByWallet(ownerAddress);
+            if (emailData && emailData.email) {
+              ownerEmail = emailData.email;
+              displayName = ownerAddress.substring(0, 6) + "..." + ownerAddress.substring(ownerAddress.length - 4);
+            }
+          } catch (error) {
+            console.warn('Failed to fetch email for owner:', ownerAddress, error);
+          }
+        }
+        
         const validAttendee: MockAttendeeData = {
           id: result.id || `ticket-${result.ticketId}`,
-          name: result.name || "Ticket Holder",
-          email: result.email || "holder@example.com",
+          name: displayName,
+          email: ownerEmail,
           ticketType: result.ticketType || result.tierName || "Standard",
           eventName: result.eventName || eventDetails?.name || "Unknown Event",
           eventDate: result.eventDate || new Date().toISOString(),
           eventLocation: result.eventLocation || result.eventVenue || "Unknown Location",
-          walletAddress: result.walletAddress || result.ownerAddress || "Unknown",
+          walletAddress: ownerAddress || "Unknown",
           status: result.status === 'valid' ? "valid" : result.status === 'used' ? "checked-in" : "invalid",
+          // Add extra fields from validation result
+          transferCount: result.transferCount || 0,
+          purchaseDate: result.purchaseDate ? new Date(result.purchaseDate).toISOString() : undefined,
         };
         
         console.log(`✅ Setting attendee data:`, validAttendee);
@@ -297,15 +325,32 @@ const ScannerPage: React.FC = () => {
           ...prev.slice(0, 9), // Keep only last 10 items
         ]);
       } else {
+        // Handle invalid ticket case
+        const ownerAddress = result.walletAddress || result.ownerAddress;
+        let ownerEmail = "holder@example.com";
+        let displayName = "Ticket Holder";
+        
+        if (ownerAddress && ownerAddress !== "Unknown") {
+          try {
+            const emailData = await getUserEmailByWallet(ownerAddress);
+            if (emailData && emailData.email) {
+              ownerEmail = emailData.email;
+              displayName = ownerAddress.substring(0, 6) + "..." + ownerAddress.substring(ownerAddress.length - 4);
+            }
+          } catch (error) {
+            console.warn('Failed to fetch email for invalid ticket owner:', ownerAddress, error);
+          }
+        }
+        
         const invalidAttendee: MockAttendeeData = {
           id: result.id || `ticket-${result.ticketId}`,
-          name: result.name || "Ticket Holder",
-          email: result.email || "holder@example.com", 
+          name: displayName,
+          email: ownerEmail, 
           ticketType: result.ticketType || "Unknown",
           eventName: result.eventName || eventDetails?.name || "Unknown Event",
           eventDate: result.eventDate || new Date().toISOString(),
           eventLocation: result.eventLocation || "Unknown Location",
-          walletAddress: result.walletAddress || "Unknown",
+          walletAddress: ownerAddress || "Unknown",
           status: "invalid",
         };
         
@@ -322,9 +367,18 @@ const ScannerPage: React.FC = () => {
           ...prev.slice(0, 9),
         ]);
       }
-
+    } catch (error) {
+      console.error('Error in handleScan:', error);
+      toast({
+        title: "Scan Error",
+        description: "Failed to process scan result",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   const handleCheckIn = async () => {

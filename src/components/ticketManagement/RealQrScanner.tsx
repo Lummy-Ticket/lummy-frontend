@@ -11,6 +11,7 @@ import {
 import { FaCamera, FaStop } from "react-icons/fa";
 import jsQR from "jsqr";
 import { useSmartContract } from "../../hooks/useSmartContract";
+import { useEmailService } from "../../hooks/useEmailService";
 
 interface RealQrScannerProps {
   onScan: (ticketData: any) => void;
@@ -31,6 +32,7 @@ const RealQrScanner: React.FC<RealQrScannerProps> = ({
   const scanningRef = useRef<boolean>(false);
   
   const { validateTicketAsStaff } = useSmartContract();
+  const { getUserEmailByWallet } = useEmailService();
   const toast = useToast();
 
   // Cleanup on unmount
@@ -171,6 +173,22 @@ const RealQrScanner: React.FC<RealQrScannerProps> = ({
       const validationResult = await validateTicketAsStaff(tokenId);
       
       if (validationResult) {
+        // Get email for the ticket owner
+        let ownerEmail = "holder@example.com";
+        let displayName = "Ticket Holder";
+        
+        if (validationResult.owner && validationResult.owner !== "Unknown Owner") {
+          try {
+            const emailData = await getUserEmailByWallet(validationResult.owner);
+            if (emailData && emailData.email) {
+              ownerEmail = emailData.email;
+              displayName = validationResult.owner.substring(0, 6) + "..." + validationResult.owner.substring(validationResult.owner.length - 4);
+            }
+          } catch (error) {
+            console.warn('Failed to fetch email for owner:', validationResult.owner, error);
+          }
+        }
+        
         const scanResult = {
           valid: validationResult.isValid,
           ticketId: tokenId,
@@ -180,11 +198,14 @@ const RealQrScanner: React.FC<RealQrScannerProps> = ({
           ownerAddress: validationResult.owner,
           // Map to expected format
           id: `ticket-${tokenId}`,
-          name: "Ticket Holder",
-          email: "holder@example.com",
+          name: displayName,
+          email: ownerEmail,
           eventDate: new Date().toISOString(),
           eventLocation: validationResult.eventVenue || "Unknown Location",
-          walletAddress: validationResult.owner
+          walletAddress: validationResult.owner,
+          // Additional fields from validation
+          transferCount: validationResult.transferCount || 0,
+          purchaseDate: validationResult.purchaseDate ? new Date(Number(validationResult.purchaseDate) * 1000).toISOString() : undefined,
         };
 
         console.log(`✅ Scan result:`, scanResult);
