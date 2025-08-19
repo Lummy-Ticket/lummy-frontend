@@ -28,6 +28,22 @@ export const parseIPFSMetadata = async (ipfsMetadata: string): Promise<IPFSImage
       }
     }
     
+    // Check if it's a full IPFS gateway URL (like https://gateway.pinata.cloud/ipfs/hash)
+    if (ipfsMetadata.includes('/ipfs/')) {
+      console.log('🌐 Detected IPFS gateway URL, extracting hash...');
+      const hashMatch = ipfsMetadata.match(/\/ipfs\/([a-zA-Z0-9]+)$/);
+      if (hashMatch && hashMatch[1]) {
+        const hash = hashMatch[1];
+        console.log('🔍 Extracted hash:', hash);
+        const metadata = await fetchIPFSJson(hash) as IPFSImageMetadata;
+        
+        if (metadata && metadata.posterImage && metadata.bannerImage) {
+          console.log('✅ IPFS JSON fetched from URL successfully');
+          return metadata;
+        }
+      }
+    }
+    
     // Try to fetch as IPFS hash containing JSON
     if (ipfsMetadata.startsWith('Qm') || ipfsMetadata.startsWith('ba')) {
       console.log('🌐 Fetching JSON from IPFS hash');

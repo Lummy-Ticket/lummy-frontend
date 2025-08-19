@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   VStack,
@@ -17,6 +17,8 @@ import {
 import { Event, TicketTier } from "../../types/Event";
 import { FaCalendarAlt, FaMapMarkerAlt } from "react-icons/fa";
 import { FeeDisplay } from "../common";
+import { getPosterImageUrl } from "../../utils/ipfsMetadata";
+import { getIPFSUrl, isValidIPFSHash } from "../../services/IPFSService";
 
 interface OrderSummaryProps {
   event: Event;
@@ -42,6 +44,8 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
   quantity,
   onQuantityChange,
 }) => {
+  const [posterImageUrl, setPosterImageUrl] = useState<string>("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwIiBoZWlnaHQ9IjkwIiB2aWV3Qm94PSIwIDAgMTIwIDkwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB3aWR0aD0iMTIwIiBoZWlnaHQ9IjkwIiBmaWxsPSIjNkI0NkMxIi8+Cjx0ZXh0IHg9IjYwIiB5PSI0NSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IndoaXRlIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTJweCI+RXZlbnQ8L3RleHQ+Cjwvc3ZnPgo=");
+
   const handleQuantityChange = (
     _valueAsString: string,
     valueAsNumber: number
@@ -50,6 +54,50 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
   };
 
   const subtotal = tier.price * quantity;
+
+  // Load poster image from IPFS metadata (same logic as EventCard)
+  useEffect(() => {
+    const loadPosterImage = async () => {
+      console.log('🔍 OrderSummary - Loading poster image, event.imageUrl:', event.imageUrl);
+      
+      if (!event.imageUrl) {
+        console.log('⚠️ OrderSummary - No imageUrl provided, using placeholder');
+        setPosterImageUrl("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwIiBoZWlnaHQ9IjkwIiB2aWV3Qm94PSIwIDAgMTIwIDkwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB3aWR0aD0iMTIwIiBoZWlnaHQ9IjkwIiBmaWxsPSIjNkI0NkMxIi8+Cjx0ZXh0IHg9IjYwIiB5PSI0NSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IndoaXRlIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTJweCI+RXZlbnQ8L3RleHQ+Cjwvc3ZnPgo=");
+        return;
+      }
+
+      try {
+        console.log('🌐 OrderSummary - Calling getPosterImageUrl...');
+        // Try to get poster image from JSON metadata first
+        const posterUrl = await getPosterImageUrl(event.imageUrl);
+        console.log('✅ OrderSummary - getPosterImageUrl result:', posterUrl);
+        
+        if (posterUrl) {
+          setPosterImageUrl(posterUrl);
+          console.log('✅ OrderSummary - Poster image set:', posterUrl);
+          return;
+        }
+        
+        // Fallback: Legacy format - direct IPFS hash
+        if (isValidIPFSHash(event.imageUrl)) {
+          const fallbackUrl = getIPFSUrl(event.imageUrl);
+          console.log('🔄 OrderSummary - Using legacy IPFS hash:', fallbackUrl);
+          setPosterImageUrl(fallbackUrl);
+          return;
+        }
+        
+        // If already full URL, use as is
+        console.log('🔄 OrderSummary - Using imageUrl as is:', event.imageUrl);
+        setPosterImageUrl(event.imageUrl);
+        
+      } catch (error) {
+        console.error('❌ OrderSummary - Error loading poster image:', error);
+        setPosterImageUrl("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwIiBoZWlnaHQ9IjkwIiB2aWV3Qm94PSIwIDAgMTIwIDkwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB3aWR0aD0iMTIwIiBoZWlnaHQ9IjkwIiBmaWxsPSIjNkI0NkMxIi8+Cjx0ZXh0IHg9IjYwIiB5PSI0NSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IndoaXRlIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTJweCI+RXZlbnQ8L3RleHQ+Cjwvc3ZnPgo=");
+      }
+    };
+
+    loadPosterImage();
+  }, [event.imageUrl]);
 
   return (
     <Box
@@ -70,11 +118,16 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
           flexShrink={0}
         >
           <Image
-            src={event.imageUrl}
+            src={posterImageUrl}
             alt={event.title}
             objectFit="cover"
             width="100%"
             height="100%"
+            fallbackSrc="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwIiBoZWlnaHQ9IjkwIiB2aWV3Qm94PSIwIDAgMTIwIDkwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB3aWR0aD0iMTIwIiBoZWlnaHQ9IjkwIiBmaWxsPSIjNkI0NkMxIi8+Cjx0ZXh0IHg9IjYwIiB5PSI0NSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IndoaXRlIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTJweCI+RXZlbnQ8L3RleHQ+Cjwvc3ZnPgo="
+            onError={(e) => {
+              console.warn('Failed to load poster image:', posterImageUrl);
+              e.currentTarget.src = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwIiBoZWlnaHQ9IjkwIiB2aWV3Qm94PSIwIDAgMTIwIDkwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB3aWR0aD0iMTIwIiBoZWlnaHQ9IjkwIiBmaWxsPSIjNkI0NkMxIi8+Cjx0ZXh0IHg9IjYwIiB5PSI0NSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IndoaXRlIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTJweCI+RXZlbnQ8L3RleHQ+Cjwvc3ZnPgo=";
+            }}
           />
         </Box>
 

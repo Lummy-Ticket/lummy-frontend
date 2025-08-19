@@ -27,7 +27,6 @@ import { WalletConnect } from "../../components/checkout/WalletConnect";
 import { PaymentConfirmation } from "../../components/checkout/PaymentConfirmation";
 import { mockEvents } from "../../data/mockEvents";
 import { Event, TicketTier } from "../../types/Event";
-import { useWallet } from "../../hooks/useWallet";
 import { TokenBalance } from "../../components/wallet";
 import { useSmartContract } from "../../hooks/useSmartContract";
 import { DEVELOPMENT_CONFIG, CONTRACT_ADDRESSES } from "../../constants";
@@ -96,9 +95,19 @@ export const CheckoutPage: React.FC = () => {
     count: steps.length,
   });
 
-  // Wallet integration - using only what we need and removing unused variables
-  const { isConnected, wallet } = useWallet();
+  // Wallet integration - using Wagmi for consistency with Navbar
+  const { isConnected } = useAccount();
   const { address } = useAccount();
+
+  // Auto-skip Connect Wallet step if user is already connected
+  useEffect(() => {
+    console.log('🚀 CheckoutPage - wallet check (Wagmi):', { isConnected, activeStep, address });
+    if (isConnected && address && activeStep === 0) {
+      console.log('✅ Auto-skip - wallet already connected via Wagmi');
+      setIsWalletConnected(true);
+      setActiveStep(1);
+    }
+  }, [isConnected, address, activeStep, setActiveStep]);
   
   // Get real wallet balance for payment checking
   const { data: balanceData } = useBalance({
@@ -110,13 +119,6 @@ export const CheckoutPage: React.FC = () => {
   const { getEventInfo, getTicketTiers, approveIDRX, purchaseTickets } = useSmartContract();
   // Removed unused variables: hasEnoughBalance, buyTicket
 
-  // Update stepper when wallet is connected
-  useEffect(() => {
-    if (isConnected && wallet && activeStep === 0) {
-      setIsWalletConnected(true);
-      setActiveStep(1); // Skip to review step if wallet is already connected
-    }
-  }, [isConnected, wallet, activeStep, setActiveStep]);
 
   useEffect(() => {
     const getEvent = async () => {
@@ -146,7 +148,7 @@ export const CheckoutPage: React.FC = () => {
                 location: eventInfo.venue,
                 price: 0,
                 currency: "IDRX",
-                imageUrl: "/api/placeholder/300/200",
+                imageUrl: eventInfo.ipfsMetadata || "",
                 category: "blockchain",
                 status: "available",
                 organizer: {
@@ -417,7 +419,7 @@ export const CheckoutPage: React.FC = () => {
                   onConnect={handleConnectWallet}
                   isLoading={isWalletLoading}
                   isConnected={isWalletConnected}
-                  walletAddress={wallet?.address}
+                  walletAddress={address}
                 />
               )}
 

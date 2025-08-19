@@ -1371,6 +1371,7 @@ export const useSmartContract = () => {
               sellerRating: 4.5, // Default rating - could be enhanced
               tokenId: tokenId,
               transferCount: Number((metadata as any).transferCount || 0),
+              imageUrl: eventInfo.ipfsMetadata || "", // Add IPFS metadata hash for poster image
               blockNumber: event.blockNumber, // For accurate deduplication
             };
             
