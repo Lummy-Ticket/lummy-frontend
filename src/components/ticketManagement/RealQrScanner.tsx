@@ -205,7 +205,7 @@ const RealQrScanner: React.FC<RealQrScannerProps> = ({
           walletAddress: validationResult.owner,
           // Additional fields from validation
           transferCount: validationResult.transferCount || 0,
-          purchaseDate: validationResult.purchaseDate ? new Date(Number(validationResult.purchaseDate) * 1000).toISOString() : undefined,
+          purchaseDate: (validationResult as any).purchaseDate ? new Date(Number((validationResult as any).purchaseDate) * 1000).toISOString() : undefined,
         };
 
         console.log(`✅ Scan result:`, scanResult);
