@@ -177,7 +177,7 @@ export const useSmartContract = () => {
       console.log("🔍 getEventInfo - IPFS Metadata from contract:", ipfsMetadata);
 
       return {
-        eventId: BigInt(0), // Diamond uses single event instance
+        eventId: BigInt(1), // Fixed: Diamond uses eventId = 1 for Algorithm 1 tokens
         name: eventInfo[0],
         description: eventInfo[1],
         date: eventInfo[2],
@@ -597,7 +597,7 @@ export const useSmartContract = () => {
 
       // For known token ID patterns (Algorithm 1: 1EEETTTSSSSS)
       // Check likely token IDs based on recent purchases
-      const eventId = 0; // Corrected: Event ID is 0 based on token ID 1000100001
+      const eventId = 1; // Fixed: Event ID is 1 based on token ID 1001010001
       const expectedBalance = Number(balance);
       console.log(`🔍 Scanning for ${expectedBalance} tokens with basic method...`);
       
@@ -607,7 +607,7 @@ export const useSmartContract = () => {
       // Generate likely token IDs (first 50 most likely)
       for (let tierId = 0; tierId < 5; tierId++) {
         for (let sequential = 1; sequential <= 10; sequential++) {
-          const tokenId = BigInt(1000000000 + (eventId * 1000000) + ((tierId + 1) * 100000) + sequential);
+          const tokenId = BigInt(1000000000 + (eventId * 1000000) + ((tierId + 1) * 10000) + sequential);
           candidateTokens.push(tokenId);
         }
       }
@@ -731,7 +731,7 @@ export const useSmartContract = () => {
             const remaining = tokenId - 1000000000;
             const parsedEventId = Math.floor(remaining / 1000000);
             const remainingAfterEvent = remaining % 1000000;
-            const actualTierCode = Math.floor(remainingAfterEvent / 100000);
+            const actualTierCode = Math.floor(remainingAfterEvent / 10000);
             const parsedTierCode = actualTierCode - 1;
             
             // Convert to expected format with auto-populated metadata
@@ -823,7 +823,7 @@ export const useSmartContract = () => {
           for (let tierCode = 0; tierCode < maxTiersToCheck; tierCode++) {
             for (let sequential = 1; sequential <= maxSequentialToCheck; sequential++) {
               // Generate Algorithm 1 token ID
-              const tokenId = baseTokenId + (eventId * 1000000) + ((tierCode + 1) * 100000) + sequential;
+              const tokenId = baseTokenId + (eventId * 1000000) + ((tierCode + 1) * 10000) + sequential;
               
               try {
                 const owner = await publicClient.readContract({
@@ -1010,7 +1010,7 @@ export const useSmartContract = () => {
         const tokenIdNum = Number(tokenId);
         const remaining = tokenIdNum - 1000000000;
         const remainingAfterEvent = remaining % 1000000;
-        const actualTierCode = Math.floor(remainingAfterEvent / 100000);
+        const actualTierCode = Math.floor(remainingAfterEvent / 10000);
         const parsedTierCode = actualTierCode - 1;
         
         // Get correct tier info
@@ -1053,7 +1053,7 @@ export const useSmartContract = () => {
    */
   const updateAllUserNFTsMetadata = useCallback(
     async () => {
-      const knownTokenIds = [BigInt(1000100001), BigInt(1000200001)];
+      const knownTokenIds = [BigInt(1001010001), BigInt(1001020001)];
       let updatedCount = 0;
 
       for (const tokenId of knownTokenIds) {
@@ -2342,8 +2342,8 @@ export const useSmartContract = () => {
           const tokenIdNumber = Number(tokenId);
           const remaining = tokenIdNumber - 1000000000;
           const remainingAfterEvent = remaining % 1000000;
-          const actualTierCode = Math.floor(remainingAfterEvent / 100000);
-          const serialNumber = remainingAfterEvent % 100000;
+          const actualTierCode = Math.floor(remainingAfterEvent / 10000);
+          const serialNumber = remainingAfterEvent % 10000;
 
           // Get tier details with enhanced error handling and multiple fallback strategies
           let tierName = metadata.tierName || "Unknown Tier";
@@ -2674,11 +2674,11 @@ export const useSmartContract = () => {
   const extractTierIndexFromTokenId = useCallback((tokenId: bigint | number) => {
     const tokenIdNumber = typeof tokenId === 'bigint' ? Number(tokenId) : tokenId;
     
-    // Extract tier code from position 4-6 (3 digits) and convert to 0-based index
-    const tierCode = Math.floor(tokenIdNumber / 100000) % 1000;
+    // Extract tier code from position 4 (1 digit) - keep as 1-based for contract call
+    const tierCode = Math.floor(tokenIdNumber / 10000) % 10;
     
-    // Convert from 1-based tier code to 0-based tier index
-    return tierCode > 0 ? tierCode - 1 : 0;
+    // Return tier code as-is (1-based) for contract getTierImageHash() call
+    return tierCode;
   }, []);
 
   /**

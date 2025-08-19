@@ -77,7 +77,7 @@ const TicketTierCreator: React.FC<TicketTierCreatorProps> = ({
 
   const handleAddTier = () => {
     const newTier: TicketTierInput = {
-      id: `tier-${Date.now()}`,
+      id: `tier-${tiers.length + 1}`,
       name: "",
       description: "",
       price: 0,

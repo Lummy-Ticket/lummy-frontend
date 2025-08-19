@@ -440,23 +440,21 @@ const CreateEventForm: React.FC = () => {
       
       let tierImageHashes: string[] = [];
       try {
-        // Extract IPFS hashes from tier nftImageUrl
+        // Extract IPFS hashes from uploaded JSON metadata (correct source)
+        console.log("🔍 Extracting tier images from IPFS metadata:", jsonMetadata.tierBackgrounds);
         
-        for (let i = 0; i < ticketTiers.length; i++) {
-          const tier = ticketTiers[i];
-          console.log(`🔍 Processing tier ${i} (${tier.name}):`, tier.nftImageUrl);
-          
-          if (tier.nftImageUrl && tier.nftImageUrl.includes('ipfs/')) {
-            // Extract hash from URL like: https://gateway.pinata.cloud/ipfs/QmXxXxXx...
-            const hash = tier.nftImageUrl.split('ipfs/')[1];
-            tierImageHashes.push(hash);
-            console.log(`✅ Tier ${i} (${tier.name}) image hash: ${hash}`);
-          } else {
-            // Use placeholder if no image
-            tierImageHashes.push('');
-            console.log(`⚠️ Tier ${i} (${tier.name}) has no NFT image, URL: ${tier.nftImageUrl || 'undefined'}`);
-          }
-        }
+        // Sort tier keys to ensure correct ordering (tier-1, tier-2, etc.)
+        const sortedTierKeys = Object.keys(jsonMetadata.tierBackgrounds).sort((a, b) => {
+          const numA = parseInt(a.split('-')[1]) || 0;
+          const numB = parseInt(b.split('-')[1]) || 0;
+          return numA - numB;
+        });
+        
+        sortedTierKeys.forEach((tierKey, index) => {
+          const hash = jsonMetadata.tierBackgrounds[tierKey];
+          tierImageHashes.push(hash);
+          console.log(`✅ Tier ${index + 1} (${tierKey}) image hash: ${hash}`);
+        });
 
         console.log("🔍 Extracted tier image hashes:", tierImageHashes);
         console.log("🔍 Has valid hashes?", tierImageHashes.some(hash => hash.length > 0));

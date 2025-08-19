@@ -26,7 +26,7 @@ type TicketStatus = 'valid' | 'used' | 'refunded';
 const mockScanResults = [
   {
     valid: true,
-    ticketId: "1000100001",        // Diamond format: 1[eventId][tier][sequential] 
+    ticketId: "1001010001",        // Diamond format: 1[eventId][tier][sequential] 
     eventId: "event-1",
     ticketType: "VIP Pass",
     eventName: "Summer Music Festival",
@@ -49,7 +49,7 @@ const mockScanResults = [
   },
   {
     valid: false,
-    ticketId: "1000200001",
+    ticketId: "1001020001",
     eventId: "event-1",
     error: "Ticket has been refunded",
     ticketType: "Weekend Pass",
@@ -180,7 +180,7 @@ const QrScanner: React.FC<QrScannerProps> = ({ onScan, isLoading = false, eventI
     // Include real NFT token IDs from your blockchain
     // These should match the actual NFTs you own
     const realTokenIds = [
-      '1000100001', // Your confirmed real NFT token ID
+      '1001010001', // Your confirmed real NFT token ID
       '1000100002', 
       '1000100003',
       '1000100004',
@@ -192,9 +192,9 @@ const QrScanner: React.FC<QrScannerProps> = ({ onScan, isLoading = false, eventI
       `lummy-ticket://scan/${tokenId}/${eventId || '1'}`
     ).concat([
       // Also include some formats for variety  
-      `mock://scan/1000100001/${eventId || '1'}`,
-      `https://lummy-ticket.vercel.app/scanner?token=1000100001&event=${eventId || '1'}`,
-      '1000100001' // Direct token ID
+      `mock://scan/1001010001/${eventId || '1'}`,
+      `https://lummy-ticket.vercel.app/scanner?token=1001010001&event=${eventId || '1'}`,
+      '1001010001' // Direct token ID
     ]);
 
     // For testing: Always prioritize real token ID first
@@ -623,11 +623,11 @@ const QrScanner: React.FC<QrScannerProps> = ({ onScan, isLoading = false, eventI
               colorScheme="orange"
               size="lg"
               width="100%"
-              onClick={() => handleDirectMarkAsUsed('1000100001')}
+              onClick={() => handleDirectMarkAsUsed('1001010001')}
               isLoading={isLoading}
               loadingText="Marking as Used..."
             >
-              Mark Token 1000100001 as Used 🎫
+              Mark Token 1001010001 as Used 🎫
             </Button>
             <Text fontSize="xs" color="yellow.700" textAlign="center">
               This will directly call blockchain updateTicketStatus() for your real NFT

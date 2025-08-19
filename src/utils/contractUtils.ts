@@ -338,22 +338,22 @@ export const parseTokenId = (tokenId: bigint): {
 } => {
   const tokenIdStr = tokenId.toString();
   
-  if (tokenIdStr.length !== 12 || !tokenIdStr.startsWith('1')) {
+  if (tokenIdStr.length !== 11 || !tokenIdStr.startsWith('1')) {
     throw new Error('Invalid Token ID format');
   }
   
   const algorithm = parseInt(tokenIdStr.slice(0, 1));
   const eventId = parseInt(tokenIdStr.slice(1, 4));
-  const tierCode = parseInt(tokenIdStr.slice(4, 7));
-  const sequential = parseInt(tokenIdStr.slice(7, 12));
+  const tierCode = parseInt(tokenIdStr.slice(4, 5));
+  const sequential = parseInt(tokenIdStr.slice(5, 11));
   
   return { algorithm, eventId, tierCode, sequential };
 };
 
 /**
- * Generate Deterministic Token ID format: 1EEETTTSSSSS
- * @param eventId - Event ID (0-999)
- * @param tierCode - Tier code (1-999, 1-indexed)
+ * Generate Deterministic Token ID format: 1EEETSSSSS
+ * @param eventId - Event ID (1-999)
+ * @param tierCode - Tier code (1-9, 1-indexed)
  * @param sequential - Sequential number (1-99999)
  * @returns Token ID as bigint
  */
@@ -362,11 +362,11 @@ export const generateTokenId = (
   tierCode: number,
   sequential: number
 ): bigint => {
-  if (eventId > 999) throw new Error('Event ID must be <= 999');
-  if (tierCode > 999 || tierCode < 1) throw new Error('Tier code must be 1-999');
+  if (eventId > 999 || eventId < 1) throw new Error('Event ID must be 1-999');
+  if (tierCode > 9 || tierCode < 1) throw new Error('Tier code must be 1-9');
   if (sequential > 99999 || sequential < 1) throw new Error('Sequential must be 1-99999');
   
-  const tokenIdStr = `1${eventId.toString().padStart(3, '0')}${tierCode.toString().padStart(3, '0')}${sequential.toString().padStart(5, '0')}`;
+  const tokenIdStr = `1${eventId.toString().padStart(3, '0')}${tierCode}${sequential.toString().padStart(5, '0')}`;
   return BigInt(tokenIdStr);
 };
 
@@ -377,7 +377,7 @@ export const generateTokenId = (
  */
 export const isValidTokenId = (tokenId: bigint): boolean => {
   const tokenIdStr = tokenId.toString();
-  return tokenIdStr.length === 12 && tokenIdStr.startsWith('1');
+  return tokenIdStr.length === 11 && tokenIdStr.startsWith('1');
 };
 
 // ============================================================================

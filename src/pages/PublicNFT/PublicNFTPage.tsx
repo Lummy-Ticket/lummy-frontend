@@ -69,7 +69,7 @@ export const PublicNFTPage: React.FC = () => {
         const remaining = tokenIdNum - 1000000000;
         const parsedEventId = Math.floor(remaining / 1000000);
         const remainingAfterEvent = remaining % 1000000;
-        const actualTierCode = Math.floor(remainingAfterEvent / 100000);
+        const actualTierCode = Math.floor(remainingAfterEvent / 10000);
         const parsedTierCode = actualTierCode - 1;
 
         // Get event info and tiers
