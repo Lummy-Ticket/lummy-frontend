@@ -19,6 +19,7 @@ import { ArrowBackIcon, CheckIcon } from "@chakra-ui/icons";
 import { FaTicketAlt } from "react-icons/fa";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import QrScanner from "../../components/ticketManagement/QrScanner";
+import RealQrScanner from "../../components/ticketManagement/RealQrScanner";
 import AttendeeVerification from "../../components/ticketManagement/AttendeeVerification";
 import { useSmartContract } from "../../hooks/useSmartContract";
 
@@ -36,24 +37,26 @@ interface MockAttendeeData {
   checkInTime?: string;
 }
 
-const mockAttendeeData: MockAttendeeData = {
-  id: "att-12345",
-  name: "John Smith",
-  email: "john.smith@example.com",
-  ticketType: "VIP Pass",
-  eventName: "Summer Music Festival",
-  eventDate: "2025-06-15T12:00:00",
-  eventLocation: "Jakarta Convention Center",
-  walletAddress: "0x1234567890abcdef1234567890abcdef12345678",
-  status: "valid",
-};
 
 interface ScanResult {
   valid: boolean;
   ticketId: string;
-  eventId: string;
+  eventId?: string;
   error?: string;
   attendeeData?: MockAttendeeData;
+  // Additional fields from RealQrScanner
+  id?: string;
+  name?: string;
+  email?: string;
+  ticketType?: string;
+  tierName?: string;
+  eventName?: string;
+  eventDate?: string;
+  eventLocation?: string;
+  eventVenue?: string;
+  walletAddress?: string;
+  ownerAddress?: string;
+  status?: string;
 }
 
 const ScannerPage: React.FC = () => {
@@ -80,6 +83,9 @@ const ScannerPage: React.FC = () => {
   // Individual ticket validation state
   const [ticketData, setTicketData] = useState<any | null>(null);
   const [ticketError, setTicketError] = useState<string | null>(null);
+  
+  // Scanner mode control
+  const [useRealCamera, setUseRealCamera] = useState<boolean>(true); // Default to real camera
   
   // Determine if we're in individual ticket mode
   const isIndividualTicketMode = !!tokenId;
@@ -260,40 +266,57 @@ const ScannerPage: React.FC = () => {
   };
 
   const handleScan = (result: ScanResult) => {
+    console.log(`📥 handleScan received:`, result);
     setIsLoading(true);
 
-    // Simulate API call to verify ticket
+    // Use real data from QR scanner result
     setTimeout(() => {
       if (result.valid) {
         const validAttendee: MockAttendeeData = {
-          ...mockAttendeeData,
-          name: `Attendee ${Math.floor(Math.random() * 100)}`,
-          status: "valid",
+          id: result.id || `ticket-${result.ticketId}`,
+          name: result.name || "Ticket Holder",
+          email: result.email || "holder@example.com",
+          ticketType: result.ticketType || result.tierName || "Standard",
+          eventName: result.eventName || eventDetails?.name || "Unknown Event",
+          eventDate: result.eventDate || new Date().toISOString(),
+          eventLocation: result.eventLocation || result.eventVenue || "Unknown Location",
+          walletAddress: result.walletAddress || result.ownerAddress || "Unknown",
+          status: result.status === 'valid' ? "valid" : result.status === 'used' ? "checked-in" : "invalid",
         };
+        
+        console.log(`✅ Setting attendee data:`, validAttendee);
         setAttendeeData(validAttendee);
 
         // Add to scan history
         setScanHistory((prev) => [
           {
             time: new Date(),
-            attendee: validAttendee.name,
+            attendee: `${validAttendee.name} (${result.ticketId})`,
             status: "success",
           },
           ...prev.slice(0, 9), // Keep only last 10 items
         ]);
       } else {
         const invalidAttendee: MockAttendeeData = {
-          ...mockAttendeeData,
-          name: `Attendee ${Math.floor(Math.random() * 100)}`,
+          id: result.id || `ticket-${result.ticketId}`,
+          name: result.name || "Ticket Holder",
+          email: result.email || "holder@example.com", 
+          ticketType: result.ticketType || "Unknown",
+          eventName: result.eventName || eventDetails?.name || "Unknown Event",
+          eventDate: result.eventDate || new Date().toISOString(),
+          eventLocation: result.eventLocation || "Unknown Location",
+          walletAddress: result.walletAddress || "Unknown",
           status: "invalid",
         };
+        
+        console.log(`❌ Setting invalid attendee data:`, invalidAttendee);
         setAttendeeData(invalidAttendee);
 
         // Add to scan history
         setScanHistory((prev) => [
           {
             time: new Date(),
-            attendee: invalidAttendee.name,
+            attendee: `${invalidAttendee.name} (${result.ticketId})`,
             status: "failed",
           },
           ...prev.slice(0, 9),
@@ -374,8 +397,40 @@ const ScannerPage: React.FC = () => {
   };
 
   const handleReject = (attendeeId: string, reason: string) => {
-    // Simulate API call to mark ticket as rejected
-    console.log(`Rejecting attendee ${attendeeId}, reason: ${reason}`);
+    if (!attendeeData) return;
+    
+    console.log(`🚫 Rejecting attendee ${attendeeId}, reason: ${reason}`);
+    
+    // Update attendee status to rejected (UI only)
+    const rejectedAttendee: MockAttendeeData = {
+      ...attendeeData,
+      status: "invalid",
+    };
+    setAttendeeData(rejectedAttendee);
+
+    // Add to scan history
+    setScanHistory((prev) => [
+      {
+        time: new Date(),
+        attendee: `${attendeeData.name} (REJECTED)`,
+        status: "failed",
+      },
+      ...prev.slice(0, 9),
+    ]);
+
+    // Show rejection toast
+    toast({
+      title: "Ticket Rejected",
+      description: `Ticket rejected: ${reason}`,
+      status: "warning",
+      duration: 3000,
+      isClosable: true,
+    });
+
+    // Close modal/reset after a delay
+    setTimeout(() => {
+      setAttendeeData(null);
+    }, 2000);
   };
 
   const formatTime = (date: Date): string => {
@@ -557,7 +612,35 @@ const ScannerPage: React.FC = () => {
       <Grid templateColumns={{ base: "1fr", lg: "1fr 1fr" }} gap={6}>
         <GridItem>
           <VStack spacing={6} align="stretch">
-            <QrScanner onScan={handleScan} isLoading={isLoading} eventId={eventId} />
+            {/* Scanner Mode Toggle */}
+            <HStack justify="space-between" align="center">
+              <Text fontSize="sm" color="gray.600">Scanner Mode:</Text>
+              <HStack>
+                <Button
+                  size="sm"
+                  variant={useRealCamera ? "solid" : "outline"}
+                  colorScheme="blue"
+                  onClick={() => setUseRealCamera(true)}
+                >
+                  Real Camera
+                </Button>
+                <Button
+                  size="sm"
+                  variant={!useRealCamera ? "solid" : "outline"}
+                  colorScheme="gray"
+                  onClick={() => setUseRealCamera(false)}
+                >
+                  Mock Scanner
+                </Button>
+              </HStack>
+            </HStack>
+
+            {/* Conditional Scanner Rendering */}
+            {useRealCamera ? (
+              <RealQrScanner onScan={handleScan} isLoading={isLoading} eventId={eventId} />
+            ) : (
+              <QrScanner onScan={handleScan} isLoading={isLoading} eventId={eventId} />
+            )}
 
             <Box bg={cardBg} p={6} borderRadius="lg" shadow="sm">
               <Flex justify="space-between" align="center" mb={4}>

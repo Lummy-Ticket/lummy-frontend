@@ -18,6 +18,7 @@ import {
   ModalBody,
   ModalCloseButton,
   useDisclosure,
+  Spinner,
 } from "@chakra-ui/react";
 import { CheckIcon, CloseIcon, InfoIcon } from "@chakra-ui/icons";
 import {
@@ -90,6 +91,30 @@ const AttendeeVerification: React.FC<AttendeeVerificationProps> = ({
     }
   };
 
+  // Loading state
+  if (isLoading && !attendee) {
+    return (
+      <Box
+        bg={cardBg}
+        borderRadius="lg"
+        p={6}
+        shadow="sm"
+        height="500px"
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+      >
+        <VStack spacing={4}>
+          <Spinner size="xl" color="blue.500" />
+          <Text color="gray.500" fontSize="lg">
+            Validating ticket...
+          </Text>
+        </VStack>
+      </Box>
+    );
+  }
+
+  // No attendee state
   if (!attendee) {
     return (
       <Box
@@ -178,6 +203,9 @@ const AttendeeVerification: React.FC<AttendeeVerificationProps> = ({
                 {attendee.name}
               </Text>
               <Text color="gray.600">{attendee.email}</Text>
+              <Text color="gray.500" fontSize="sm" fontFamily="mono">
+                Token ID: {attendee.id.replace('ticket-', '')}
+              </Text>
               <HStack mt={2}>
                 <Badge colorScheme="purple" px={2} py={1}>
                   {attendee.ticketType}
