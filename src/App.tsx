@@ -73,6 +73,7 @@ function App() {
               <Route path="/staff" element={<StaffEventSelection />} />
               <Route path="/staff/event/:eventId" element={<CheckInDashboard />} />
               <Route path="/staff/event/:eventId/scanner" element={<ScannerPage />} />
+              <Route path="/staff/event/:eventId/scanner/:tokenId" element={<ScannerPage />} />
               <Route path="/staff/scan/:tokenId" element={<StaffScanPage />} />
 
               {/* Organizer Request routes */}

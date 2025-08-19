@@ -5,12 +5,13 @@ import { DEVELOPMENT_CONFIG } from "../../constants";
 
 interface QRCodeProps {
   ticketId: string;
-  eventId?: string; // Optional since we're not using it for lummy-ticket.vercel.app URLs
+  eventId?: string; // Optional - defaults to event ID 1 for current implementation
   size?: number;
 }
 
 export const QRCode: React.FC<QRCodeProps> = ({
   ticketId,
+  eventId = "1", // Default to event ID 1 for current single-event setup
   size = 200,
 }) => {
   // Extract clean token ID (remove "ticket-" prefix if present)
@@ -19,18 +20,15 @@ export const QRCode: React.FC<QRCodeProps> = ({
   // Generate QR code data for staff scanner access
   const generateQRData = () => {
     if (DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN) {
-      // Real implementation: Direct to lummy-ticket.vercel.app staff scanner
-      return `https://lummy-ticket.vercel.app/staff/scan/${cleanTokenId}`;
+      // Real implementation: Direct to local development staff scanner with event context
+      return `http://localhost:5173/staff/event/${eventId}/scanner/${cleanTokenId}`;
     } else {
-      // Mock implementation: Use lummy-ticket.vercel.app for testing
-      return `https://lummy-ticket.vercel.app/staff/scan/${cleanTokenId}`;
+      // Mock implementation: Use event context for testing
+      return `http://localhost:5173/staff/event/${eventId}/scanner/${cleanTokenId}`;
     }
   };
 
   const qrData = generateQRData();
-  
-  // Fallback URL for web browsers (lummy-ticket.vercel.app)
-  const fallbackUrl = `https://lummy-ticket.vercel.app/staff/scan/${cleanTokenId}`;
 
   // Real QR code implementation
   return (
@@ -62,18 +60,13 @@ export const QRCode: React.FC<QRCodeProps> = ({
           {ticketId.substring(0, 8)}...{ticketId.substring(ticketId.length - 4)}
         </Text>
         <Text fontSize="xs" color="gray.400">
-          {DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN 
-            ? "Blockchain Mode" 
-            : "Mock Mode"}
+          Staff Scanner - Event {eventId}
         </Text>
         {DEVELOPMENT_CONFIG.LOG_CONTRACT_CALLS && (
           <Text fontSize="xs" color="blue.500" mt={1}>
-            QR: {qrData}
+            URL: {qrData}
           </Text>
         )}
-        <Text fontSize="xs" color="gray.400" mt={1}>
-          Fallback: {fallbackUrl}
-        </Text>
       </VStack>
     </VStack>
   );

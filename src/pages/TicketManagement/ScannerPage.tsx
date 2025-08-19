@@ -15,7 +15,7 @@ import {
   Icon,
   useToast,
 } from "@chakra-ui/react";
-import { ArrowBackIcon } from "@chakra-ui/icons";
+import { ArrowBackIcon, CheckIcon } from "@chakra-ui/icons";
 import { FaTicketAlt } from "react-icons/fa";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import QrScanner from "../../components/ticketManagement/QrScanner";
@@ -57,11 +57,11 @@ interface ScanResult {
 }
 
 const ScannerPage: React.FC = () => {
-  const { eventId } = useParams<{ eventId: string }>();
+  const { eventId, tokenId } = useParams<{ eventId: string; tokenId?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
-  const { getEventInfo, updateTicketStatus } = useSmartContract();
+  const { getEventInfo, updateTicketStatus, validateTicketAsStaff } = useSmartContract();
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [attendeeData, setAttendeeData] = useState<MockAttendeeData | null>(
@@ -76,6 +76,13 @@ const ScannerPage: React.FC = () => {
   >([]);
 
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  
+  // Individual ticket validation state
+  const [ticketData, setTicketData] = useState<any | null>(null);
+  const [ticketError, setTicketError] = useState<string | null>(null);
+  
+  // Determine if we're in individual ticket mode
+  const isIndividualTicketMode = !!tokenId;
 
   // Context-aware navigation
   const isStaffContext = location.pathname.includes('/staff/');
@@ -142,6 +149,36 @@ const ScannerPage: React.FC = () => {
 
     loadEventDetails();
   }, [eventId, getEventInfo]);
+
+  // Handle individual ticket validation mode
+  useEffect(() => {
+    if (isIndividualTicketMode && tokenId && !ticketData) {
+      const validateIndividualTicket = async () => {
+        console.log(`🎯 Individual ticket mode: validating token ${tokenId} for event ${eventId}`);
+        setIsLoading(true);
+        setTicketError(null);
+
+        try {
+          const validation = await validateTicketAsStaff(tokenId);
+          
+          if (validation && typeof validation === 'object') {
+            console.log(`✅ Individual ticket validation successful:`, validation);
+            setTicketData(validation);
+          } else {
+            console.error(`❌ Individual ticket validation failed:`, validation);
+            setTicketError(`Ticket validation failed - ticket not found or access denied`);
+          }
+        } catch (error) {
+          console.error(`❌ Error validating individual ticket:`, error);
+          setTicketError(`Failed to validate ticket: ${(error as Error).message}`);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      validateIndividualTicket();
+    }
+  }, [isIndividualTicketMode, tokenId, eventId, validateTicketAsStaff, ticketData]);
 
   // Handle direct ticket scan from QR code (with guard against double execution)
   const [hasProcessedTicket, setHasProcessedTicket] = useState<string | null>(null);
@@ -353,6 +390,135 @@ const ScannerPage: React.FC = () => {
             ? item.status === "success"
             : item.status === "failed"
         );
+
+  // Individual ticket validation UI
+  if (isIndividualTicketMode) {
+    return (
+      <Container maxW="4xl" py={8}>
+        <Flex justify="space-between" align="center" mb={6}>
+          <HStack>
+            <Button
+              variant="ghost"
+              leftIcon={<ArrowBackIcon />}
+              onClick={() => navigate(getBackPath())}
+            >
+              Back to Scanner
+            </Button>
+          </HStack>
+        </Flex>
+
+        <Heading size="xl" mb={2} textAlign="center">
+          Ticket Verification
+        </Heading>
+        
+        <Text fontSize="lg" color="gray.600" mb={8} textAlign="center">
+          {eventDetails ? `${eventDetails.name} • Token ID: ${tokenId}` : `Token ID: ${tokenId}`}
+        </Text>
+
+        {isLoading ? (
+          <Box textAlign="center" py={8}>
+            <Text fontSize="lg" mb={4}>Verifying staff access and loading ticket data...</Text>
+          </Box>
+        ) : ticketError ? (
+          <Box bg="red.50" border="1px solid" borderColor="red.200" borderRadius="lg" p={6} textAlign="center">
+            <Heading size="md" color="red.600" mb={2}>Error Loading Ticket</Heading>
+            <Text color="red.600">{ticketError}</Text>
+            <Button 
+              mt={4} 
+              colorScheme="red" 
+              variant="outline"
+              onClick={() => navigate(getBackPath())}
+            >
+              Back to Scanner
+            </Button>
+          </Box>
+        ) : ticketData ? (
+          <Box bg="green.50" border="1px solid" borderColor="green.200" borderRadius="lg" p={6}>
+            <VStack spacing={4} align="stretch">
+              <HStack justify="center">
+                <Icon as={CheckIcon} color="green.500" boxSize={8} />
+                <Heading size="lg" color="green.600">Valid Ticket</Heading>
+              </HStack>
+              
+              <Grid templateColumns="repeat(2, 1fr)" gap={4}>
+                <Box>
+                  <Text fontWeight="bold" color="gray.700">Event:</Text>
+                  <Text>{ticketData.eventName}</Text>
+                </Box>
+                <Box>
+                  <Text fontWeight="bold" color="gray.700">Venue:</Text>
+                  <Text>{ticketData.eventVenue}</Text>
+                </Box>
+                <Box>
+                  <Text fontWeight="bold" color="gray.700">Tier:</Text>
+                  <Text>{ticketData.tierName}</Text>
+                </Box>
+                <Box>
+                  <Text fontWeight="bold" color="gray.700">Status:</Text>
+                  <Badge colorScheme={ticketData.status === 'valid' ? 'green' : 'red'}>
+                    {ticketData.status}
+                  </Badge>
+                </Box>
+                <Box>
+                  <Text fontWeight="bold" color="gray.700">Owner:</Text>
+                  <Text fontSize="sm" fontFamily="mono">
+                    {ticketData.owner ? `${ticketData.owner.slice(0,6)}...${ticketData.owner.slice(-4)}` : 'Unknown'}
+                  </Text>
+                </Box>
+                <Box>
+                  <Text fontWeight="bold" color="gray.700">Price:</Text>
+                  <Text>{ticketData.originalPrice ? `${Number(ticketData.originalPrice) / 1e18} IDRX` : 'Unknown'}</Text>
+                </Box>
+              </Grid>
+
+              {ticketData.canMarkAsUsed && ticketData.status === 'valid' && (
+                <Button 
+                  colorScheme="green" 
+                  size="lg"
+                  onClick={async () => {
+                    try {
+                      setIsLoading(true);
+                      const result = await updateTicketStatus(tokenId);
+                      if (result) {
+                        setTicketData({...ticketData, status: 'used', canMarkAsUsed: false});
+                        toast({
+                          title: "Ticket Marked as Used",
+                          description: "Ticket has been successfully marked as used on the blockchain.",
+                          status: "success",
+                          duration: 3000,
+                          isClosable: true,
+                        });
+                      }
+                    } catch (error) {
+                      toast({
+                        title: "Error",
+                        description: "Failed to mark ticket as used.",
+                        status: "error",
+                        duration: 3000,
+                        isClosable: true,
+                      });
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  }}
+                  isLoading={isLoading}
+                >
+                  Mark as Used
+                </Button>
+              )}
+              
+              <Button 
+                variant="outline" 
+                onClick={() => navigate(getBackPath())}
+              >
+                Back to Scanner
+              </Button>
+            </VStack>
+          </Box>
+        ) : null}
+      </Container>
+    );
+  }
 
   return (
     <Container maxW="container.xl" py={8}>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
   Container,
@@ -55,13 +55,20 @@ export const StaffScanPage: React.FC = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const { address, isConnected } = useAccount();
+  const isMountedRef = useRef(true);
 
   const {
     validateTicketAsStaff,
     updateTicketStatus,
     hasStaffRole,
-    getTicketMetadata,
   } = useSmartContract();
+
+  // Cleanup ref on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const [ticketData, setTicketData] = useState<TicketMetadata | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -82,8 +89,16 @@ export const StaffScanPage: React.FC = () => {
   useEffect(() => {
     const loadTicketAndCheckAccess = async () => {
       if (!tokenId || !isConnected || !address) {
-        setError("Please connect your wallet to access this page");
-        setIsLoading(false);
+        if (isMountedRef.current) {
+          setError("Please connect your wallet to access this page");
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      // Prevent concurrent executions
+      if (isLoading) {
+        console.log("⏸️ Already loading, skipping execution");
         return;
       }
 
@@ -92,8 +107,10 @@ export const StaffScanPage: React.FC = () => {
       console.log(`🎯 Token ID conversion: ${tokenId} → ${cleanTokenId}`);
 
       try {
-        setIsLoading(true);
-        setError(null);
+        if (isMountedRef.current) {
+          setIsLoading(true);
+          setError(null);
+        }
 
         // Check staff role first
         console.log("🔍 Checking staff access for:", address);
@@ -102,28 +119,37 @@ export const StaffScanPage: React.FC = () => {
         const hasManager = await hasStaffRole(3); // MANAGER role
 
         const roleLevel = hasManager ? 3 : hasCheckin ? 2 : hasScanner ? 1 : 0;
-        setStaffRole(roleLevel);
+        
+        if (isMountedRef.current) {
+          setStaffRole(roleLevel);
+        }
 
         if (roleLevel === 0) {
           console.log("❌ No staff access - redirecting to public page");
-          setHasAccess(false);
-          
-          toast({
-            title: "Staff Access Required",
-            description: "You need SCANNER role or higher to scan tickets. Redirecting to public view...",
-            status: "warning",
-            duration: 5000,
-            isClosable: true,
-          });
+          if (isMountedRef.current) {
+            setHasAccess(false);
+            
+            toast({
+              title: "Staff Access Required",
+              description: "You need SCANNER role or higher to scan tickets. Redirecting to public view...",
+              status: "warning",
+              duration: 5000,
+              isClosable: true,
+            });
+          }
 
           // Redirect to public NFT page after 2 seconds
           setTimeout(() => {
-            navigate(`/ticket/${tokenId}`);
+            if (isMountedRef.current) {
+              navigate(`/ticket/${tokenId}`);
+            }
           }, 2000);
           return;
         }
 
-        setHasAccess(true);
+        if (isMountedRef.current) {
+          setHasAccess(true);
+        }
         console.log(`✅ Staff access granted - Role level: ${roleLevel}`);
 
         // Load ticket metadata using contract functions
@@ -131,9 +157,40 @@ export const StaffScanPage: React.FC = () => {
         
         try {
           // Validate ticket with staff privileges first to get full data
-          const validation = await validateTicketAsStaff(cleanTokenId);
+          console.log("🔄 Starting ticket validation...");
           
-          if (validation) {
+          // Add retry logic for temporary network issues
+          let validation = null;
+          let retryCount = 0;
+          const maxRetries = 3;
+          
+          while (retryCount < maxRetries && !validation) {
+            try {
+              console.log(`🔄 Validation attempt ${retryCount + 1}/${maxRetries}...`);
+              validation = await validateTicketAsStaff(cleanTokenId);
+              
+              if (validation && typeof validation === 'object') {
+                console.log(`✅ Validation successful on attempt ${retryCount + 1}:`, validation);
+                break;
+              } else {
+                console.warn(`⚠️ Validation attempt ${retryCount + 1} returned:`, validation);
+                retryCount++;
+                if (retryCount < maxRetries) {
+                  console.log(`🔄 Retrying in 1 second... (${retryCount}/${maxRetries})`);
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+              }
+            } catch (attemptError) {
+              console.error(`❌ Validation attempt ${retryCount + 1} failed:`, attemptError);
+              retryCount++;
+              if (retryCount < maxRetries) {
+                console.log(`🔄 Retrying in 1 second after error... (${retryCount}/${maxRetries})`);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+            }
+          }
+          
+          if (validation && typeof validation === 'object') {
             const ticketInfo: TicketMetadata = {
               tokenId: cleanTokenId,
               eventName: validation.eventName || "Unknown Event",
@@ -149,28 +206,40 @@ export const StaffScanPage: React.FC = () => {
               canMarkAsUsed: validation.canMarkAsUsed || validation.status === "valid"
             };
 
-            setTicketData(ticketInfo);
-            console.log("✅ Ticket data loaded:", ticketInfo);
+            if (isMountedRef.current) {
+              setTicketData(ticketInfo);
+              console.log("✅ Final ticket data loaded:", ticketInfo);
+            }
 
           } else {
-            throw new Error("Ticket validation failed - ticket not found or access denied");
+            console.error("❌ All validation attempts failed. Final result:", validation);
+            throw new Error(`Ticket validation failed after ${maxRetries} attempts - unable to load ticket data`);
           }
 
         } catch (metadataError) {
-          console.error("Error loading metadata:", metadataError);
-          setError(`Failed to load ticket metadata: ${(metadataError as Error).message}`);
+          console.error("❌ Error in ticket validation process:", metadataError);
+          if (isMountedRef.current) {
+            setError(`Failed to load ticket metadata: ${(metadataError as Error).message}`);
+          }
         }
 
       } catch (err) {
         console.error("Error loading ticket data:", err);
-        setError(`Failed to validate ticket: ${(err as Error).message}`);
+        if (isMountedRef.current) {
+          setError(`Failed to validate ticket: ${(err as Error).message}`);
+        }
       } finally {
-        setIsLoading(false);
+        if (isMountedRef.current) {
+          setIsLoading(false);
+        }
       }
     };
 
-    loadTicketAndCheckAccess();
-  }, [tokenId, address, isConnected, hasStaffRole, validateTicketAsStaff, getTicketMetadata, navigate, toast]);
+    // Prevent multiple concurrent executions
+    if (!isLoading) {
+      loadTicketAndCheckAccess();
+    }
+  }, [tokenId, address, isConnected]); // Remove function dependencies that cause re-execution
 
   const handleMarkAsUsed = async () => {
     if (!tokenId || !ticketData) return;

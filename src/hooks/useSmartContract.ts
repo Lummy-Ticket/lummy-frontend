@@ -1641,12 +1641,22 @@ export const useSmartContract = () => {
    */
   const validateTicketAsStaff = useCallback(
     async (tokenId: string) => {
+      console.log(`🔄 validateTicketAsStaff called with tokenId: ${tokenId}`);
+      
       if (!walletClient || !address) {
+        console.error("❌ Wallet not connected:", { walletClient: !!walletClient, address });
         setError("Wallet not connected");
         return null;
       }
 
+      if (!publicClient) {
+        console.error("❌ Public client not available");
+        setError("Public client not available");
+        return null;
+      }
+
       setError(null);
+      console.log(`✅ Starting validation for token ${tokenId}`);
 
       try {
         // Debug staff privileges
@@ -1671,19 +1681,23 @@ export const useSmartContract = () => {
         console.log(`🔄 Using direct TicketNFT approach to bypass msg.sender validation...`);
         
         // Get basic ticket info from TicketNFT directly
-        const owner = await publicClient?.readContract({
+        console.log(`🔄 Getting owner of token ${tokenId}...`);
+        const owner = await publicClient.readContract({
           address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
           abi: TICKET_NFT_ABI,
           functionName: "ownerOf",
           args: [BigInt(tokenId)],
         }) as string;
+        console.log(`✅ Owner found:`, owner);
         
-        const status = await publicClient?.readContract({
+        console.log(`🔄 Getting ticket status...`);
+        const status = await publicClient.readContract({
           address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
           abi: TICKET_NFT_ABI,
           functionName: "getTicketStatus",
           args: [BigInt(tokenId)],
         }) as string;
+        console.log(`✅ Status found:`, status);
         
         // Set validation results
         const isValid = status === "valid";
@@ -1691,36 +1705,35 @@ export const useSmartContract = () => {
         
         console.log(`🔍 Direct TicketNFT validation result:`, { isValid, owner, tierId, status });
 
-        // Get enhanced metadata
-        const metadata = await publicClient?.readContract({
-          address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
-          abi: TICKET_NFT_ABI,
-          functionName: "getTicketMetadata",
-          args: [BigInt(tokenId)],
-        });
-
-        // Get event info
-        const eventInfo = await getEventInfo();
-
-        if (metadata && eventInfo) {
-          const ticketMetadata = metadata as any;
-          return {
-            tokenId,
-            isValid,
-            owner,
-            tierId: Number(tierId),
-            status,
-            eventId: eventInfo.eventId ? eventInfo.eventId.toString() : "1",
-            eventName: ticketMetadata.eventName || eventInfo.name || "Unknown Event",
-            eventVenue: ticketMetadata.eventVenue || eventInfo.venue || "Unknown Venue",
-            tierName: ticketMetadata.tierName || "Unknown Tier",
-            originalPrice: ticketMetadata.originalPrice || BigInt(0),
-            transferCount: Number(ticketMetadata.transferCount || 0),
-            canMarkAsUsed: status === 'valid' && isValid
-          };
+        // Get enhanced metadata with error handling
+        let metadata = null;
+        let eventInfo = null;
+        
+        try {
+          console.log(`🔄 Fetching ticket metadata for token ${tokenId}...`);
+          metadata = await publicClient.readContract({
+            address: CONTRACT_ADDRESSES.TicketNFT as `0x${string}`,
+            abi: TICKET_NFT_ABI,
+            functionName: "getTicketMetadata", 
+            args: [BigInt(tokenId)],
+          });
+          console.log(`✅ Metadata fetched:`, metadata);
+        } catch (metadataError) {
+          console.error(`❌ Failed to get ticket metadata:`, metadataError);
+          // Continue without metadata
         }
 
-        return {
+        try {
+          console.log(`🔄 Fetching event info...`);
+          eventInfo = await getEventInfo();
+          console.log(`✅ Event info fetched:`, eventInfo);
+        } catch (eventError) {
+          console.error(`❌ Failed to get event info:`, eventError);
+          // Continue without event info
+        }
+
+        // Build response with available data
+        const baseResponse = {
           tokenId,
           isValid,
           owner,
@@ -1728,13 +1741,68 @@ export const useSmartContract = () => {
           status,
           canMarkAsUsed: status === 'valid' && isValid
         };
+
+        // If we have both metadata and event info, return full response
+        if (metadata && eventInfo) {
+          const ticketMetadata = metadata as any;
+          return {
+            ...baseResponse,
+            eventId: eventInfo.eventId ? eventInfo.eventId.toString() : "1",
+            eventName: ticketMetadata.eventName || eventInfo.name || "Unknown Event",
+            eventVenue: ticketMetadata.eventVenue || eventInfo.venue || "Unknown Venue", 
+            tierName: ticketMetadata.tierName || "Unknown Tier",
+            originalPrice: ticketMetadata.originalPrice || BigInt(0),
+            transferCount: Number(ticketMetadata.transferCount || 0),
+          };
+        }
+
+        // If we only have event info, use that
+        if (eventInfo) {
+          return {
+            ...baseResponse,
+            eventId: eventInfo.eventId ? eventInfo.eventId.toString() : "1",
+            eventName: eventInfo.name || "Unknown Event",
+            eventVenue: eventInfo.venue || "Unknown Venue",
+            tierName: "Unknown Tier",
+            originalPrice: BigInt(0),
+            transferCount: 0,
+          };
+        }
+
+        // If we only have metadata, use that  
+        if (metadata) {
+          const ticketMetadata = metadata as any;
+          return {
+            ...baseResponse,
+            eventId: "1",
+            eventName: ticketMetadata.eventName || "Unknown Event",
+            eventVenue: ticketMetadata.eventVenue || "Unknown Venue",
+            tierName: ticketMetadata.tierName || "Unknown Tier", 
+            originalPrice: ticketMetadata.originalPrice || BigInt(0),
+            transferCount: Number(ticketMetadata.transferCount || 0),
+          };
+        }
+
+        // Fallback: return basic response (this was causing the null issue)
+        console.log(`⚠️ Returning basic validation data without metadata`);
+        const fallbackResponse = {
+          ...baseResponse,
+          eventId: "1",
+          eventName: "Unknown Event",
+          eventVenue: "Unknown Venue", 
+          tierName: "Unknown Tier",
+          originalPrice: BigInt(0),
+          transferCount: 0,
+        };
+        console.log(`✅ Fallback response:`, fallbackResponse);
+        return fallbackResponse;
       } catch (err) {
         console.error("Error validating ticket as staff:", err);
         setError(parseContractError(err));
         return null;
       }
     },
-    [walletClient, address, publicClient, hasStaffRole, getEventInfo]
+    [walletClient, address, publicClient] // Remove function dependencies to prevent recreation
   );
 
   /**

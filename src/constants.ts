@@ -80,3 +80,4 @@ export const CHAIN_CONFIG = {
   rpcUrl: "https://rpc.sepolia-api.lisk.com",
   blockExplorer: "https://sepolia-blockscout.lisk.com",
 } as const;
+
