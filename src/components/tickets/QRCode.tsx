@@ -19,13 +19,13 @@ export const QRCode: React.FC<QRCodeProps> = ({
   
   // Generate QR code data for staff scanner access
   const generateQRData = () => {
-    if (DEVELOPMENT_CONFIG.ENABLE_BLOCKCHAIN) {
-      // Real implementation: Direct to local development staff scanner with event context
-      return `http://localhost:5173/staff/event/${eventId}/scanner/${cleanTokenId}`;
-    } else {
-      // Mock implementation: Use event context for testing
-      return `http://localhost:5173/staff/event/${eventId}/scanner/${cleanTokenId}`;
-    }
+    // Get current base URL (dynamic for localhost/production)
+    const baseUrl = typeof window !== 'undefined' 
+      ? `${window.location.protocol}//${window.location.host}`
+      : 'http://localhost:5173';
+    
+    // Generate staff scanner URL with proper base URL
+    return `${baseUrl}/staff/event/${eventId}/scanner/${cleanTokenId}`;
   };
 
   const qrData = generateQRData();
